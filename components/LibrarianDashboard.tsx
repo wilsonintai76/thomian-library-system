@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  BookOpen, 
-  Users, 
-  AlertCircle, 
-  TrendingUp, 
-  ArrowRight, 
-  PlusCircle, 
-  Search, 
-  Clock, 
+import {
+  LayoutDashboard,
+  BookOpen,
+  Users,
+  AlertCircle,
+  TrendingUp,
+  ArrowRight,
+  PlusCircle,
+  Search,
+  Clock,
   History,
   CheckCircle2,
   Zap,
@@ -18,11 +18,11 @@ import {
   Calendar
 } from 'lucide-react';
 import { SystemStats, Book, Loan, Transaction } from '../types';
-import { 
-  mockGetSystemStats, 
-  mockGetRecentActivity, 
-  mockGetOverdueItems 
-} from '../services/mockApi';
+import {
+  mockGetSystemStats,
+  mockGetRecentActivity,
+  mockGetOverdueItems
+} from '../services/api';
 
 interface LibrarianDashboardProps {
   onSelectTab: (tab: any) => void;
@@ -64,7 +64,7 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
 
   return (
     <div className="p-6 md:p-10 max-w-[1700px] mx-auto h-full flex flex-col gap-8 animate-fade-in-up pb-32">
-      
+
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
@@ -73,13 +73,13 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
           </h2>
           <p className="text-slate-500 font-medium mt-1">Real-time overview of library circulation and collection health.</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl border border-emerald-100 flex items-center gap-2">
             <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
             <span className="text-[10px] font-black uppercase tracking-widest">System Online</span>
           </div>
-          <button 
+          <button
             onClick={loadDashboardData}
             className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-slate-400 hover:text-sky-600"
           >
@@ -90,70 +90,70 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
 
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <QuickStat 
-          label="Active Loans" 
-          value={stats.activeLoans} 
-          subtext="Items currently out" 
-          icon={BookOpen} 
-          color="sky" 
+        <QuickStat
+          label="Active Loans"
+          value={stats.activeLoans}
+          subtext="Items currently out"
+          icon={BookOpen}
+          color="sky"
           onClick={() => onSelectTab('CIRCULATION')}
         />
-        <QuickStat 
-          label="Overdue Risk" 
-          value={stats.overdueLoans} 
-          subtext="Pending returns" 
-          icon={AlertCircle} 
-          color="rose" 
+        <QuickStat
+          label="Overdue Risk"
+          value={stats.overdueLoans}
+          subtext="Pending returns"
+          icon={AlertCircle}
+          color="rose"
           onClick={() => onSelectTab('REPORTS')}
         />
-        <QuickStat 
-          label="Total Collection" 
-          value={stats.totalItems} 
-          subtext="Cataloged assets" 
-          icon={LayoutDashboard} 
-          color="indigo" 
+        <QuickStat
+          label="Total Collection"
+          value={stats.totalItems}
+          subtext="Cataloged assets"
+          icon={LayoutDashboard}
+          color="indigo"
           onClick={() => onSelectTab('CATALOG')}
         />
-        <QuickStat 
-          label="Active Patrons" 
+        <QuickStat
+          label="Active Patrons"
           value={stats.topReaders.length * 12} // Mocked multiplier for dashboard feel
-          subtext="Registered entities" 
-          icon={Users} 
-          color="emerald" 
+          subtext="Registered entities"
+          icon={Users}
+          color="emerald"
           onClick={() => onSelectTab('PATRONS')}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         {/* Quick Actions Panel */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover:bg-sky-500/20 transition-all"></div>
             <h3 className="text-xl font-black uppercase tracking-tight mb-6 relative z-10">Quick Operations</h3>
             <div className="grid grid-cols-1 gap-3 relative z-10">
-              <ActionButton 
-                label="Check-Out Session" 
-                icon={ArrowRight} 
-                onClick={() => onSelectTab('CIRCULATION')} 
+              <ActionButton
+                label="Check-Out Session"
+                icon={ArrowRight}
+                onClick={() => onSelectTab('CIRCULATION')}
                 color="bg-sky-600 hover:bg-sky-500"
               />
-              <ActionButton 
-                label="Process Returns" 
-                icon={History} 
-                onClick={() => onSelectTab('CIRCULATION')} 
+              <ActionButton
+                label="Process Returns"
+                icon={History}
+                onClick={() => onSelectTab('CIRCULATION')}
                 color="bg-emerald-600 hover:bg-emerald-500"
               />
-              <ActionButton 
-                label="Catalog New Asset" 
-                icon={PlusCircle} 
-                onClick={() => onSelectTab('CATALOG')} 
+              <ActionButton
+                label="Catalog New Asset"
+                icon={PlusCircle}
+                onClick={() => onSelectTab('CATALOG')}
                 color="bg-indigo-600 hover:bg-indigo-500"
               />
-              <ActionButton 
-                label="Search Directory" 
-                icon={Search} 
-                onClick={() => onSelectTab('PATRONS')} 
+              <ActionButton
+                label="Search Directory"
+                icon={Search}
+                onClick={() => onSelectTab('PATRONS')}
                 color="bg-slate-700 hover:bg-slate-600"
               />
             </div>
@@ -181,14 +181,14 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
                 <Clock className="h-6 w-6 text-slate-400" />
                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Live Circulation Stream</h3>
               </div>
-              <button 
+              <button
                 onClick={() => onSelectTab('REPORTS')}
                 className="text-[10px] font-black text-sky-600 uppercase tracking-widest hover:underline"
               >
                 View Full Audit Log
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-4 space-y-2 max-h-[600px] scrollbar-thin">
               {recentActivity.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-300 italic">
@@ -229,7 +229,7 @@ const QuickStat = ({ label, value, subtext, icon: Icon, color, onClick }: any) =
   };
 
   return (
-    <button 
+    <button
       onClick={onClick}
       className={`p-8 rounded-[2.5rem] border-2 ${colors[color]} transition-all text-left group relative overflow-hidden active:scale-95 shadow-sm`}
     >
@@ -246,7 +246,7 @@ const QuickStat = ({ label, value, subtext, icon: Icon, color, onClick }: any) =
 };
 
 const ActionButton = ({ label, icon: Icon, onClick, color }: any) => (
-  <button 
+  <button
     onClick={onClick}
     className={`w-full p-5 ${color} rounded-2xl flex items-center justify-between transition-all active:scale-[0.98] shadow-lg group`}
   >
