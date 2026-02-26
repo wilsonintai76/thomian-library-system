@@ -1,0 +1,7 @@
+{
+  "name": "Thomian Library System",
+  "description": "A professional-grade Library Information System for St. Thomas Secondary School, featuring a student kiosk with wayfinding and a librarian dashboard for cataloging and circulation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
