@@ -25,13 +25,7 @@ COPY . .
 RUN mkdir -p /app/media /app/staticfiles
 
 # Script to run migrations and start gunicorn
-COPY <<EOF /app/start.sh
-#!/bin/bash
-python manage.py migrate --noinput
-python manage.py collectstatic --noinput
-gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 backend.wsgi:application
-EOF
-
+RUN printf "#!/bin/bash\npython manage.py migrate --noinput\npython manage.py collectstatic --noinput\ngunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 backend.wsgi:application\n" > /app/start.sh
 RUN chmod +x /app/start.sh
 
 EXPOSE 8000

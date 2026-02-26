@@ -192,7 +192,16 @@ export const mockDeleteCirculationRule = async (id: string): Promise<void> => re
 
 export const mockGetMapConfig = async (): Promise<MapConfig> => {
     const d = await request<any>('GET', '/system-config/', undefined, true);
-    return { ...d.map_data, logo: d.logo, lastUpdated: new Date().toISOString() } as MapConfig;
+    const mapData = d.map_data || {};
+    return {
+        levels: [],
+        shelves: [],
+        theme: 'EMERALD',
+        cardTemplate: 'TRADITIONAL',
+        ...mapData,
+        logo: d.logo,
+        lastUpdated: new Date().toISOString()
+    } as MapConfig;
 };
 export const mockSaveMapConfig = async (c: MapConfig): Promise<void> => {
     await request('POST', '/system-config/update_config/', { map_data: c, logo: c.logo ?? null });
