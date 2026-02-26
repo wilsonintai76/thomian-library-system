@@ -6,9 +6,11 @@
 import * as mock from './mockApi';
 import * as real from './realApi';
 
-// Determine mode from localStorage
+// Determine mode from localStorage - Default to FALSE (Real API)
 export const isDemoMode = (): boolean => {
-    return localStorage.getItem('thomian_demo_mode') === 'true';
+    const stored = localStorage.getItem('thomian_demo_mode');
+    if (stored === null) return false; // Default to real API
+    return stored === 'true';
 };
 
 export const setDemoMode = (val: boolean) => {
@@ -18,20 +20,10 @@ export const setDemoMode = (val: boolean) => {
 
 const getProvider = () => (isDemoMode() ? mock : real);
 
-// ── Shared Re-exports ────────────────────────────────────────────────────────
+// ── Shared Re-exports (Pure Utilities) ───────────────────────────────────────
 export {
-    aiAnalyzeBlueprint,
     generateBookZpl,
     generatePatronZpl,
-    mockPrintBookLabel,
-    mockPrintPatronCard,
-    mockBulkPrintPatrons,
-    mockBulkPrintLabels,
-    exportSystemData,
-    importSystemData,
-    performFactoryReset,
-    getLanUrl,
-    setLanUrl,
 } from './mockApi';
 
 // ── Dynamic Provider Methods ────────────────────────────────────────────────
@@ -98,3 +90,29 @@ export const mockGetRecentActivity = () => getProvider().mockGetRecentActivity()
 
 export const initializeNetwork = () => getProvider().initializeNetwork();
 export const getNetworkStatus = () => getProvider().getNetworkStatus();
+
+// These are typically only in mockApi but we route them for safety
+export const exportSystemData = () => (getProvider() as any).exportSystemData?.();
+export const importSystemData = (d: any) => (getProvider() as any).importSystemData?.(d);
+
+export const performFactoryReset = async () => {
+    // Clear all library-related keys from localStorage
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('thomian_')) {
+            localStorage.removeItem(key);
+        }
+    });
+    // If the provider has its own reset logic, call it
+    await (getProvider() as any).performFactoryReset?.();
+    window.location.reload();
+};
+
+export const getLanUrl = () => mock.getLanUrl();
+export const setLanUrl = (u: any) => mock.setLanUrl(u);
+
+// Print methods (usually local/bypass backend)
+export const mockPrintBookLabel = (b: any) => mock.mockPrintBookLabel(b);
+export const mockPrintPatronCard = (p: any) => mock.mockPrintPatronCard(p);
+export const mockBulkPrintPatrons = (p: any) => mock.mockBulkPrintPatrons(p);
+export const mockBulkPrintLabels = (b: any) => mock.mockBulkPrintLabels(b);
+export const aiAnalyzeBlueprint = (i: any, l: any) => mock.aiAnalyzeBlueprint(i, l);

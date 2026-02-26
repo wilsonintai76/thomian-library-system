@@ -132,8 +132,7 @@ export const importSystemData = async (jsonString: string): Promise<boolean> => 
 };
 
 export const performFactoryReset = async (): Promise<void> => {
-    const keysToRemove = [STORAGE_KEY_BOOKS, STORAGE_KEY_TRANSACTIONS, STORAGE_KEY_PATRONS, STORAGE_KEY_CLASSES, STORAGE_KEY_EVENTS, STORAGE_KEY_RULES, STORAGE_KEY_ALERTS, STORAGE_KEY_MAP];
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+    localStorage.clear();
     await new Promise(r => setTimeout(r, 500));
 };
 
