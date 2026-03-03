@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import html2canvas from 'html2canvas';
+
 import { Users, Search, Loader2, Banknote, History, Download, Archive, UserPlus, Building2, RefreshCw, Edit, UserMinus, Mail, Phone, GraduationCap, IdCard, Printer, ShieldCheck, Filter, ChevronDown, X } from 'lucide-react';
 import { Patron, Transaction, AuthUser, MapConfig, LibraryClass } from '../types';
 import { mockGetPatrons, mockUpdatePatron, mockGetMapConfig, mockRecordTransaction, mockGetTransactionsByPatron, mockCheckSession, mockPrintPatronCard, mockBulkPrintPatrons, mockAddPatron, mockDeletePatron, mockGetClasses, mockRestorePatron } from '../services/api';
@@ -125,27 +125,48 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
     const [zebraSent, setZebraSent] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
 
-    const handlePdfPrint = async () => {
+    const handlePdfPrint = () => {
         const area = document.getElementById('card-print-area');
         if (!area) return;
         setIsPrinting(true);
         try {
-            // Capture each card individually at 2× scale for crisp output
+            // Grab rendered HTML of every card wrapper directly — no canvas, no screenshot.
+            // At CSS 96dpi: 324px = 85.6mm and 204px = 54mm exactly (CR80 ISO).
             const cardEls = area.querySelectorAll<HTMLElement>(':scope > div');
-            const canvases = await Promise.all(
-                Array.from(cardEls).map(el =>
-                    html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null })
-                )
-            );
-            // Build a print window with the captured images
+            const cardHTMLs = Array.from(cardEls).map(el => el.outerHTML);
+
+            // Copy all stylesheets from the current page so Tailwind + inline styles resolve correctly.
+            const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+                .map(l => (l as HTMLElement).outerHTML).join('\n');
+            const inlineStyles = Array.from(document.querySelectorAll('style'))
+                .map(s => `<style>${(s as HTMLStyleElement).innerHTML}</style>`).join('\n');
+
+            const CARDS_PER_PAGE = 8;
+            const pages: string[][] = [];
+            for (let i = 0; i < cardHTMLs.length; i += CARDS_PER_PAGE) {
+                pages.push(cardHTMLs.slice(i, i + CARDS_PER_PAGE));
+            }
+
+            const pageBlocks = pages.map((pageCards, pi) => {
+                const cells = pageCards.join('');
+                const brk = pi < pages.length - 1 ? 'break-after:page;' : '';
+                return `<div style="display:grid;grid-template-columns:85.6mm 85.6mm;column-gap:10mm;row-gap:6mm;justify-content:center;${brk}">${cells}</div>`;
+            }).join('');
+
             const printWin = window.open('', '_blank')!;
-            const isBatch = canvases.length > 1;
-            const imgs = canvases.map(c => `<img src="${c.toDataURL('image/png')}" style="display:block;width:${isBatch ? '45%' : 'auto'};max-width:100%;margin:8px auto;box-shadow:0 2px 12px #0002;border-radius:12px;" />`);
-            printWin.document.write(`<!DOCTYPE html><html><head><title>Patron Card</title><style>
-                body{margin:0;padding:16px;background:#f1f5f9;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:flex-start;}
-                img{page-break-inside:avoid;}
-                @media print{body{background:white;padding:0;gap:8px;}}
-            </style></head><body>${imgs.join('')}<script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+            printWin.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Patron Cards</title>
+${styleLinks}
+${inlineStyles}
+<style>
+  @page { size: A4 portrait; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { background: white; margin: 0; padding: 0; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head><body>${pageBlocks}
+<script>window.onload=function(){window.print();};<\/script>
+</body></html>`);
             printWin.document.close();
         } finally {
             setIsPrinting(false);
@@ -254,7 +275,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                         </h3>
                         <div id="card-print-area" className="flex flex-wrap justify-center gap-10 print:gap-4 print:justify-start">
                             {bulkPreviewPatrons.map((patron, idx) => (
-                                <div key={idx}>
+                                <div key={idx} style={{width:324, height:204, overflow:'hidden', flexShrink:0}}>
                                     <PatronCard patron={patron} config={mapConfig} />
                                 </div>
                             ))}
@@ -340,6 +361,15 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                     </div>
 
                     <div className="h-10 w-px bg-slate-200 mx-2 hidden lg:block" />
+
+                    {selectedPatronIds.size > 0 && (
+                        <button
+                            onClick={() => handlePrintRequest(filteredPatrons.filter(p => selectedPatronIds.has(p.student_id)))}
+                            className="bg-sky-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-sky-700 flex items-center gap-2 transition-all active:scale-95"
+                        >
+                            <IdCard className="h-4 w-4" /> Print Cards ({selectedPatronIds.size})
+                        </button>
+                    )}
 
                     <button
                         onClick={() => setIsRollOverOpen(true)}

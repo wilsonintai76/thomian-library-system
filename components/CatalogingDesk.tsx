@@ -142,7 +142,44 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   };
 
   const handlePrintAction = () => {
-    window.print();
+    const area = document.querySelector<HTMLElement>('.print-area');
+    if (!area) return;
+    const labelEls = area.querySelectorAll<HTMLElement>(':scope > div');
+    const labelHTMLs = Array.from(labelEls).map(el => el.outerHTML);
+
+    const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map(l => (l as HTMLElement).outerHTML).join('\n');
+    const inlineStyles = Array.from(document.querySelectorAll('style'))
+      .map(s => `<style>${(s as HTMLStyleElement).innerHTML}</style>`).join('\n');
+
+    const cols = printLayout === 'SHEET' ? 5 : 1;
+    const LABEL_W = '1.5in';
+    const LABELS_PER_PAGE = printLayout === 'SHEET' ? 50 : 10;
+    const pages: string[][] = [];
+    for (let i = 0; i < labelHTMLs.length; i += LABELS_PER_PAGE) {
+      pages.push(labelHTMLs.slice(i, i + LABELS_PER_PAGE));
+    }
+
+    const pageBlocks = pages.map((pageLabels, pi) => {
+      const brk = pi < pages.length - 1 ? 'break-after:page;' : '';
+      return `<div style="display:grid;grid-template-columns:repeat(${cols},${LABEL_W});gap:2mm;justify-content:center;${brk}">${pageLabels.join('')}</div>`;
+    }).join('');
+
+    const printWin = window.open('', '_blank')!;
+    printWin.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Book Labels</title>
+${styleLinks}
+${inlineStyles}
+<style>
+  @page { size: A4 portrait; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { background: white; margin: 0; padding: 0; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head><body>${pageBlocks}
+<script>window.onload=function(){window.print();};<\/script>
+</body></html>`);
+    printWin.document.close();
   };
 
   const startBlankAsset = () => {

@@ -86,6 +86,7 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
     cardDark: string;
     cardLight: string;
     accentHex: string;
+    cardDarkHex: string;
 }> = {
     EMERALD: {
         navBg: 'bg-emerald-50/90',
@@ -103,7 +104,8 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardPrimary: 'bg-emerald-600',
         cardDark: 'bg-emerald-900',
         cardLight: 'bg-emerald-50',
-        accentHex: '#059669'
+        accentHex: '#059669',
+        cardDarkHex: '#064e3b'
     },
     PURPLE: {
         navBg: 'bg-purple-50/90',
@@ -121,7 +123,8 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardPrimary: 'bg-purple-600',
         cardDark: 'bg-purple-900',
         cardLight: 'bg-purple-50',
-        accentHex: '#9333ea'
+        accentHex: '#9333ea',
+        cardDarkHex: '#581c87'
     },
     SKY: {
         navBg: 'bg-sky-50/90',
@@ -139,7 +142,8 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardPrimary: 'bg-sky-600',
         cardDark: 'bg-sky-900',
         cardLight: 'bg-sky-50',
-        accentHex: '#0284c7'
+        accentHex: '#0284c7',
+        cardDarkHex: '#0c4a6e'
     },
     MIDNIGHT: {
         navBg: 'bg-slate-900/95',
@@ -157,7 +161,8 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardPrimary: 'bg-slate-800',
         cardDark: 'bg-slate-950',
         cardLight: 'bg-slate-800',
-        accentHex: '#38bdf8'
+        accentHex: '#38bdf8',
+        cardDarkHex: '#020617'
     },
     WHITE: {
         navBg: 'bg-white/95',
@@ -175,7 +180,8 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardPrimary: 'bg-slate-900',
         cardDark: 'bg-slate-900',
         cardLight: 'bg-slate-50',
-        accentHex: '#64748b'
+        accentHex: '#64748b',
+        cardDarkHex: '#0f172a'
     }
 };
 

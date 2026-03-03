@@ -124,6 +124,7 @@ export interface SystemStats {
   activeLoans: number;
   overdueLoans: number;
   lostItems: number;
+  activePatrons: number;
   itemsByClassification: Record<string, { count: number, loans: number }>;
   itemsByStatus: Record<string, number>;
   topReaders: { name: string, id: string, count: number }[];

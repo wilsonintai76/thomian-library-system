@@ -182,12 +182,15 @@ class CatalogViewSet(viewsets.ModelViewSet):
             for item in top_readers
         ]
 
+        active_patrons = Patron.objects.filter(is_archived=False, is_blocked=False).count()
+
         return Response({
             'totalItems': stats_data['total_items'],
             'totalValue': float(stats_data['total_value'] or 0),
             'activeLoans': active_loans.count(),
             'overdueLoans': overdue.count(),
             'lostItems': stats_data['lost_items'],
+            'activePatrons': active_patrons,
             'itemsByClassification': classification_data,
             'itemsByStatus': status_data,
             'topReaders': top_readers_formatted,

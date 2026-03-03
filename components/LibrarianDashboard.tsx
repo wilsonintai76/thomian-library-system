@@ -116,7 +116,7 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
         />
         <QuickStat
           label="Active Patrons"
-          value={stats.topReaders.length * 12} // Mocked multiplier for dashboard feel
+          value={stats.activePatrons ?? 0}
           subtext="Registered entities"
           icon={Users}
           color="emerald"
