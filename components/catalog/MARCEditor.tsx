@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect } from 'react';
-import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown } from 'lucide-react';
+import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe } from 'lucide-react';
 import { Book } from '../../types';
 import { getClassificationFromDDC, DEWEY_CATEGORIES, getStarterDdcForClassification } from '../../utils';
 import BookLabel from '../BookLabel';
@@ -115,7 +115,7 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                     {/* SECTION 2: PUBLICATION & PHYSICAL */}
                     <div className="space-y-6">
                         <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2"><Building className="h-4 w-4" /> 2. Publication & Physical Description</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-indigo-50/30 rounded-3xl border border-indigo-100">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-6 bg-indigo-50/30 rounded-3xl border border-indigo-100">
                             <div>
                                 <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">Publisher</label>
                                 <input type="text" value={book.publisher || ''} onChange={(e) => setBook({ ...book, publisher: e.target.value })} className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold text-indigo-900 outline-none focus:border-indigo-500" placeholder="e.g. Penguin Books" />
@@ -123,6 +123,22 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                             <div>
                                 <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">Year</label>
                                 <input type="text" maxLength={4} value={book.pub_year || ''} onChange={(e) => setBook({ ...book, pub_year: e.target.value.replace(/\D/g,'') })} className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold text-indigo-900 outline-none focus:border-indigo-500 text-center" placeholder="2024" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-1"><Globe className="h-3 w-3" /> Language</label>
+                                <select title="Language" value={book.language || 'English'} onChange={(e) => setBook({ ...book, language: e.target.value })} className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold text-indigo-900 outline-none focus:border-indigo-500 bg-white">
+                                    <option value="English">English</option>
+                                    <option value="Malay">Malay</option>
+                                    <option value="Chinese">Chinese</option>
+                                    <option value="Tamil">Tamil</option>
+                                    <option value="Arabic">Arabic</option>
+                                    <option value="French">French</option>
+                                    <option value="Spanish">Spanish</option>
+                                    <option value="German">German</option>
+                                    <option value="Japanese">Japanese</option>
+                                    <option value="Korean">Korean</option>
+                                    <option value="Other">Other</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">Material Format</label>
@@ -134,7 +150,7 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                                     <option value="DIGITAL">Digital Resource</option>
                                 </select>
                             </div>
-                            <div className="md:col-span-3">
+                            <div className="md:col-span-4">
                                 <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">ISBN / Identifiers</label>
                                 <input type="text" value={book.isbn || ''} onChange={(e) => setBook({ ...book, isbn: e.target.value })} className="w-full rounded-xl border-2 border-indigo-100 p-3 font-mono font-bold text-indigo-900 outline-none focus:border-indigo-500" placeholder="978..." />
                             </div>

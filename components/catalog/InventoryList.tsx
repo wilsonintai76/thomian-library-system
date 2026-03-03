@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Building, MapPin, DollarSign, Edit3, Printer, Trash2, ShieldCheck, Loader2, Download, Filter, ChevronDown } from 'lucide-react';
+import { BookOpen, Building, MapPin, DollarSign, Edit3, Printer, Trash2, ShieldCheck, Loader2, Download, Filter, ChevronDown, Globe } from 'lucide-react';
 import { Book } from '../../types';
 import { exportToCSV, DEWEY_CATEGORIES } from '../../utils';
 
@@ -67,6 +67,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
             'Status': b.status,
             'Location': b.shelf_location,
             'Publisher': b.publisher || '',
+            'Language': b.language || '',
             'Value': b.value.toFixed(2)
         }));
         exportToCSV(exportData, 'Thomian_Catalog_Registry');
@@ -185,6 +186,12 @@ const InventoryList: React.FC<InventoryListProps> = ({
                                                     {book.publisher || 'Unlisted'} • {book.pub_year || '????'}
                                                 </span>
                                             </div>
+                                            {book.language && (
+                                                <div className="flex items-center gap-1.5 mt-0.5 opacity-50">
+                                                    <Globe className="h-3 w-3 text-slate-400" />
+                                                    <span className="text-[10px] font-black uppercase tracking-tighter">{book.language}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </td>

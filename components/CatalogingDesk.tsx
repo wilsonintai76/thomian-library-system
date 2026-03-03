@@ -88,14 +88,17 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     try {
       if (result.id) {
         await mockUpdateBook(result as BookType);
-        alert("Record updated in core directory.");
+        setResult(null);
+        setIsbn('');
+        setView('LIST');
       } else {
         await mockAddBook({ ...result, isbn: isbn || result.isbn } as BookType);
-        alert("New asset accessioned.");
+        setResult(null);
+        setIsbn('');
+        setView('LIST');
       }
-      setResult(null);
-      setIsbn('');
-      setView('LIST');
+    } catch (err: any) {
+      alert(`Save failed: ${err?.message || 'Unknown error. Check network or re-login.'}`);
     } finally {
       setIsSaving(false);
     }

@@ -42,7 +42,7 @@ class Book(models.Model):
     call_number = models.CharField(max_length=50, blank=True, null=True, db_index=True)
     barcode_id = models.CharField(max_length=50, unique=True, db_index=True, null=True, blank=True)
     shelf_location = models.CharField(max_length=50, blank=True, null=True, db_index=True)
-    cover_url = models.URLField(max_length=500, blank=True, null=True)
+    cover_url = models.TextField(blank=True, null=True)  # Supports URLs or base64 data URIs
     
     # Financial & Acquisition
     value = models.DecimalField(max_digits=10, decimal_places=2, default=25.00)
