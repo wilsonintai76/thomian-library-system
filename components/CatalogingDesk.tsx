@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, DollarSign } from 'lucide-react';
 import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockPrintBookLabel, mockBulkPrintLabels, mockDeleteBook, mockRestoreBook } from '../services/api';
 import { Book as BookType } from '../types';
+import { getClassificationFromDDC } from '../utils';
 import MobileScanner from './MobileScanner';
 import BookLabel from './BookLabel';
 import StocktakeDesk from './StocktakeDesk';
@@ -58,12 +59,17 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
       setSteps(prev => prev.map(s => s.source === source ? { ...s, status: status as WaterfallStatus } : s));
     }).then((data) => {
       if (data) {
+        const ddc = data.ddc_code;
+        const authorShort = (data.author || '').slice(0, 3).toUpperCase();
         setResult({
           ...data,
           material_type: 'REGULAR',
           status: 'AVAILABLE',
           value: data.value || 25.00,
-          acquisition_date: new Date().toISOString().split('T')[0]
+          acquisition_date: new Date().toISOString().split('T')[0],
+          classification: getClassificationFromDDC(ddc),
+          call_number: ddc ? `${ddc} ${authorShort}` : '',
+          cutter_number: authorShort,
         });
         setIsManual(false);
       } else {

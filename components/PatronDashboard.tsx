@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
+import html2canvas from 'html2canvas';
 import { Users, Search, Loader2, Banknote, History, Download, Archive, UserPlus, Building2, RefreshCw, Edit, UserMinus, Mail, Phone, GraduationCap, IdCard, Printer, ShieldCheck, Filter, ChevronDown, X } from 'lucide-react';
 import { Patron, Transaction, AuthUser, MapConfig, LibraryClass } from '../types';
 import { mockGetPatrons, mockUpdatePatron, mockGetMapConfig, mockRecordTransaction, mockGetTransactionsByPatron, mockCheckSession, mockPrintPatronCard, mockBulkPrintPatrons, mockAddPatron, mockDeletePatron, mockGetClasses, mockRestorePatron } from '../services/api';
@@ -121,10 +122,46 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
         setPatrons(prev => prev.map(pat => pat.student_id === id ? updated : pat));
     };
 
+    const [zebraSent, setZebraSent] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
+
+    const handlePdfPrint = async () => {
+        const area = document.getElementById('card-print-area');
+        if (!area) return;
+        setIsPrinting(true);
+        try {
+            // Capture each card individually at 2× scale for crisp output
+            const cardEls = area.querySelectorAll<HTMLElement>(':scope > div');
+            const canvases = await Promise.all(
+                Array.from(cardEls).map(el =>
+                    html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null })
+                )
+            );
+            // Build a print window with the captured images
+            const printWin = window.open('', '_blank')!;
+            const isBatch = canvases.length > 1;
+            const imgs = canvases.map(c => `<img src="${c.toDataURL('image/png')}" style="display:block;width:${isBatch ? '45%' : 'auto'};max-width:100%;margin:8px auto;box-shadow:0 2px 12px #0002;border-radius:12px;" />`);
+            printWin.document.write(`<!DOCTYPE html><html><head><title>Patron Card</title><style>
+                body{margin:0;padding:16px;background:#f1f5f9;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:flex-start;}
+                img{page-break-inside:avoid;}
+                @media print{body{background:white;padding:0;gap:8px;}}
+            </style></head><body>${imgs.join('')}<script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+            printWin.document.close();
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
     const handlePrintRequest = (items: Patron[]) => {
+        setZebraSent(false);
         setBulkPreviewPatrons(items);
-        if (items.length === 1) mockPrintPatronCard(items[0]);
-        else mockBulkPrintPatrons(items);
+    };
+
+    const handleZebraPrint = async () => {
+        if (!bulkPreviewPatrons) return;
+        if (bulkPreviewPatrons.length === 1) await mockPrintPatronCard(bulkPreviewPatrons[0]);
+        else await mockBulkPrintPatrons(bulkPreviewPatrons);
+        setZebraSent(true);
     };
 
     const handleCsvExport = () => {
@@ -215,18 +252,28 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                         <h3 className="font-black uppercase tracking-widest text-slate-400 text-xs print:hidden">
                             {bulkPreviewPatrons.length > 1 ? `Batch Preview: ${bulkPreviewPatrons.length} Cards` : 'PVC Identity Card Preview'}
                         </h3>
-                        <div className="print-area flex flex-wrap justify-center gap-10 print:gap-0 print:block">
+                        <div id="card-print-area" className="flex flex-wrap justify-center gap-10 print:gap-4 print:justify-start">
                             {bulkPreviewPatrons.map((patron, idx) => (
-                                <div key={idx} className="print:break-after-page print:flex print:items-center print:justify-center print:h-screen">
+                                <div key={idx}>
                                     <PatronCard patron={patron} config={mapConfig} />
                                 </div>
                             ))}
                         </div>
-                        <div className="flex gap-4 w-full max-w-sm print:hidden shrink-0">
-                            <button onClick={() => setBulkPreviewPatrons(null)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>
-                            <button onClick={() => window.print()} className="flex-1 py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2">
-                                <Printer className="h-4 w-4" /> Execute Print
-                            </button>
+                        <div className="flex flex-col gap-3 w-full max-w-sm print:hidden shrink-0">
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={handleZebraPrint}
+                                    className={`py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-2 ${
+                                        zebraSent ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-900 border-slate-900 text-white hover:bg-slate-800'
+                                    }`}
+                                >
+                                    {zebraSent ? <><span>✓</span> ZPL Sent</> : <><Printer className="h-4 w-4" /> ZPL Zebra</>}
+                                </button>
+                                                <button onClick={handlePdfPrint} disabled={isPrinting} className="py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2 disabled:opacity-60">
+                                    {isPrinting ? <><Loader2 className="h-4 w-4 animate-spin" /> Rendering…</> : <><Printer className="h-4 w-4" /> Print / PDF</>}
+                                </button>
+                            </div>
+                            <button onClick={() => { setBulkPreviewPatrons(null); setZebraSent(false); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>
                         </div>
                     </div>
                 </div>

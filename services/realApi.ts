@@ -65,7 +65,7 @@ async function list<T>(path: string, params?: Record<string, string>, isPublic =
 export const mockLogin = async (username: string, password: string): Promise<AuthUser | null> => {
     try {
         const data = await request<{ success: boolean; token: string; user: AuthUser }>(
-            'POST', '/auth/login/', { username, password }, true,
+            'POST', '/auth/login/', { staff_id: username, password }, true,
         );
         if (data.success) {
             localStorage.setItem(TOKEN_KEY, data.token);
@@ -124,11 +124,20 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
     try {
         const res = await request<{ source: string; status: string; data: Partial<Book> }>('GET', `/catalog/waterfall_search/?isbn=${encodeURIComponent(isbn)}`, undefined, true);
         if (res.status === 'FOUND') {
-            onUpdate(res.source, 'FOUND');
+            if (res.source === 'LOCAL') {
+                // Found in Thomian Core DB directly
+                onUpdate('LOCAL', 'FOUND');
+            } else {
+                // Not in local DB — was fetched from Open Library (source: 'EXTERNAL')
+                onUpdate('LOCAL', 'NOT_FOUND');
+                onUpdate('ZEBRA_LOC', 'NOT_FOUND');
+                onUpdate('OPEN_LIBRARY', 'FOUND');
+            }
             return res.data;
         }
-    } catch { /* not found */ }
+    } catch { /* fall through */ }
     onUpdate('LOCAL', 'NOT_FOUND');
+    onUpdate('ZEBRA_LOC', 'NOT_FOUND');
     onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
     return null;
 };

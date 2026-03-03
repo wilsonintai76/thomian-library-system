@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Settings, Download, Upload, Trash2, AlertTriangle, CheckCircle, ShieldAlert, FileJson, Loader2, RefreshCw, Database, HardDrive, Wifi, Globe, Server, Save, Printer, StickyNote, Sliders, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles } from 'lucide-react';
-import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, getLanUrl, setLanUrl, initializeNetwork, mockGetMapConfig, mockSaveMapConfig, isDemoMode, setDemoMode } from '../services/api';
+import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, getLanUrl, setLanUrl, initializeNetwork, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
 import PatronCard from './PatronCard';
@@ -22,16 +22,43 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     const [config, setConfig] = useState<MapConfig | null>(null);
     const [labelMode, setLabelMode] = useState('SHEET');
     const [sheetLayout, setSheetLayout] = useState('3x10');
-    const [demoMode, setDemoModeState] = useState(false);
-
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
+    const [logoSaving, setLogoSaving] = useState(false);
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !config) return;
+        if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2 MB.'); return; }
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const base64 = reader.result as string;
+            setLogoSaving(true);
+            const updated = { ...config, logo: base64 };
+            setConfig(updated);
+            await mockSaveMapConfig(updated);
+            setLogoSaving(false);
+            onRefreshConfig?.();
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleRemoveLogo = async () => {
+        if (!config) return;
+        setLogoSaving(true);
+        const updated = { ...config, logo: undefined };
+        setConfig(updated);
+        await mockSaveMapConfig(updated);
+        setLogoSaving(false);
+        onRefreshConfig?.();
+    };
 
     useEffect(() => {
         calculateStorageStats();
         setLanUrlInput(getLanUrl());
         setNetworkMode(localStorage.getItem('thomian_network_mode') || 'AUTO');
         setLabelMode(localStorage.getItem('thomian_label_mode') || 'SHEET');
-        setDemoModeState(isDemoMode());
         mockGetMapConfig().then(setConfig);
     }, []);
 
@@ -166,6 +193,36 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                             <Palette className="h-6 w-6 text-sky-600" />
                             <h3 className="text-xl font-bold">Visual Branding & Themes</h3>
                         </div>
+                        {/* Logo Upload */}
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">School Logo</p>
+                            <div className="flex items-center gap-6">
+                                <div className="h-24 w-24 rounded-2xl border-2 border-slate-100 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                                    {config?.logo
+                                        ? <img src={config.logo} alt="Logo" className="h-full w-full object-contain p-1" />
+                                        : <Sparkles className="h-8 w-8 text-slate-300" />}
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                    <p className="text-xs text-slate-500 font-medium">Appears in the navbar, member cards, and book labels. PNG/SVG recommended, max 2 MB.</p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => logoInputRef.current?.click()}
+                                            disabled={logoSaving}
+                                            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-sky-700 transition-all disabled:opacity-50"
+                                        >{logoSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Upload</button>
+                                        {config?.logo && (
+                                            <button
+                                                onClick={handleRemoveLogo}
+                                                disabled={logoSaving}
+                                                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-100 transition-all disabled:opacity-50"
+                                            ><Trash2 className="h-3.5 w-3.5" /> Remove</button>
+                                        )}
+                                    </div>
+                                    <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Select UI Palette & Text Pairings</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

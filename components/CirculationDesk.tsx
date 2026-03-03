@@ -89,6 +89,8 @@ const CirculationDesk: React.FC = () => {
         }
         setLoading(false);
         setInput('');
+        // Restore focus immediately so the next HID scan lands in the input
+        setTimeout(() => inputRef.current?.focus(), 50);
     };
 
     const handleCheckout = async () => {

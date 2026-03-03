@@ -46,7 +46,8 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
           
           <div 
             className="flex items-center gap-3 shrink-0 cursor-pointer hover:opacity-80 transition-opacity group"
-            onClick={() => setMode('KIOSK')}
+            onClick={() => setMode(mode === 'KIOSK' && currentUser ? 'ADMIN' : 'KIOSK')}
+            title={mode === 'KIOSK' && currentUser ? 'Back to Admin' : 'Go to Kiosk'}
           >
             <div className="h-10 w-10 lg:h-12 lg:w-12 flex items-center justify-center shrink-0">
               {mapConfig?.logo && !logoError ? (
@@ -64,7 +65,8 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
             </div>
             <div className="hidden md:block">
               <span className={`font-black text-lg lg:text-xl tracking-tighter block leading-tight uppercase ${styles.navBrand}`}>Thomian</span>
-              {!isMobile && <span className={`text-[9px] ${styles.navAccent} block leading-tight uppercase tracking-[0.25em] font-black opacity-80`}>St. Thomas Secondary</span>}
+              {!isMobile && mode !== 'KIOSK' && <span className={`text-[9px] ${styles.navAccent} block leading-tight uppercase tracking-[0.25em] font-black opacity-80`}>St. Thomas Secondary</span>}
+              {!isMobile && mode === 'KIOSK' && currentUser && <span className="text-[9px] text-amber-500 block leading-tight uppercase tracking-[0.2em] font-black animate-pulse">← Back to Admin</span>}
             </div>
           </div>
           

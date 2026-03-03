@@ -114,10 +114,10 @@ thomian-lib/
 
 ## Default Accounts (Demo)
 
-| Role | Username | Password |
+| Role | Username | PIN |
 |---|---|---|
-| Administrator | `admin` | `admin123` |
-| Librarian | `librarian` | `lib123` |
+| Administrator | `admin` | `1234` |
+| Librarian | `librarian` | `5678` |
 
 > ⚠️ **Change these immediately** after first login via Django Admin (`/api/admin/`).
 

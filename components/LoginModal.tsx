@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Lock, User, Key, X, ChevronRight, AlertCircle, ShieldCheck, Settings, Globe, Wifi, Sparkles, UserCheck } from 'lucide-react';
+import { Lock, User, X, AlertCircle, Settings, Wifi, Delete } from 'lucide-react';
 import { mockLogin, getLanUrl, setLanUrl, initializeNetwork } from '../services/api';
 import { AuthUser } from '../types';
 
@@ -9,9 +9,12 @@ interface LoginModalProps {
     onLoginSuccess: (user: AuthUser) => void;
 }
 
+const PIN_MAX = 4;
+
 const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
     const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+    const [pin, setPin] = useState('');
+    const [loginStep, setLoginStep] = useState<'ID' | 'PIN'>('ID');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -25,22 +28,37 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
         setNetworkMode(localStorage.getItem('thomian_network_mode') || 'AUTO');
     }, []);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handlePinPress = (digit: string) => {
+        if (loginStep === 'ID') {
+            if (username.length < 8) setUsername(prev => prev + digit);
+        } else {
+            if (pin.length < PIN_MAX) setPin(prev => prev + digit);
+        }
+    };
+
+    const handlePinDelete = () => {
+        if (loginStep === 'ID') setUsername(prev => prev.slice(0, -1));
+        else setPin(prev => prev.slice(0, -1));
+    };
+
+    const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!username || !password) return;
+        if (!username || pin.length < 4) return;
 
         setIsLoading(true);
         setError('');
 
         try {
-            const user = await mockLogin(username, password);
+            const user = await mockLogin(username, pin);
             if (user) {
                 onLoginSuccess(user);
             } else {
                 setError('Invalid credentials. Access denied.');
+                setPin('');
             }
         } catch (err) {
             setError('System error. Please try again.');
+            setPin('');
         } finally {
             setIsLoading(false);
         }
@@ -82,48 +100,79 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
 
                 {/* Form */}
                 {!showSettings ? (
-                    <div className="p-8 space-y-6">
+                    <div className="p-6 space-y-4">
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="relative">
-                                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                                <input
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50 outline-none transition-all font-medium text-slate-800 placeholder-slate-400"
-                                    placeholder="Username"
-                                    autoFocus
-                                />
+                            {/* Step indicator */}
+                            <div className="flex items-center gap-3 justify-center">
+                                <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${loginStep === 'ID' ? 'text-blue-600' : 'text-slate-400'}`}>
+                                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black border-2 ${loginStep === 'ID' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-emerald-500 border-emerald-500 text-white'}`}>{loginStep === 'ID' ? '1' : '✓'}</div>
+                                    Staff ID
+                                </div>
+                                <div className="h-px w-8 bg-slate-200" />
+                                <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${loginStep === 'PIN' ? 'text-blue-600' : 'text-slate-300'}`}>
+                                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black border-2 ${loginStep === 'PIN' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-transparent border-slate-300 text-slate-400'}`}>2</div>
+                                    PIN
+                                </div>
                             </div>
-                            <div className="relative">
-                                <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50 outline-none transition-all font-medium text-slate-800 placeholder-slate-400"
-                                    placeholder="Password"
-                                />
+
+                            {/* Display box */}
+                            {loginStep === 'ID' ? (
+                                <div className="bg-slate-50 border-2 border-blue-200 rounded-2xl px-5 py-4 text-center">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Staff ID</p>
+                                    <p className="font-mono font-black text-3xl text-slate-800 tracking-widest min-h-[2.5rem]">
+                                        {username || <span className="text-slate-300">--------</span>}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-50 border-2 border-blue-200 rounded-2xl px-5 py-4 text-center">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Staff PIN</p>
+                                    <div className="flex justify-center gap-4">
+                                        {Array.from({ length: PIN_MAX }).map((_, i) => (
+                                            <div key={i} className={`h-5 w-5 rounded-full border-2 transition-all duration-150 ${i < pin.length ? 'bg-blue-600 border-blue-600 scale-110' : 'bg-transparent border-slate-300'}`} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Numpad */}
+                            <div className="grid grid-cols-3 gap-2.5">
+                                {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, idx) => {
+                                    if (key === '') return <div key={idx} />;
+                                    const isDel = key === '⌫';
+                                    return (
+                                        <button key={key+idx} type="button" onClick={() => isDel ? handlePinDelete() : handlePinPress(key)}
+                                            className={`py-3.5 rounded-xl text-xl font-black border-2 active:scale-95 transition-all select-none ${
+                                                isDel ? 'bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-100'
+                                                      : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-blue-50 hover:border-blue-300'}`}>
+                                            {key}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             {error && (
-                                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm font-medium animate-shake">
+                                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm font-medium">
                                     <AlertCircle className="h-4 w-4 shrink-0" />
                                     {error}
                                 </div>
                             )}
 
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-100 disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                                {isLoading ? (
-                                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : (
-                                    <>Login <ChevronRight className="h-5 w-5" /></>
-                                )}
-                            </button>
+                            {/* Action buttons */}
+                            {loginStep === 'ID' ? (
+                                <button type="button" onClick={() => setLoginStep('PIN')} disabled={username.length < 4}
+                                    className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-base hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-100 disabled:opacity-50">
+                                    Next →
+                                </button>
+                            ) : (
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => { setPin(''); setLoginStep('ID'); }}
+                                        className="flex-1 py-3.5 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm">← Back</button>
+                                    <button type="submit" disabled={isLoading || pin.length < 4}
+                                        className="flex-1 bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-100 disabled:opacity-50 flex items-center justify-center gap-2">
+                                        {isLoading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Login'}
+                                    </button>
+                                </div>
+                            )}
                         </form>
 
                         <div className="flex justify-between items-center pt-2">

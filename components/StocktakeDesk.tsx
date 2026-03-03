@@ -74,6 +74,8 @@ const StocktakeDesk: React.FC = () => {
             triggerFlash('RED');
         }
         setStockInput('');
+        // Restore focus immediately so the next HID scan lands in the input
+        setTimeout(() => stockInputRef.current?.focus(), 50);
     };
 
     /**

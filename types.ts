@@ -73,6 +73,7 @@ export interface Book {
 export interface Patron {
   student_id: string;
   full_name: string;
+  card_name?: string; // Preferred name on ID card (patron-controlled, like a credit card)
   patron_group: PatronGroup;
   class_name?: string;
   is_blocked: boolean;

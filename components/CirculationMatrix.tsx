@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Settings, Users, Book, Clock, AlertTriangle, Calculator, Calendar, CalendarOff, ArrowRight, Save, X, Edit, Loader2, CheckCircle2, Info } from 'lucide-react';
+import { Settings, Users, Book, Clock, AlertTriangle, Calculator, Calendar, CalendarOff, ArrowRight, Save, X, Edit, Loader2, CheckCircle2, Info, Plus } from 'lucide-react';
 import { CirculationRule, PatronGroup, LibraryEvent } from '../types';
 import { mockGetEvents, mockGetCirculationRules, mockUpdateCirculationRule } from '../services/api';
 
@@ -13,6 +12,14 @@ const CirculationMatrix: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<CirculationRule>>({});
   const [saving, setSaving] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newRuleForm, setNewRuleForm] = useState<Partial<CirculationRule>>({
+    patron_group: 'STUDENT',
+    material_type: 'REGULAR',
+    loan_days: 14,
+    max_items: 5,
+    fine_per_day: 0.50
+  });
 
   // Simulator State
   const [simPatron, setSimPatron] = useState<PatronGroup>('STUDENT');
@@ -27,11 +34,16 @@ const CirculationMatrix: React.FC = () => {
 
   // 1. Fetch Data on Mount
   useEffect(() => {
-    Promise.all([mockGetCirculationRules(), mockGetEvents()]).then(([fetchedRules, fetchedEvents]) => {
-      setRules(fetchedRules);
-      setHolidays(fetchedEvents.filter(e => e.type === 'HOLIDAY' || e.type === 'EXAM'));
-      setLoading(false);
-    });
+    Promise.all([mockGetCirculationRules(), mockGetEvents()])
+      .then(([fetchedRules, fetchedEvents]) => {
+        setRules(fetchedRules || []);
+        setHolidays((fetchedEvents || []).filter(e => e.type === 'HOLIDAY' || e.type === 'EXAM'));
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Critical failure in policy engine load:", err);
+        setLoading(false);
+      });
   }, []);
 
   // 2. Calculation Logic
@@ -103,6 +115,36 @@ const CirculationMatrix: React.FC = () => {
     }
   };
 
+  const createRule = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/rules/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${localStorage.getItem('thomian_auth_token')}`
+        },
+        body: JSON.stringify(newRuleForm)
+      });
+      if (response.ok) {
+        const created = await response.json();
+        setRules(prev => [...prev, created]);
+        setShowAddModal(false);
+        setNewRuleForm({
+          patron_group: 'STUDENT',
+          material_type: 'REGULAR',
+          loan_days: 14,
+          max_items: 5,
+          fine_per_day: 0.50
+        });
+      }
+    } catch (err) {
+      console.error("Failed to create rule", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in-up">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -113,6 +155,13 @@ const CirculationMatrix: React.FC = () => {
           </h2>
           <p className="text-slate-500 font-medium">Define business rules for loans, quotas, and penalty structures.</p>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="bg-slate-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-2xl flex items-center gap-3 active:scale-95"
+        >
+          <Plus className="h-5 w-5" />
+          Apply New Policy
+        </button>
       </div>
 
       {/* Instruction Banner */}
@@ -162,7 +211,6 @@ const CirculationMatrix: React.FC = () => {
                     <span className="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{rule.material_type}</span>
                   </td>
 
-                  {/* EDITABLE FIELDS */}
                   {editingId === rule.id ? (
                     <>
                       <td className="px-6 py-4">
@@ -344,7 +392,7 @@ const CirculationMatrix: React.FC = () => {
               <div className="w-full md:w-auto grid grid-cols-2 md:grid-cols-1 gap-3">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fine/Day</span>
-                  <span className="text-lg font-black text-slate-800 font-mono">${activeRule?.fine_per_day.toFixed(2) || '0.00'}</span>
+                  <span className="text-lg font-black text-slate-800 font-mono">${activeRule?.fine_per_day?.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Max Quota</span>
@@ -359,6 +407,107 @@ const CirculationMatrix: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ADD POLICY MODAL */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-zoom-in">
+            <div className="bg-slate-900 p-8 text-white flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-black uppercase tracking-tight">New Policy Definition</h3>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Configure baseline rules for the matrix</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="p-3 hover:bg-white/10 rounded-2xl transition-all"><X className="h-6 w-6" /></button>
+            </div>
+
+            <div className="p-10 space-y-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Patron Entity</label>
+                  <select
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-black text-sm outline-none focus:border-blue-500 transition-all"
+                    value={newRuleForm.patron_group}
+                    onChange={(e) => setNewRuleForm({ ...newRuleForm, patron_group: e.target.value as any })}
+                  >
+                    <option value="STUDENT">STUDENT</option>
+                    <option value="TEACHER">TEACHER</option>
+                    <option value="LIBRARIAN">LIBRARIAN</option>
+                    <option value="ADMINISTRATOR">ADMINISTRATOR</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Material Category</label>
+                  <select
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-black text-sm outline-none focus:border-blue-500 transition-all"
+                    value={newRuleForm.material_type}
+                    onChange={(e) => setNewRuleForm({ ...newRuleForm, material_type: e.target.value as any })}
+                  >
+                    <option value="REGULAR">REGULAR</option>
+                    <option value="REFERENCE">REFERENCE</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Loan Window</label>
+                  <div className="flex items-center">
+                    <input
+                      type="number"
+                      className="w-full bg-transparent text-2xl font-black text-center outline-none"
+                      value={newRuleForm.loan_days}
+                      onChange={(e) => setNewRuleForm({ ...newRuleForm, loan_days: parseInt(e.target.value) })}
+                    />
+                  </div>
+                  <p className="text-[8px] font-black text-center text-slate-300 uppercase mt-2">Days</p>
+                </div>
+                <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Max Items</label>
+                  <div className="flex items-center">
+                    <input
+                      type="number"
+                      className="w-full bg-transparent text-2xl font-black text-center outline-none"
+                      value={newRuleForm.max_items}
+                      onChange={(e) => setNewRuleForm({ ...newRuleForm, max_items: parseInt(e.target.value) })}
+                    />
+                  </div>
+                  <p className="text-[8px] font-black text-center text-slate-300 uppercase mt-2">Capacity</p>
+                </div>
+                <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Daily Fine</label>
+                  <div className="flex items-center justify-center">
+                    <span className="text-xl font-black text-slate-400">$</span>
+                    <input
+                      type="number" step="0.10"
+                      className="w-2/3 bg-transparent text-2xl font-black text-center outline-none"
+                      value={newRuleForm.fine_per_day}
+                      onChange={(e) => setNewRuleForm({ ...newRuleForm, fine_per_day: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                  <p className="text-[8px] font-black text-center text-slate-300 uppercase mt-2">Per Day</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-5 bg-slate-100 text-slate-500 font-black text-xs uppercase rounded-2xl hover:bg-slate-200 transition-all"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={createRule}
+                  disabled={saving}
+                  className="flex-[2] py-5 bg-blue-600 text-white font-black text-xs uppercase rounded-2xl shadow-2xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5 text-white" />}
+                  Register Policy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -26,6 +26,7 @@ const KioskHome: React.FC = () => {
     const [showAccountLogin, setShowAccountLogin] = useState(false);
     const [loginId, setLoginId] = useState('');
     const [loginPin, setLoginPin] = useState('');
+    const [loginStep, setLoginStep] = useState<'ID' | 'PIN'>('ID');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -85,6 +86,7 @@ const KioskHome: React.FC = () => {
             setShowAccountLogin(false);
             setLoginId('');
             setLoginPin('');
+            setLoginStep('ID');
         } else {
             alert("Invalid credentials. Please check your ID and PIN.");
         }
@@ -189,45 +191,92 @@ const KioskHome: React.FC = () => {
                             <h3 className="text-2xl font-black uppercase tracking-tight">Patron Login</h3>
                             <p className="text-slate-400 text-xs mt-1 uppercase tracking-widest font-black">Access your library profile</p>
                         </div>
-                        <div className="p-8 space-y-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Student ID</label>
-                                    <div className="relative">
-                                        <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
-                                        <input
-                                            type="text"
-                                            value={loginId}
-                                            onChange={(e) => setLoginId(e.target.value.toUpperCase())}
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 pl-12 font-mono font-bold text-slate-700 outline-none focus:border-blue-500"
-                                            placeholder="ST-2024-XXX"
-                                        />
-                                    </div>
+                        <div className="p-6 space-y-4">
+                            {/* Step indicator */}
+                            <div className="flex items-center gap-3 justify-center mb-1">
+                                <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${loginStep === 'ID' ? 'text-blue-600' : 'text-slate-400'}`}>
+                                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black border-2 transition-all ${loginStep === 'ID' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-emerald-500 border-emerald-500 text-white'}`}>{loginStep === 'ID' ? '1' : '✓'}</div>
+                                    Patron ID
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Secret PIN</label>
-                                    <div className="relative">
-                                        <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
-                                        <input
-                                            type="password"
-                                            maxLength={4}
-                                            value={loginPin}
-                                            onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, ''))}
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 pl-12 font-mono font-bold text-slate-700 outline-none focus:border-blue-500"
-                                            placeholder="••••"
-                                        />
-                                    </div>
+                                <div className="h-px w-8 bg-slate-200" />
+                                <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest transition-colors ${loginStep === 'PIN' ? 'text-blue-600' : 'text-slate-300'}`}>
+                                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black border-2 transition-all ${loginStep === 'PIN' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-transparent border-slate-300 text-slate-400'}`}>2</div>
+                                    PIN
                                 </div>
                             </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => setShowAccountLogin(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-xl font-black text-xs uppercase tracking-widest">Cancel</button>
-                                <button
-                                    onClick={handlePatronLogin}
-                                    disabled={isLoggingIn || !loginId || !loginPin}
-                                    className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-2"
-                                >
-                                    {isLoggingIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Verify Identity"}
-                                </button>
+
+                            {/* ID digit display */}
+                            {loginStep === 'ID' && (
+                                <div className="bg-slate-50 border-2 border-blue-200 rounded-2xl px-5 py-4 text-center">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Patron ID</p>
+                                    <p className="font-mono font-black text-3xl text-slate-800 tracking-widest min-h-[2.5rem]">
+                                        {loginId || <span className="text-slate-300">--------</span>}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* PIN dot display */}
+                            {loginStep === 'PIN' && (
+                                <div className="bg-slate-50 border-2 border-blue-200 rounded-2xl px-5 py-4 text-center">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Secret PIN</p>
+                                    <div className="flex justify-center gap-4">
+                                        {[0,1,2,3].map(i => (
+                                            <div key={i} className={`h-5 w-5 rounded-full border-2 transition-all ${loginPin.length > i ? 'bg-blue-600 border-blue-600 scale-110' : 'bg-slate-100 border-slate-300'}`} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Shared numpad */}
+                            <div className="grid grid-cols-3 gap-2.5">
+                                {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, idx) => {
+                                    if (key === '') return <div key={idx} />;
+                                    const isBackspace = key === '⌫';
+                                    return (
+                                        <button
+                                            key={key + idx}
+                                            type="button"
+                                            onClick={() => {
+                                                if (loginStep === 'ID') {
+                                                    if (isBackspace) setLoginId(p => p.slice(0, -1));
+                                                    else if (loginId.length < 8) setLoginId(p => p + key);
+                                                } else {
+                                                    if (isBackspace) setLoginPin(p => p.slice(0, -1));
+                                                    else if (loginPin.length < 4) setLoginPin(p => p + key);
+                                                }
+                                            }}
+                                            className={`py-4 rounded-2xl text-xl font-black transition-all active:scale-95 select-none
+                                                ${isBackspace
+                                                    ? 'bg-rose-50 text-rose-500 border-2 border-rose-100 hover:bg-rose-100'
+                                                    : 'bg-slate-50 text-slate-800 border-2 border-slate-100 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 shadow-sm'}`}
+                                        >{key}</button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex gap-3 pt-1">
+                                {loginStep === 'ID' ? (
+                                    <>
+                                        <button onClick={() => { setShowAccountLogin(false); setLoginId(''); setLoginPin(''); setLoginStep('ID'); }} className="flex-1 py-3.5 bg-slate-100 text-slate-500 rounded-xl font-black text-xs uppercase tracking-widest">Cancel</button>
+                                        <button
+                                            onClick={() => setLoginStep('PIN')}
+                                            disabled={loginId.length < 4}
+                                            className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100 disabled:opacity-40"
+                                        >Next →</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => { setLoginPin(''); setLoginStep('ID'); }} className="flex-1 py-3.5 bg-slate-100 text-slate-500 rounded-xl font-black text-xs uppercase tracking-widest">← Back</button>
+                                        <button
+                                            onClick={handlePatronLogin}
+                                            disabled={isLoggingIn || loginPin.length < 4}
+                                            className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-40"
+                                        >
+                                            {isLoggingIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Verify ✓'}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -342,10 +391,12 @@ const KioskHome: React.FC = () => {
                                             <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
                                             <input
                                                 type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
                                                 value={holdStudentId}
-                                                onChange={(e) => setHoldStudentId(e.target.value.toUpperCase())}
+                                                onChange={(e) => setHoldStudentId(e.target.value.replace(/\D/g, ''))}
                                                 className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 pl-12 font-mono font-bold text-slate-700 outline-none focus:border-blue-600"
-                                                placeholder="ST-2024-XXX"
+                                                placeholder="20261234"
                                                 autoFocus
                                             />
                                         </div>

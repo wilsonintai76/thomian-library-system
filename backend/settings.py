@@ -78,28 +78,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ==========================================
-# DATABASE
+# DATABASE — PostgreSQL
 # ==========================================
-# Use SQLite for local development (USE_SQLITE=True, or no DB_HOST set)
-# In production, set DB_* env vars with PostgreSQL credentials.
-if os.environ.get('USE_SQLITE', 'True') == 'True' or not os.environ.get('DB_HOST'):
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'thomian_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
+        'CONN_MAX_AGE': 60,
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'thomian_db'),
-            'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
-        }
-    }
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -129,6 +120,9 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 50,
     'PAGE_SIZE_QUERY_PARAM': 'page_size',
     'MAX_PAGE_SIZE': 200,
+    # Return DecimalField values as floats (not strings) so the frontend
+    # can call .toFixed() and arithmetic without type errors.
+    'COERCE_DECIMAL_TO_STRING': False,
 }
 
 # ==========================================

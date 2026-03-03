@@ -5,20 +5,33 @@ class CatalogingService:
     @staticmethod
     def fetch_book_metadata(isbn):
         try:
-            url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data"
-            response = requests.get(url, timeout=5)
+            # Use the Search API which reliably returns dewey_number
+            url = (
+                f"https://openlibrary.org/search.json?"
+                f"isbn={isbn}&limit=1"
+                f"&fields=title,author_name,dewey_number,cover_i,"
+                f"publisher,first_publish_year,number_of_pages_median,subject"
+            )
+            response = requests.get(url, timeout=8)
             if response.status_code == 200:
                 data = response.json()
-                key = f"ISBN:{isbn}"
-                if key in data:
-                    book_data = data[key]
+                docs = data.get('docs', [])
+                if docs:
+                    doc = docs[0]
+                    cover_i = doc.get('cover_i')
+                    cover_url = f"https://covers.openlibrary.org/b/id/{cover_i}-M.jpg" if cover_i else None
+                    ddc_list = doc.get('dewey_number', [])
+                    ddc_code = ddc_list[0] if ddc_list else '000'
+                    authors = doc.get('author_name', ['Unknown'])
                     return {
                         'isbn': isbn,
-                        'title': book_data.get('title', 'Unknown Title'),
-                        'author': book_data.get('authors', [{'name': 'Unknown'}])[0]['name'],
-                        'cover_url': book_data.get('cover', {}).get('medium'),
-                        'marc_metadata': book_data,
-                        'ddc_code': book_data.get('identifiers', {}).get('dewey_decimal', ['000.0'])[0]
+                        'title': doc.get('title', 'Unknown Title'),
+                        'author': authors[0] if authors else 'Unknown',
+                        'cover_url': cover_url,
+                        'ddc_code': ddc_code,
+                        'publisher': (doc.get('publisher') or [''])[0],
+                        'pub_year': str(doc.get('first_publish_year', '')),
+                        'pages': doc.get('number_of_pages_median'),
                     }
         except Exception as e:
             print(f"External Fetch Error: {e}")

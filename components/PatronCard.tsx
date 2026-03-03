@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ShieldCheck, User, Globe, Library, Sparkles } from 'lucide-react';
+import { ShieldCheck, User, Library } from 'lucide-react';
 import { Patron, MapConfig } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
 
@@ -9,25 +9,61 @@ interface PatronCardProps {
     config: MapConfig | null;
 }
 
-const BarcodeMock: React.FC<{ code: string, isDark?: boolean }> = ({ code, isDark }) => (
-    <div className={`flex items-end gap-[1px] h-10 p-1 rounded-sm ${isDark ? 'bg-white/10' : 'bg-white'}`}>
-        {code.split('').map((char, i) => (
-            <div 
-                key={i} 
-                className={`${isDark ? 'bg-white' : 'bg-black'}`}
-                style={{ 
-                    width: (parseInt(char, 36) % 3 + 1) + 'px',
-                    height: (80 + (i % 20)) + '%' 
-                }} 
-            />
-        ))}
-    </div>
-);
+// Abbreviate middle names for ID cards: "GWENYTTA VENETIA BINTI POLOI" → "GWENYTTA V. B. POLOI"
+const formatCardName = (name: string): string => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length <= 3) return name; // short enough, leave as-is
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    const midInitials = parts.slice(1, -1).map(p => p[0] + '.').join(' ');
+    return `${first} ${midInitials} ${last}`;
+};
+
+// ── Real Code 39 barcode — renders correctly in browser AND PDF print ──
+const C39: Record<string, number[]> = {
+  '*':[0,1,0,0,1,0,1,0,0],'0':[0,0,0,1,1,0,1,0,0],'1':[1,0,0,1,0,0,0,0,1],
+  '2':[0,0,1,1,0,0,0,0,1],'3':[1,0,1,1,0,0,0,0,0],'4':[0,0,0,1,0,0,1,0,1],
+  '5':[1,0,0,1,0,0,1,0,0],'6':[0,0,1,1,0,0,1,0,0],'7':[0,0,0,1,1,0,0,0,1],
+  '8':[1,0,0,1,1,0,0,0,0],'9':[0,0,1,1,1,0,0,0,0],'A':[1,0,0,0,0,1,0,0,1],
+  'B':[0,0,1,0,0,1,0,0,1],'C':[1,0,1,0,0,1,0,0,0],'D':[0,0,0,0,1,1,0,0,1],
+  'E':[1,0,0,0,1,1,0,0,0],'F':[0,0,1,0,1,1,0,0,0],'G':[0,0,0,0,0,1,1,0,1],
+  'H':[1,0,0,0,0,1,1,0,0],'I':[0,0,1,0,0,1,1,0,0],'J':[0,0,0,0,1,1,1,0,0],
+  'K':[1,0,0,0,0,0,0,1,1],'L':[0,0,1,0,0,0,0,1,1],'M':[1,0,1,0,0,0,0,1,0],
+  'N':[0,0,0,0,1,0,0,1,1],'O':[1,0,0,0,1,0,0,1,0],'P':[0,0,1,0,1,0,0,1,0],
+  'Q':[0,0,0,0,0,0,1,1,1],'R':[1,0,0,0,0,0,1,1,0],'S':[0,0,1,0,0,0,1,1,0],
+  'T':[0,0,0,0,1,0,1,1,0],'U':[1,1,0,0,0,0,0,0,1],'V':[0,1,1,0,0,0,0,0,1],
+  'W':[1,1,1,0,0,0,0,0,0],'X':[0,1,0,0,1,0,0,0,1],'Y':[1,1,0,0,1,0,0,0,0],
+  'Z':[0,1,1,0,1,0,0,0,0],'-':[0,1,0,0,0,0,1,0,1],'.':[1,1,0,0,0,0,1,0,0],
+  ' ':[0,1,1,0,0,0,1,0,0],'$':[0,1,0,1,0,1,0,0,0],'/':[0,1,0,1,0,0,0,1,0],
+  '+':[0,1,0,0,0,1,0,1,0],'%':[0,0,0,1,0,1,0,1,0],
+};
+
+const Code39Barcode: React.FC<{ code: string; dark?: boolean; height?: number }> = ({ code, dark = false, height = 34 }) => {
+  const safe = code.toUpperCase().replace(/[^0-9A-Z\-\.\$\/\+\% ]/g, '');
+  const chars = ('*' + safe + '*').split('');
+  const segs: { w: number; bar: boolean }[] = [];
+  chars.forEach((ch, ci) => {
+    const pat = C39[ch]; if (!pat) return;
+    pat.forEach((wide, i) => segs.push({ w: wide ? 3 : 1, bar: i % 2 === 0 }));
+    if (ci < chars.length - 1) segs.push({ w: 1, bar: false });
+  });
+  const totalW = segs.reduce((s, g) => s + g.w, 0);
+  const bars: { x: number; w: number }[] = [];
+  let cx = 0;
+  for (const seg of segs) { if (seg.bar) bars.push({ x: cx, w: seg.w }); cx += seg.w; }
+  return (
+    <svg viewBox={`0 0 ${totalW} ${height}`} width="100%" height={height}
+      preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+      {bars.map((b, i) => <rect key={i} x={b.x} y={0} width={b.w} height={height} fill={dark ? 'white' : 'black'} />)}
+    </svg>
+  );
+};
 
 const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
   const theme = config?.theme || 'EMERALD';
   const template = config?.cardTemplate || 'TRADITIONAL';
   const styles = SYSTEM_THEME_CONFIG[theme];
+  const nameSize = (name: string) => name.length > 22 ? 'text-[10px]' : name.length > 16 ? 'text-[11px]' : 'text-sm';
 
   // TRADITIONAL TEMPLATE
   if (template === 'TRADITIONAL') {
@@ -53,14 +89,14 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                 <div className="flex-1 flex flex-col justify-between overflow-hidden">
                     <div>
                         <p className={`text-[6px] font-black ${styles.navAccent} uppercase tracking-widest mb-0.5`}>Official Patron</p>
-                        <h4 className="text-sm font-black text-slate-800 leading-tight uppercase truncate">{patron.full_name}</h4>
+                        <h4 className={`${nameSize(patron.card_name || formatCardName(patron.full_name))} font-black text-slate-800 leading-tight uppercase line-clamp-2`}>{patron.card_name || formatCardName(patron.full_name)}</h4>
                         <div className="mt-2 flex items-center gap-2">
                             <span className={`px-1.5 py-0.5 ${styles.cardDark} text-white text-[7px] font-black rounded uppercase tracking-tighter`}>{patron.patron_group}</span>
                             <div className="flex items-center gap-1 text-[7px] font-bold text-emerald-600"><ShieldCheck className="h-2 w-2" /> ACTIVE</div>
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <BarcodeMock code={patron.student_id} />
+                        <Code39Barcode code={patron.student_id} height={32} />
                         <p className="text-[8px] font-mono font-bold text-slate-800 tracking-[0.3em]">{patron.student_id}</p>
                     </div>
                 </div>
@@ -89,12 +125,12 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                         {patron.photo_url ? <img src={patron.photo_url} alt="" className="w-full h-full object-cover" /> : <User className="h-8 w-8 m-auto mt-4 opacity-50" />}
                     </div>
                     <div className="overflow-hidden">
-                        <h4 className="text-lg font-black leading-tight uppercase truncate">{patron.full_name.split(' ')[0]}</h4>
+                        <h4 className={`${nameSize(patron.card_name || formatCardName(patron.full_name))} font-black leading-tight uppercase line-clamp-2`}>{patron.card_name || formatCardName(patron.full_name)}</h4>
                         <p className="text-[8px] font-black opacity-60 uppercase tracking-[0.2em]">{patron.patron_group} • {patron.class_name || 'STAFF'}</p>
                     </div>
                 </div>
                 <div className="mt-4 bg-white/5 rounded-xl p-3 border border-white/10 flex items-center justify-between">
-                    <div className="shrink-0"><BarcodeMock code={patron.student_id} isDark /></div>
+                    <div className="w-24 shrink-0"><Code39Barcode code={patron.student_id} dark height={28} /></div>
                     <div className="text-right">
                         <p className="text-[10px] font-mono font-bold tracking-widest">{patron.student_id}</p>
                         <p className="text-[6px] font-black opacity-30 uppercase">Scan to Issue</p>
@@ -112,7 +148,7 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
         <div className="flex-1 p-6 flex flex-col">
             <div className="flex justify-between items-start mb-6">
                 <div>
-                    <h4 className="text-xl font-black text-slate-800 leading-none uppercase mb-1">{patron.full_name}</h4>
+                    <h4 className={`${nameSize(patron.card_name || formatCardName(patron.full_name))} font-black text-slate-800 leading-tight uppercase line-clamp-2 mb-1`}>{patron.card_name || formatCardName(patron.full_name)}</h4>
                     <span className={`text-[10px] font-black uppercase tracking-widest ${styles.navAccent}`}>{patron.patron_group}</span>
                 </div>
                 <div className="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100">
@@ -120,8 +156,8 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                 </div>
             </div>
             <div className="mt-auto space-y-4">
-                <div className="flex justify-center bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-inner">
-                    <BarcodeMock code={patron.student_id} />
+                <div className="bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 shadow-inner">
+                    <Code39Barcode code={patron.student_id} height={32} />
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <span>St. Thomas LIS</span>

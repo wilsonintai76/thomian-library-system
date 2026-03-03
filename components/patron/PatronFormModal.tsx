@@ -16,6 +16,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     const [formData, setFormData] = useState<Partial<Patron>>({
         student_id: '',
         full_name: '',
+        card_name: '',
         patron_group: 'STUDENT',
         class_name: '',
         email: '',
@@ -46,6 +47,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             setFormData({
                 student_id: generatePatronId(),
                 full_name: '',
+                card_name: '',
                 patron_group: 'STUDENT',
                 class_name: '',
                 email: '',
@@ -65,7 +67,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     function generatePatronId() {
         const year = new Date().getFullYear();
         const randomNum = Math.floor(1000 + Math.random() * 9000);
-        return `ST-${year}-${randomNum}`;
+        return `${year}${randomNum}`;
     }
 
     const handleGeneratePin = () => {
@@ -73,11 +75,41 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         setShowPin(true);
     };
 
+    // Card photo dimensions: 5:6 portrait (matches ID card placeholder w-20 h-24)
+    const CARD_W = 400;
+    const CARD_H = 480;
+
+    // Resize (fit-and-letterbox) to card portrait ratio — whole photo preserved, no cropping
+    const resizeToCardRatio = (source: HTMLVideoElement | HTMLImageElement, naturalW: number, naturalH: number): string => {
+        const canvas = canvasRef.current!;
+        canvas.width = CARD_W;
+        canvas.height = CARD_H;
+        const ctx = canvas.getContext('2d')!;
+        // Fill background with light grey (neutral for any skin tone)
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(0, 0, CARD_W, CARD_H);
+        // Scale to fit entirely inside the card box, preserving aspect ratio
+        const scale = Math.min(CARD_W / naturalW, CARD_H / naturalH);
+        const drawW = naturalW * scale;
+        const drawH = naturalH * scale;
+        const offsetX = (CARD_W - drawW) / 2;
+        const offsetY = (CARD_H - drawH) / 2;
+        ctx.save();
+        // Mirror horizontally for webcam (selfie view looks natural)
+        if (source instanceof HTMLVideoElement) {
+            ctx.translate(CARD_W, 0);
+            ctx.scale(-1, 1);
+        }
+        ctx.drawImage(source, offsetX, offsetY, drawW, drawH);
+        ctx.restore();
+        return canvas.toDataURL('image/jpeg', 0.92);
+    };
+
     // Start Camera
     const startCamera = async () => {
         setIsCameraActive(true);
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 1 } });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { aspectRatio: 5 / 6, facingMode: 'user' } });
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
             }
@@ -97,18 +129,13 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         setIsCameraActive(false);
     };
 
-    // Capture Photo
+    // Capture Photo — center-cropped to card portrait ratio
     const capturePhoto = () => {
         if (videoRef.current && canvasRef.current) {
-            const context = canvasRef.current.getContext('2d');
-            if (context) {
-                canvasRef.current.width = 400;
-                canvasRef.current.height = 400;
-                context.drawImage(videoRef.current, 0, 0, 400, 400);
-                const dataUrl = canvasRef.current.toDataURL('image/jpeg');
-                setFormData({ ...formData, photo_url: dataUrl });
-                stopCamera();
-            }
+            const vid = videoRef.current;
+            const dataUrl = resizeToCardRatio(vid, vid.videoWidth, vid.videoHeight);
+            setFormData({ ...formData, photo_url: dataUrl });
+            stopCamera();
         }
     };
 
@@ -117,7 +144,12 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setFormData({ ...formData, photo_url: reader.result as string });
+                const img = new Image();
+                img.onload = () => {
+                    const dataUrl = resizeToCardRatio(img, img.naturalWidth, img.naturalHeight);
+                    setFormData(prev => ({ ...prev, photo_url: dataUrl }));
+                };
+                img.src = reader.result as string;
             };
             reader.readAsDataURL(file);
         }
@@ -150,7 +182,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                 <div className="w-full md:w-80 bg-slate-50 border-r border-slate-100 p-8 flex flex-col items-center gap-6">
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Identity Portrait</h4>
 
-                    <div className="relative w-48 h-60 bg-white rounded-3xl border-4 border-white shadow-xl overflow-hidden group">
+                    <div className="relative w-48 h-[230px] bg-white rounded-3xl border-4 border-white shadow-xl overflow-hidden group">
                         {isCameraActive ? (
                             <video
                                 ref={videoRef}
@@ -244,9 +276,9 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                         type="text"
                                         value={formData.student_id}
                                         disabled={!!initialData}
-                                        onChange={(e) => setFormData({ ...formData, student_id: e.target.value.toUpperCase() })}
+                                        onChange={(e) => setFormData({ ...formData, student_id: e.target.value.replace(/\D/g, '') })}
                                         className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-blue-500 disabled:opacity-50"
-                                        placeholder="ST-2024-XXX"
+                                        placeholder="20261234"
                                     />
                                     {!initialData && (
                                         <button
@@ -300,6 +332,18 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-blue-500"
                                     placeholder="Surname, Given Names"
                                 />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Name on Card <span className="font-normal normal-case text-slate-400">(optional — like a credit card preferred name)</span></label>
+                                <input
+                                    type="text"
+                                    maxLength={26}
+                                    value={formData.card_name || ''}
+                                    onChange={(e) => setFormData({ ...formData, card_name: e.target.value.toUpperCase() })}
+                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-emerald-500 uppercase tracking-wide"
+                                    placeholder={formData.full_name ? `e.g. ${formData.full_name.split(' ')[0]} ${formData.full_name.split(' ').slice(-1)[0]}` : 'Leave blank to auto-abbreviate'}
+                                />
+                                <p className="text-[9px] text-slate-400 mt-1 font-semibold">This is exactly what prints on the ID card. Max 26 characters. Leave blank to auto-abbreviate full name.</p>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Patron Group</label>

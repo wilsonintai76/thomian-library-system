@@ -7,6 +7,41 @@ interface BookLabelProps {
     isSheetMode?: boolean;
 }
 
+// Code 39 barcode — SVG-based, always prints regardless of browser "print background" setting
+const CODE39: Record<string, string> = {
+    '0':'nnnwwnwnn','1':'wnnwnnnnw','2':'nnwwnnnnw','3':'wnwwnnnnn','4':'nnnwwnnnw',
+    '5':'wnnwwnnnn','6':'nnwwwnnnn','7':'nnnwnnwnw','8':'wnnwnnwnn','9':'nnwwnnwnn',
+    'A':'wnnnnwnnw','B':'nnwnnwnnw','C':'wnwnnwnnn','D':'nnnnwwnnw','E':'wnnnwwnnn',
+    'F':'nnwnwwnnn','G':'nnnnnwwnw','H':'wnnnnwwnn','I':'nnwnnwwnn','J':'nnnnwwwnn',
+    'K':'wnnnnnnww','L':'nnwnnnnww','M':'wnwnnnnwn','N':'nnnnwnnww','O':'wnnnwnnwn',
+    'P':'nnwnwnnwn','Q':'nnnnnwnww','R':'wnnnnwnwn','S':'nnwnnwnwn','T':'nnnnwwnwn',
+    'U':'wwnnnnnnw','V':'nwwnnnnnw','W':'wwwnnnnnn','X':'nwnnwnnnw','Y':'wwnnwnnnn',
+    'Z':'nwwnwnnnn','-':'nwnnnnwnw',' ':'nwnnwwnnn','*':'nwnnwnwnn','.':'wwnnnnwnn',
+    '$':'nwnwnwnnn','/':'nwnwnnnwn','+':'nwnnnwnwn','%':'nnnwnwnwn',
+};
+const WIDE = 3; const NARROW = 1; const GAP = 1;
+const Code39Barcode: React.FC<{ value: string; height?: number; dark?: boolean }> = ({ value, height = 28, dark = false }) => {
+    const text = ('*' + value.toUpperCase().replace(/[^0-9A-Z\-. $/+%]/g, '') + '*');
+    const bars: { x: number; w: number }[] = [];
+    let x = 0;
+    for (const ch of text) {
+        const pat = CODE39[ch] || CODE39['*'];
+        for (let i = 0; i < 9; i++) {
+            const w = pat[i] === 'w' ? WIDE : NARROW;
+            if (i % 2 === 0) bars.push({ x, w });
+            x += w + (i % 2 === 1 ? GAP : 0);
+        }
+        x += GAP;
+    }
+    const totalW = x;
+    const color = dark ? '#fff' : '#000';
+    return (
+        <svg viewBox={`0 0 ${totalW} ${height}`} preserveAspectRatio="none" style={{ width: '100%', height }} aria-label={value}>
+            {bars.map((b, i) => <rect key={i} x={b.x} y={0} width={b.w} height={height} fill={color} />)}
+        </svg>
+    );
+};
+
 const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
     const authorShort = (book.author || 'UNK').slice(0, 3).toUpperCase();
     
@@ -44,18 +79,14 @@ const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
                         </div>
                     </div>
 
-                    {/* Barcode Visualization */}
+                    {/* Barcode */}
                     <div className="flex-1 flex flex-col items-center justify-center">
-                        <div className="flex flex-col gap-[1.5px] w-14 h-12 bg-black/5 p-1 rounded-sm">
-                            {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 1, 2].map((w, i) => (
-                                <div 
-                                    key={i} 
-                                    className="bg-black h-[1.5px]" 
-                                    style={{ width: `${30 + (w * 15)}%`, alignSelf: i % 2 === 0 ? 'flex-start' : 'flex-end' }} 
-                                />
-                            ))}
+                        <div className="w-full px-0.5">
+                            <Code39Barcode value={book.barcode_id || String(book.id || 'NOID')} height={28} />
                         </div>
-                        <span className="text-[8px] font-black mt-1 tracking-[0.2em]">{book.barcode_id || 'TEMP-ID'}</span>
+                        <span className="text-[8px] font-black mt-0.5 tracking-[0.1em]">
+                            {book.barcode_id || (book.id ? `#${book.id}` : 'NO BARCODE')}
+                        </span>
                     </div>
                 </div>
 

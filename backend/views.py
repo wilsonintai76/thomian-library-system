@@ -1,4 +1,5 @@
 
+from django.db.models import Count, Sum, Q
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -30,7 +31,8 @@ class AuthViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def login(self, request):
-        username = request.data.get('username')
+        # Accept staff_id (numeric) or legacy username field
+        username = request.data.get('staff_id') or request.data.get('username')
         password = request.data.get('password')
         user = authenticate(request, username=username, password=password)
         if user:
@@ -42,6 +44,7 @@ class AuthViewSet(viewsets.ViewSet):
                 'user': {
                     'id': str(user.id),
                     'username': user.username,
+                    'staff_id': user.username,
                     'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
                     'role': role,
                     'email': user.email or '',
@@ -58,6 +61,7 @@ class AuthViewSet(viewsets.ViewSet):
             'user': {
                 'id': str(user.id),
                 'username': user.username,
+                'staff_id': user.username,
                 'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
                 'role': role,
                 'email': user.email or '',
@@ -141,49 +145,52 @@ class CatalogViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Dashboard KPI endpoint"""
-        books = Book.objects.all()
-        patrons = Patron.objects.all()
         active_loans = Loan.objects.filter(returned_at__isnull=True)
         overdue = active_loans.filter(due_date__lt=timezone.now())
 
-        total_items = books.count()
-        total_value = float(sum(b.value for b in books))
-        active_loans_count = active_loans.count()
-        overdue_count = overdue.count()
-        lost_count = books.filter(status='LOST').count()
+        stats_data = Book.objects.aggregate(
+            total_items=Count('id'),
+            total_value=Sum('value'),
+            lost_items=Count('id', filter=Q(status='LOST'))
+        )
 
-        # Classification breakdown
-        classification_data = {}
-        for book in books:
-            cls = book.classification or 'General'
-            if cls not in classification_data:
-                classification_data[cls] = {'count': 0, 'loans': 0}
-            classification_data[cls]['count'] += 1
-            classification_data[cls]['loans'] += book.loan_count
+        # Classification breakdown via database aggregation
+        classification_qs = Book.objects.values('classification').annotate(
+            count=Count('id'),
+            loans=Sum('loan_count')
+        )
+        classification_data = {
+            (item['classification'] or 'General'): {
+                'count': item['count'],
+                'loans': item['loans']
+            } for item in classification_qs
+        }
 
-        # Status breakdown
-        status_data = {}
-        for book in books:
-            status_data[book.status] = status_data.get(book.status, 0) + 1
+        # Status breakdown via database aggregation
+        status_qs = Book.objects.values('status').annotate(count=Count('id'))
+        status_data = {item['status']: item['count'] for item in status_qs}
 
-        # Top readers
-        top_patron_loans = {}
-        for loan in Loan.objects.select_related('patron').all():
-            pid = loan.patron.student_id
-            if pid not in top_patron_loans:
-                top_patron_loans[pid] = {'name': loan.patron.full_name, 'id': pid, 'count': 0}
-            top_patron_loans[pid]['count'] += 1
-        top_readers = sorted(top_patron_loans.values(), key=lambda x: -x['count'])[:5]
+        # Top readers optimized with selective fields and ordering
+        top_readers = Loan.objects.values(
+            'patron__student_id', 'patron__full_name'
+        ).annotate(
+            count=Count('id')
+        ).order_by('-count')[:5]
+
+        top_readers_formatted = [
+            {'name': item['patron__full_name'], 'id': item['patron__student_id'], 'count': item['count']}
+            for item in top_readers
+        ]
 
         return Response({
-            'totalItems': total_items,
-            'totalValue': total_value,
-            'activeLoans': active_loans_count,
-            'overdueLoans': overdue_count,
-            'lostItems': lost_count,
+            'totalItems': stats_data['total_items'],
+            'totalValue': float(stats_data['total_value'] or 0),
+            'activeLoans': active_loans.count(),
+            'overdueLoans': overdue.count(),
+            'lostItems': stats_data['lost_items'],
             'itemsByClassification': classification_data,
             'itemsByStatus': status_data,
-            'topReaders': top_readers,
+            'topReaders': top_readers_formatted,
             'topClasses': [],
             'acquisitionHistory': [],
         })
@@ -313,7 +320,7 @@ class CirculationViewSet(viewsets.ViewSet):
         if not book:
             return Response({'success': False, 'message': 'Book not found'}, status=404)
 
-        loan = Loan.objects.filter(book=book, returned_at__isnull=True).first()
+        loan = Loan.objects.select_related('patron').filter(book=book, returned_at__isnull=True).first()
         fine = Decimal('0.00')
         next_patron = None
 
@@ -420,7 +427,7 @@ class LoanViewSet(viewsets.ReadOnlyModelViewSet):
 # ─────────────────────────────────────────────
 
 class TransactionViewSet(viewsets.ModelViewSet):
-    queryset = Transaction.objects.all().order_by('-timestamp')
+    queryset = Transaction.objects.select_related('patron').order_by('-timestamp')
     serializer_class = TransactionSerializer
     permission_classes = [IsLibrarianOrAdmin]
     filter_backends = [filters.OrderingFilter]
@@ -435,24 +442,18 @@ class TransactionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         txns = self.get_queryset()
-        total_collected = float(sum(
-            t.amount for t in txns if t.type in ('FINE_PAYMENT', 'REPLACEMENT_PAYMENT')
-        ))
-        total_fines = float(sum(
-            t.amount for t in txns if t.type in ('FINE_ASSESSMENT', 'MANUAL_ADJUSTMENT')
-        ))
-        total_replacements = float(sum(
-            t.amount for t in txns if t.type == 'REPLACEMENT_ASSESSMENT'
-        ))
-        total_waived = float(sum(
-            t.amount for t in txns if t.type == 'WAIVE'
-        ))
+        summary_data = txns.aggregate(
+            total_collected=Sum('amount', filter=Q(type__in=('FINE_PAYMENT', 'REPLACEMENT_PAYMENT'))),
+            total_fines=Sum('amount', filter=Q(type__in=('FINE_ASSESSMENT', 'MANUAL_ADJUSTMENT'))),
+            total_replacements=Sum('amount', filter=Q(type='REPLACEMENT_ASSESSMENT')),
+            total_waived=Sum('amount', filter=Q(type='WAIVE'))
+        )
         return Response({
-            'totalCollected': total_collected,
-            'totalFinesAssessed': total_fines,
-            'totalReplacementsAssessed': total_replacements,
+            'totalCollected': float(summary_data['total_collected'] or 0),
+            'totalFinesAssessed': float(summary_data['total_fines'] or 0),
+            'totalReplacementsAssessed': float(summary_data['total_replacements'] or 0),
             'totalDamageAssessed': 0,
-            'totalWaived': total_waived,
+            'totalWaived': float(summary_data['total_waived'] or 0),
         })
 
 

@@ -1,24 +1,12 @@
 /**
  * services/api.ts
- * Switcher service that routes calls to either mockApi (Demo) or realApi (Realtime).
+ * Routes all calls to the real Django REST API backend.
  */
 
 import * as mock from './mockApi';
 import * as real from './realApi';
 
-// Determine mode from localStorage - Default to FALSE (Real API)
-export const isDemoMode = (): boolean => {
-    const stored = localStorage.getItem('thomian_demo_mode');
-    if (stored === null) return false; // Default to real API
-    return stored === 'true';
-};
-
-export const setDemoMode = (val: boolean) => {
-    localStorage.setItem('thomian_demo_mode', val.toString());
-    window.location.reload();
-};
-
-const getProvider = () => (isDemoMode() ? mock : real);
+const getProvider = () => real;
 
 // ── Shared Re-exports (Pure Utilities) ───────────────────────────────────────
 export {
