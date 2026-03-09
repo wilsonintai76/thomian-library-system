@@ -105,8 +105,12 @@ export const mockDeleteBook = async (id: string): Promise<void> => request<void>
 export const mockRestoreBook = async (book: Book): Promise<void> => { await request<Book>('POST', '/catalog/', book); };
 export const mockSearchBooks = async (query: string): Promise<Book[]> => list<Book>('/catalog/', { search: query }, true);
 export const mockGetBookByBarcode = async (barcode: string): Promise<Book | null> => {
-    const results = await list<Book>('/catalog/', { search: barcode }, true);
-    return results.find(b => b.barcode_id === barcode) ?? null;
+    try {
+        const res = await request<{ found: boolean; book: Book }>(
+            'GET', `/catalog/by_barcode/?q=${encodeURIComponent(barcode.trim())}`, undefined, true,
+        );
+        return res.found ? res.book : null;
+    } catch { return null; }
 };
 export const mockGetBooksByShelf = async (shelf: string): Promise<Book[]> => {
     const data = await list<Book>('/catalog/', undefined, true);
@@ -125,20 +129,43 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
         const res = await request<{ source: string; status: string; data: Partial<Book> }>('GET', `/catalog/waterfall_search/?isbn=${encodeURIComponent(isbn)}`, undefined, true);
         if (res.status === 'FOUND') {
             if (res.source === 'LOCAL') {
-                // Found in Thomian Core DB directly
                 onUpdate('LOCAL', 'FOUND');
-            } else {
-                // Not in local DB — was fetched from Open Library (source: 'EXTERNAL')
+            } else if (res.source === 'MALCat') {
                 onUpdate('LOCAL', 'NOT_FOUND');
-                onUpdate('ZEBRA_LOC', 'NOT_FOUND');
+                onUpdate('MALCAT', 'FOUND');
+                onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
+                onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
+            } else if (res.source === 'Open Library') {
+                onUpdate('LOCAL', 'NOT_FOUND');
+                onUpdate('MALCAT', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');
+                onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
+            } else if (res.source === 'Google Books') {
+                onUpdate('LOCAL', 'NOT_FOUND');
+                onUpdate('MALCAT', 'NOT_FOUND');
+                onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
+                onUpdate('GOOGLE_BOOKS', 'FOUND');
+            } else {
+                onUpdate('LOCAL', 'NOT_FOUND');
+                onUpdate('MALCAT', 'NOT_FOUND');
+                onUpdate('OPEN_LIBRARY', 'FOUND');
+                onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
             }
+            return res.data;
+        }
+        if (res.status === 'STUB') {
+            // All APIs missed — return stub so librarian can fill manually
+            onUpdate('LOCAL', 'NOT_FOUND');
+            onUpdate('MALCAT', 'NOT_FOUND');
+            onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
+            onUpdate('GOOGLE_BOOKS', 'STUB');
             return res.data;
         }
     } catch { /* fall through */ }
     onUpdate('LOCAL', 'NOT_FOUND');
-    onUpdate('ZEBRA_LOC', 'NOT_FOUND');
+    onUpdate('MALCAT', 'NOT_FOUND');
     onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
+    onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
     return null;
 };
 
@@ -173,7 +200,7 @@ export const mockGetFinancialSummary = async () => request<any>('GET', '/transac
 export const initializeNetwork = async (): Promise<string> => 'Network Synchronized';
 export const getNetworkStatus = () => ({ mode: 'CLOUD', url: '', isLan: false });
 
-export const mockCheckoutBooks = async (pid: string, b: string[]): Promise<CheckoutResult> => request<CheckoutResult>('POST', '/circulation/checkout/', { patron_id: pid, books: b });
+export const mockCheckoutBooks = async (pid: string, b: string[]): Promise<CheckoutResult> => request<CheckoutResult>('POST', '/circulation/checkout/', { patron_id: pid, book_ids: b });
 export const mockProcessReturn = async (b: string): Promise<CheckInResult> => {
     const d = await request<any>('POST', '/circulation/return_book/', { barcode: b });
     return { book: d.book, patron: d.patron, fine_amount: d.fine_amount ?? 0, days_overdue: 0, next_patron: d.next_patron };

@@ -35,7 +35,7 @@ const ReportsDashboard: React.FC = () => {
     };
 
     const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+        return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(val);
     };
 
     if (loading || !stats) {

@@ -37,7 +37,7 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="bg-slate-900 p-8 relative">
-          <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
             <X className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-4">
@@ -114,6 +114,7 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
 const App: React.FC = () => {
   const [mode, setMode] = useState<ViewMode>('KIOSK');
   const [adminTab, setAdminTab] = useState<AdminTab>('DASHBOARD');
+  const [circInitialMode, setCircInitialMode] = useState<'CHECK_OUT' | 'CHECK_IN' | 'RENEW'>('CHECK_IN');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [networkStatus, setNetworkStatus] = useState({ mode: 'CLOUD', url: '', isLan: false });
@@ -249,8 +250,8 @@ const App: React.FC = () => {
         {mode === 'KIOSK' ? <KioskHome /> : (
           <div className={`h-full overflow-y-auto scrollbar-thin ${isMobile ? 'pb-24' : ''}`}>
             <div className={styles.headingText}>
-              {adminTab === 'DASHBOARD' && <LibrarianDashboard onSelectTab={setAdminTab} />}
-              {adminTab === 'CIRCULATION' && <CirculationDesk />}
+              {adminTab === 'DASHBOARD' && <LibrarianDashboard onSelectTab={setAdminTab} onSelectCirculation={(mode) => { setCircInitialMode(mode); setAdminTab('CIRCULATION'); }} />}
+              {adminTab === 'CIRCULATION' && <CirculationDesk key={circInitialMode} initialMode={circInitialMode} />}
               {adminTab === 'CATALOG' && <CatalogingDesk />}
               {adminTab === 'PATRONS' && <PatronDashboard onRefreshConfig={refreshConfig} />}
               {adminTab === 'REPORTS' && <ReportsDashboard />}

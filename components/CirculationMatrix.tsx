@@ -279,7 +279,7 @@ const CirculationMatrix: React.FC = () => {
                         {rule.max_items} Items
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-amber-600 font-mono">
-                        {rule.fine_per_day > 0 ? `$${rule.fine_per_day.toFixed(2)}` : 'FREE'}
+                        {rule.fine_per_day > 0 ? `RM ${rule.fine_per_day.toFixed(2)}` : 'FREE'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <button
@@ -392,7 +392,7 @@ const CirculationMatrix: React.FC = () => {
               <div className="w-full md:w-auto grid grid-cols-2 md:grid-cols-1 gap-3">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Fine/Day</span>
-                  <span className="text-lg font-black text-slate-800 font-mono">${activeRule?.fine_per_day?.toFixed(2) || '0.00'}</span>
+                  <span className="text-lg font-black text-slate-800 font-mono">RM {activeRule?.fine_per_day?.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Max Quota</span>

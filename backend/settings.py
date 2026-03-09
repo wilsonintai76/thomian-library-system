@@ -174,3 +174,16 @@ else:
     STATIC_ROOT = BASE_DIR / 'staticfiles'
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
+
+# ==========================================
+# EXTERNAL CATALOGING SOURCES
+# ==========================================
+# Malaysian Union Catalogue (MALCat) Z39.50/SRU gateway.
+# Set MALCAT_SRU_URL to your institution's SRU endpoint to enable.
+# Leave empty to skip MALCat in the cataloging waterfall.
+#
+# Common endpoint patterns (verify with PNM / your library consortium):
+#   Koha:   http://opac.pnm.gov.my/cgi-bin/koha/sru/sru-server.pl
+#   Virtua: http://opac.pnm.gov.my/cgi-bin/vtls_srw.cgi/INNOPAC
+#   Custom: contact it@pnm.gov.my or your consortium's helpdesk
+MALCAT_SRU_URL = os.environ.get('MALCAT_SRU_URL', '')

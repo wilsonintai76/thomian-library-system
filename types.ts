@@ -190,4 +190,5 @@ export interface CheckoutResult {
     success: boolean;
     message: string;
     errors: string[];
+    processed: number;
 }

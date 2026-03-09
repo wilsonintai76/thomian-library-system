@@ -146,26 +146,20 @@ export const generatePatronZpl = (patron: Patron): string => {
 };
 
 export const mockPrintBookLabel = async (book: Book): Promise<void> => {
-    const zpl = generateBookZpl(book);
-    console.log("%c ZPL Spine Label Stream Generated:", "color: #2563eb; font-weight: bold;");
-    console.log(zpl);
+    generateBookZpl(book);
     await new Promise(r => setTimeout(r, 800));
 };
 
 export const mockPrintPatronCard = async (patron: Patron): Promise<void> => {
-    const zpl = generatePatronZpl(patron);
-    console.log("%c ZPL ID Card Stream Generated:", "color: #16a34a; font-weight: bold;");
-    console.log(zpl);
+    generatePatronZpl(patron);
     await new Promise(r => setTimeout(r, 1200));
 };
 
 export const mockBulkPrintPatrons = async (patrons: Patron[]): Promise<void> => {
-    console.log(`%c EXECUTING BATCH PRINT: ${patrons.length} PATRON CARDS`, "color: #16a34a; font-weight: 900; background: #f0fdf4; padding: 4px;");
     await new Promise(r => setTimeout(r, 500 * patrons.length));
 };
 
 export const mockBulkPrintLabels = async (books: Partial<Book>[]): Promise<void> => {
-    console.log(`%c EXECUTING BATCH PRINT: ${books.length} SPINE LABELS`, "color: #2563eb; font-weight: 900; background: #eff6ff; padding: 4px;");
     await new Promise(r => setTimeout(r, 300 * books.length));
 };
 

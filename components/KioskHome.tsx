@@ -330,7 +330,7 @@ const KioskHome: React.FC = () => {
                                             </div>
                                             <div className="text-right">
                                                 <p className={`text-lg font-black font-mono ${txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                    {txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? '–' : '+'}${txn.amount.toFixed(2)}
+                                                    {txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? '–' : '+'}RM {txn.amount.toFixed(2)}
                                                 </p>
                                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Auth: {txn.librarian_id}</p>
                                             </div>

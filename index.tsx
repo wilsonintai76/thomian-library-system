@@ -18,13 +18,6 @@ root.render(
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('Thomian ServiceWorker registered successfully: ', registration.scope);
-      })
-      .catch((err) => {
-        console.warn('Thomian ServiceWorker registration failed: ', err);
-      });
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* non-critical */ });
   });
 }

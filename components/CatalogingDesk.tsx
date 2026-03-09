@@ -11,7 +11,7 @@ import MARCEditor from './catalog/MARCEditor';
 import AcquisitionWaterfall from './catalog/AcquisitionWaterfall';
 import InventoryList from './catalog/InventoryList';
 
-type WaterfallStatus = 'IDLE' | 'PENDING' | 'FOUND' | 'NOT_FOUND';
+type WaterfallStatus = 'IDLE' | 'PENDING' | 'FOUND' | 'NOT_FOUND' | 'STUB';
 
 interface StepStatus {
   source: string;
@@ -24,13 +24,14 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
   const [isbn, setIsbn] = useState('');
   const [steps, setSteps] = useState<StepStatus[]>([
-    { source: 'LOCAL', status: 'IDLE' }, { source: 'ZEBRA_LOC', status: 'IDLE' }, { source: 'OPEN_LIBRARY', status: 'IDLE' }
+    { source: 'LOCAL', status: 'IDLE' }, { source: 'MALCAT', status: 'IDLE' }, { source: 'OPEN_LIBRARY', status: 'IDLE' }, { source: 'GOOGLE_BOOKS', status: 'IDLE' }
   ]);
   const [result, setResult] = useState<Partial<BookType> | null>(null);
   const [bulkPreviewBooks, setBulkPreviewBooks] = useState<Partial<BookType>[] | null>(null);
   const [isManual, setIsManual] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [copies, setCopies] = useState(1);
   const [inventory, setInventory] = useState<BookType[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingList, setIsLoadingList] = useState(false);
@@ -63,6 +64,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
         const authorShort = (data.author || '').slice(0, 3).toUpperCase();
         setResult({
           ...data,
+          id: undefined,        // always create a new copy — never overwrite the existing record
           material_type: 'REGULAR',
           status: 'AVAILABLE',
           value: data.value || 25.00,
@@ -71,7 +73,8 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
           call_number: ddc ? `${ddc} ${authorShort}` : '',
           cutter_number: authorShort,
         });
-        setIsManual(false);
+        // MANUAL stub = no API had data; open editor with ISBN pre-filled
+        setIsManual(!data.title);
       } else {
         setIsManual(true);
         setResult({ isbn, status: 'AVAILABLE', material_type: 'REGULAR', value: 25.00 });
@@ -92,7 +95,14 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
         setIsbn('');
         setView('LIST');
       } else {
-        await mockAddBook({ ...result, isbn: isbn || result.isbn } as BookType);
+        const base = { ...result, isbn: isbn || result.isbn };
+        for (let i = 0; i < copies; i++) {
+          // Copy 1 keeps the barcode the librarian entered; copies 2+ get a blank
+          // barcode so each can be stickered and updated individually from the list.
+          const copyData = i === 0 ? base : { ...base, barcode_id: '' };
+          await mockAddBook(copyData as BookType);
+        }
+        setCopies(1);
         setResult(null);
         setIsbn('');
         setView('LIST');
@@ -196,6 +206,7 @@ ${inlineStyles}
       value: 20.00,
       acquisition_date: new Date().toISOString().split('T')[0]
     });
+    setCopies(1);
     setIsManual(true);
     setIsbn('');
     setSteps(prev => prev.map(s => ({ ...s, status: 'IDLE' })));
@@ -207,7 +218,7 @@ ${inlineStyles}
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 z-[100] animate-fade-in-up">
           <span className="text-sm font-medium">Item "{undoAction.book.title}" deleted.</span>
           <button onClick={handleUndoDelete} className="text-blue-400 font-bold uppercase tracking-widest text-xs hover:text-blue-300">Undo</button>
-          <button onClick={() => { clearTimeout(undoAction.timeout); setUndoAction(null); }} className="text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+          <button aria-label="Dismiss" onClick={() => { clearTimeout(undoAction.timeout); setUndoAction(null); }} className="text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
       )}
       {isScannerOpen && <MobileScanner onScan={(text) => { setIsScannerOpen(false); setIsbn(text); handleCatalogSearch(); }} onClose={() => setIsScannerOpen(false)} />}
@@ -293,10 +304,18 @@ ${inlineStyles}
                       placeholder="ISBN-13 / BARCODE..."
                     />
                   </div>
-                  <button onClick={handleCatalogSearch} className="px-6 rounded-2xl shadow-xl text-white bg-blue-600 hover:bg-blue-700 transition-all active:scale-95"><Search className="h-6 w-6" /></button>
+                  <button aria-label="Search ISBN" onClick={handleCatalogSearch} className="px-6 rounded-2xl shadow-xl text-white bg-blue-600 hover:bg-blue-700 transition-all active:scale-95"><Search className="h-6 w-6" /></button>
                 </div>
               </div>
               <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Copies / Qty</span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setCopies(c => Math.max(1, c - 1))} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-black text-slate-600 text-sm transition-all">−</button>
+                    <span className={`font-black w-8 text-center text-sm ${copies > 1 ? 'text-blue-600' : 'text-slate-400'}`}>{copies}</span>
+                    <button onClick={() => setCopies(c => Math.min(20, c + 1))} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-black text-slate-600 text-sm transition-all">+</button>
+                  </div>
+                </div>
                 <button onClick={() => setIsScannerOpen(true)} className="w-full py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2 border border-slate-200">
                   <Edit3 className="h-4 w-4" /> Use Camera Scan
                 </button>
@@ -313,8 +332,10 @@ ${inlineStyles}
               setBook={setResult}
               isManual={isManual}
               isSaving={isSaving}
+              copies={copies}
               onCommit={handleCommit}
               onPreview={() => handlePrintRequest([result as BookType])}
+              onCancel={() => { setCopies(1); setResult(null); setIsbn(''); setView('LIST'); }}
               onImageUpload={(e) => {
                 const reader = new FileReader();
                 reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));

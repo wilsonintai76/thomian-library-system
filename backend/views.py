@@ -4,7 +4,8 @@ import os
 import random
 import string
 import requests as http_requests
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Sum, Q, F
+from django.db import transaction as db_transaction
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -128,18 +129,42 @@ class CatalogViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'waterfall_search', 'stats']:
+        if self.action in ['list', 'retrieve', 'waterfall_search', 'stats', 'by_barcode']:
             return [permissions.AllowAny()]
         return [IsLibrarianOrAdmin()]
+
+    @action(detail=False, methods=['get'], url_path='by_barcode')
+    def by_barcode(self, request):
+        """Exact barcode/ISBN lookup used by the circulation desk."""
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return Response({'error': 'q parameter required'}, status=400)
+        # Normalise: strip hyphens and spaces so ISBN-10/-13 both match
+        q_norm = q.replace('-', '').replace(' ', '')
+        book = (
+            Book.objects.prefetch_related('authors').select_related('publisher')
+            .filter(barcode_id=q).first()
+            or Book.objects.prefetch_related('authors').select_related('publisher')
+            .filter(isbn=q).first()
+            or Book.objects.prefetch_related('authors').select_related('publisher')
+            .filter(isbn=q_norm).first()
+        )
+        if not book:
+            return Response({'found': False}, status=404)
+        return Response({'found': True, 'book': BookSerializer(book).data})
 
     @action(detail=False, methods=['get'])
     def waterfall_search(self, request):
         q = request.query_params.get('isbn') or request.query_params.get('q')
         if not q:
             return Response({'error': 'isbn or q parameter required'}, status=400)
+        # Normalise ISBN for matching (strip hyphens/spaces)
+        q_norm = q.replace('-', '').replace(' ', '')
         book = (
             Book.objects.prefetch_related('authors').select_related('publisher')
             .filter(isbn=q).first()
+            or Book.objects.prefetch_related('authors').select_related('publisher')
+            .filter(isbn=q_norm).first()
             or Book.objects.prefetch_related('authors').select_related('publisher')
             .filter(barcode_id=q).first()
         )
@@ -147,7 +172,12 @@ class CatalogViewSet(viewsets.ModelViewSet):
             return Response({'source': 'LOCAL', 'status': 'FOUND', 'data': BookSerializer(book).data})
         external_data = CatalogingService.fetch_book_metadata(q)
         if external_data:
-            return Response({'source': 'EXTERNAL', 'status': 'FOUND', 'data': external_data})
+            source = external_data.get('source', 'EXTERNAL')
+            # MANUAL stub = all APIs missed; surface it differently so the
+            # frontend can open the editor pre-filled with just the ISBN.
+            if source == 'MANUAL':
+                return Response({'source': 'MANUAL', 'status': 'STUB', 'data': external_data})
+            return Response({'source': source, 'status': 'FOUND', 'data': external_data})
         return Response({'source': 'ALL', 'status': 'NOT_FOUND'}, status=404)
 
     @action(detail=False, methods=['get'])
@@ -293,62 +323,132 @@ class CirculationViewSet(viewsets.ViewSet):
         if patron.is_blocked:
             return Response({'success': False, 'message': 'Patron is blocked'}, status=403)
 
+        # Accept book_ids (preferred, avoids null-barcode collisions) or legacy barcodes
+        book_ids = request.data.get('book_ids', [])
+        book_barcodes = request.data.get('books', [])
+
         success_count = 0
         errors = []
+
+        def _checkout_one(book):
+            nonlocal success_count
+            rule = CirculationRule.objects.filter(
+                patron_group=patron.patron_group, material_type=book.material_type
+            ).first()
+            loan_days = rule.loan_days if rule else 14
+            due_date  = timezone.now() + timedelta(days=loan_days)
+            with db_transaction.atomic():
+                locked = Book.objects.select_for_update().get(pk=book.pk)
+                if locked.status not in ('AVAILABLE', 'HELD'):
+                    errors.append(f"{locked.title}: Not available (status: {locked.status})")
+                else:
+                    max_items = rule.max_items if rule else 5
+                    active_loans = Loan.objects.filter(patron=patron, returned_at__isnull=True).count()
+                    if active_loans >= max_items:
+                        errors.append(f"{locked.title}: Loan limit reached ({max_items} items)")
+                    else:
+                        Hold.objects.filter(book=locked, patron=patron, is_active=True).delete()
+                        Loan.objects.create(book=locked, patron=patron, due_date=due_date, renewal_count=0)
+                        Book.objects.filter(pk=locked.pk).update(
+                            status='LOANED',
+                            loan_count=F('loan_count') + 1,
+                        )
+                        success_count += 1
+
+        for book_id in book_ids:
+            try:
+                book = Book.objects.get(pk=book_id)
+                _checkout_one(book)
+            except Book.DoesNotExist:
+                errors.append(f"Book ID {book_id}: Not found")
+            except Exception as exc:
+                errors.append(f"Book ID {book_id}: {str(exc)}")
+
         for barcode in book_barcodes:
             try:
+                if not barcode:
+                    errors.append("Skipped item with no barcode")
+                    continue
                 book = Book.objects.get(barcode_id=barcode)
-                rule = CirculationRule.objects.filter(
-                    patron_group=patron.patron_group, material_type=book.material_type
-                ).first()
-                loan_days = rule.loan_days if rule else 14
-                due_date  = timezone.now() + timedelta(days=loan_days)
-
-                # ── PostgreSQL RPC path ───────────────────────────────────────
-                rpc = CirculationRPC.checkout_book(patron.pk, book.pk, due_date)
-                if not rpc.get('success'):
-                    errors.append(f"{book.title}: {rpc.get('error')}")
-                else:
-                    success_count += 1
+                _checkout_one(book)
             except Book.DoesNotExist:
                 errors.append(f"Barcode {barcode}: Not found")
+            except Book.MultipleObjectsReturned:
+                errors.append(f"Barcode {barcode}: Multiple books matched — assign a unique barcode sticker")
+            except Exception as exc:
+                errors.append(f"Barcode {barcode}: {str(exc)}")
 
         return Response({'success': True, 'processed': success_count, 'errors': errors})
 
     @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
+    @db_transaction.atomic
     def return_book(self, request):
-        barcode = request.data.get('barcode')
-        book = Book.objects.filter(barcode_id=barcode).first()
+        raw = (request.data.get('barcode') or '').strip()
+        norm = raw.replace('-', '').replace(' ', '')
+
+        book = (
+            Book.objects.select_for_update().filter(barcode_id=raw).first()
+            or Book.objects.select_for_update().filter(barcode_id=norm).first()
+            or Book.objects.select_for_update().filter(isbn=raw).first()
+            or Book.objects.select_for_update().filter(isbn=norm).first()
+        )
         if not book:
             return Response({'success': False, 'message': 'Book not found'}, status=404)
 
-        # ── PostgreSQL RPC path ───────────────────────────────────────────────
-        rpc = CirculationRPC.return_book(barcode)
-        if not rpc.get('success'):
-            return Response({'success': False, 'message': rpc.get('error')}, status=400)
-        book.refresh_from_db()
         loan = Loan.objects.select_related('patron').filter(
-            book=book, returned_at__isnull=False
-        ).order_by('-returned_at').first()
-        next_patron = None
-        if rpc.get('next_hold_id'):
-            from .models import Hold as HoldModel
-            nh = HoldModel.objects.select_related('patron').filter(pk=rpc['next_hold_id']).first()
-            if nh:
-                next_patron = PatronSerializer(nh.patron).data
+            book=book, returned_at__isnull=True
+        ).first()
+        if not loan:
+            return Response({'success': False, 'message': 'No active loan for this book'}, status=400)
+
+        # ── Calculate fine ────────────────────────────────────────────────────
+        now = timezone.now()
+        rule = CirculationRule.objects.filter(
+            patron_group=loan.patron.patron_group, material_type=book.material_type
+        ).first()
+        fine_per_day = rule.fine_per_day if rule else Decimal('0.50')
+        overdue_days = max(0, (now.date() - loan.due_date.date()).days)
+        fine_amount = fine_per_day * overdue_days
+
+        loan.returned_at  = now
+        loan.fine_assessed = fine_amount
+        loan.save(update_fields=['returned_at', 'fine_assessed'])
+
+        # ── Activate next hold if any ─────────────────────────────────────────
+        next_hold = Hold.objects.select_related('patron').filter(
+            book=book, is_active=False
+        ).order_by('position', 'created_at').first()
+
+        if next_hold:
+            next_hold.is_active = True
+            next_hold.save(update_fields=['is_active'])
+            book.status = 'ON_HOLD'
+            next_patron = PatronSerializer(next_hold.patron).data
+        else:
+            book.status = 'AVAILABLE'
+            next_patron = None
+
+        book.save(update_fields=['status'])
+
         return Response({
             'success': True,
-            'fine_amount': float(rpc.get('fine_amount', 0)),
+            'fine_amount': float(fine_amount),
             'book': BookSerializer(book).data,
-            'patron': PatronSerializer(loan.patron).data if loan else None,
+            'patron': PatronSerializer(loan.patron).data,
             'next_patron': next_patron,
         })
 
     @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
     def renew(self, request):
-        barcode   = request.data.get('barcode')
+        raw       = (request.data.get('barcode') or '').strip()
+        norm      = raw.replace('-', '').replace(' ', '')
         patron_id = request.data.get('patron_id')
-        book = Book.objects.filter(barcode_id=barcode).first()
+        book = (
+            Book.objects.filter(barcode_id=raw).first()
+            or Book.objects.filter(barcode_id=norm).first()
+            or Book.objects.filter(isbn=raw).first()
+            or Book.objects.filter(isbn=norm).first()
+        )
         if not book:
             return Response({'success': False, 'message': 'Book not found'}, status=404)
         loan = Loan.objects.filter(book=book, patron__student_id=patron_id, returned_at__isnull=True).first()
@@ -361,7 +461,12 @@ class CirculationViewSet(viewsets.ViewSet):
         loan.due_date      = timezone.now() + timedelta(days=loan_days)
         loan.renewal_count += 1
         loan.save()
-        return Response({'success': True, 'due_date': loan.due_date.isoformat(), 'renewal_count': loan.renewal_count})
+        return Response({
+            'success': True,
+            'book_title': book.title,
+            'due_date': loan.due_date.isoformat(),
+            'renewal_count': loan.renewal_count,
+        })
 
     @action(detail=False, methods=['get'], permission_classes=[IsLibrarianOrAdmin])
     def active_loans(self, request):
@@ -531,3 +636,139 @@ class GeminiProxyViewSet(viewsets.ViewSet):
             return Response(result)
         except Exception as exc:
             return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['post'], url_path='chat', permission_classes=[permissions.AllowAny])
+    def chat(self, request):
+        """
+        Patron-facing AI chat assistant.
+        Proxies to Gemini with tool support (catalog search, schedule).
+        The API key never leaves the server.
+        """
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            return Response({'text': 'The AI assistant is not configured on this server.'})
+
+        message = (request.data.get('message') or '').strip()
+        history = request.data.get('history', [])
+        if not message:
+            return Response({'text': ''}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build conversation history in Gemini REST format
+        contents = [
+            {'role': h['role'], 'parts': [{'text': h.get('text', '')}]}
+            for h in history
+            if h.get('role') in ('user', 'model') and h.get('text')
+        ]
+        contents.append({'role': 'user', 'parts': [{'text': message}]})
+
+        tools = [{'functionDeclarations': [
+            {
+                'name': 'search_catalog',
+                'description': 'Search the library catalog for books by title, author, or keyword.',
+                'parameters': {
+                    'type': 'OBJECT',
+                    'properties': {'query': {'type': 'STRING', 'description': 'The search term.'}},
+                    'required': ['query'],
+                },
+            },
+            {
+                'name': 'check_schedule',
+                'description': 'Check library events and upcoming schedule.',
+                'parameters': {'type': 'OBJECT', 'properties': {}},
+            },
+        ]}]
+
+        system_instruction = {'parts': [{'text': (
+            'You are a helpful and friendly library assistant for St. Thomas Secondary School. '
+            'You have access to the library catalog and schedule via tools. '
+            'When a user asks about books, ALWAYS use the search_catalog tool. '
+            'If a book is AVAILABLE, tell them the shelf location. '
+            'If it is LOANED, tell them it is currently out. Be concise.'
+        )}]}
+
+        payload = {'system_instruction': system_instruction, 'contents': contents, 'tools': tools}
+
+        try:
+            resp = http_requests.post(
+                GEMINI_API_URL, params={'key': api_key}, json=payload, timeout=30,
+            )
+            if resp.status_code == 429:
+                return Response({'text': 'I am receiving too many requests right now. Please try again in a moment.'})
+            resp.raise_for_status()
+
+            candidate = resp.json().get('candidates', [{}])[0]
+            parts = candidate.get('content', {}).get('parts', [])
+
+            # Handle a function call from Gemini
+            for part in parts:
+                func_call = part.get('functionCall')
+                if not func_call:
+                    continue
+
+                tool_name = func_call.get('name')
+                args = func_call.get('args', {})
+                tool_result = {}
+
+                if tool_name == 'search_catalog':
+                    query = args.get('query', '')
+                    books = (
+                        Book.objects
+                        .prefetch_related('authors')
+                        .filter(
+                            Q(title__icontains=query) |
+                            Q(authors__name__icontains=query) |
+                            Q(ddc_code__icontains=query) |
+                            Q(barcode_id=query)
+                        )
+                        .exclude(status='LOST')
+                        .distinct()[:10]
+                    )
+                    tool_result = {
+                        'found_count': books.count(),
+                        'books': [
+                            {
+                                'title': b.title,
+                                'author': ', '.join(a.name for a in b.authors.all()),
+                                'shelf': b.shelf_location or 'Unknown',
+                                'status': b.status,
+                                'call_number': b.ddc_code,
+                            }
+                            for b in books
+                        ],
+                    }
+                elif tool_name == 'check_schedule':
+                    events = LibraryEvent.objects.filter(
+                        date__gte=timezone.now().date()
+                    ).order_by('date')[:5]
+                    tool_result = {
+                        'events': [
+                            {'title': e.title, 'date': str(e.date), 'description': e.description or ''}
+                            for e in events
+                        ]
+                    }
+
+                # Send tool result back to Gemini for the final response
+                contents_with_result = contents + [
+                    {'role': 'model', 'parts': parts},
+                    {'role': 'user', 'parts': [{'functionResponse': {'name': tool_name, 'response': {'result': tool_result}}}]},
+                ]
+                payload2 = {'system_instruction': system_instruction, 'contents': contents_with_result, 'tools': tools}
+                resp2 = http_requests.post(
+                    GEMINI_API_URL, params={'key': api_key}, json=payload2, timeout=30,
+                )
+                resp2.raise_for_status()
+                text = (
+                    resp2.json()
+                    .get('candidates', [{}])[0]
+                    .get('content', {})
+                    .get('parts', [{}])[0]
+                    .get('text', '')
+                )
+                return Response({'text': text or "I couldn't find what you were looking for."})
+
+            # No function call — direct text response
+            text = parts[0].get('text', '') if parts else ''
+            return Response({'text': text or "I couldn't process that request."})
+
+        except Exception:
+            return Response({'text': "I'm having trouble connecting right now. Please try searching manually."})

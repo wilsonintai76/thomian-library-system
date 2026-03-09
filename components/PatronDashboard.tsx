@@ -458,7 +458,7 @@ ${inlineStyles}
                                         </td>
                                         <td className="px-8 py-4">
                                             {patron.fines > 0 ? (
-                                                <span className="text-rose-600 font-black font-mono text-sm">${patron.fines.toFixed(2)}</span>
+                                                <span className="text-rose-600 font-black font-mono text-sm">RM {patron.fines.toFixed(2)}</span>
                                             ) : (
                                                 <span className="text-emerald-600 text-[10px] font-black uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">Clear</span>
                                             )}

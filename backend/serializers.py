@@ -67,6 +67,45 @@ class BookSerializer(serializers.ModelSerializer):
         data['queue_length'] = instance.queue_length
         return data
 
+    def _resolve_authors(self, author_str):
+        """Convert comma-separated name string to a list of Author objects."""
+        authors = []
+        for name in [n.strip() for n in (author_str or '').split(',') if n.strip()]:
+            obj, _ = Author.objects.get_or_create(name=name)
+            authors.append(obj)
+        return authors
+
+    def _resolve_publisher(self, publisher_str):
+        """Convert publisher name string to a Publisher object."""
+        name = (publisher_str or '').strip()
+        if not name:
+            return None
+        pub, _ = Publisher.objects.get_or_create(name=name)
+        return pub
+
+    def create(self, validated_data):
+        # Accept flat-string author/publisher from MARCEditor when IDs not given
+        author_str = self.initial_data.get('author')
+        publisher_str = self.initial_data.get('publisher')
+        if 'authors' not in validated_data and author_str is not None:
+            validated_data['authors'] = self._resolve_authors(author_str)
+        if 'publisher' not in validated_data and publisher_str is not None:
+            pub = self._resolve_publisher(publisher_str)
+            if pub:
+                validated_data['publisher'] = pub
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Accept flat-string author/publisher from MARCEditor when IDs not given
+        author_str = self.initial_data.get('author')
+        publisher_str = self.initial_data.get('publisher')
+        if 'authors' not in validated_data and author_str is not None:
+            validated_data['authors'] = self._resolve_authors(author_str)
+        if 'publisher' not in validated_data and publisher_str is not None:
+            pub = self._resolve_publisher(publisher_str)
+            validated_data['publisher'] = pub
+        return super().update(instance, validated_data)
+
 
 class PatronSerializer(serializers.ModelSerializer):
     # Backward-compatible flat string for frontend (types.ts: class_name?: string)

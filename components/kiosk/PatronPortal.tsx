@@ -107,7 +107,7 @@ const PatronPortal: React.FC<PatronPortalProps> = ({ patron, loans, onViewHistor
 
                 <div>
                     <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-2">Net Balance</p>
-                    <p className="text-5xl font-black tracking-tighter">${patron.fines.toFixed(2)}</p>
+                    <p className="text-5xl font-black tracking-tighter">RM {patron.fines.toFixed(2)}</p>
                     {patron.fines > 0 ? (
                         <div className="mt-3 flex items-center gap-2 text-rose-400 text-[10px] font-black uppercase bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
                             <CreditCard className="h-3.5 w-3.5" /> Fines Pending Clearance

@@ -26,9 +26,10 @@ import {
 
 interface LibrarianDashboardProps {
   onSelectTab: (tab: any) => void;
+  onSelectCirculation?: (mode: 'CHECK_OUT' | 'CHECK_IN') => void;
 }
 
-const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) => {
+const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab, onSelectCirculation }) => {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,13 +136,13 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
               <ActionButton
                 label="Check-Out Session"
                 icon={ArrowRight}
-                onClick={() => onSelectTab('CIRCULATION')}
+                onClick={() => onSelectCirculation ? onSelectCirculation('CHECK_OUT') : onSelectTab('CIRCULATION')}
                 color="bg-sky-600 hover:bg-sky-500"
               />
               <ActionButton
                 label="Process Returns"
                 icon={History}
-                onClick={() => onSelectTab('CIRCULATION')}
+                onClick={() => onSelectCirculation ? onSelectCirculation('CHECK_IN') : onSelectTab('CIRCULATION')}
                 color="bg-emerald-600 hover:bg-emerald-500"
               />
               <ActionButton

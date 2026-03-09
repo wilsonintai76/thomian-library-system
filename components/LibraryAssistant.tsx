@@ -1,8 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { MessageCircle, X, Send, Sparkles, Loader2, BookOpen, Clock } from 'lucide-react';
-import { mockSearchBooks, mockGetEvents } from '../services/api';
 
 interface Message {
     role: 'user' | 'model';
@@ -24,32 +22,6 @@ const LibraryAssistant: React.FC = () => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isOpen]);
 
-    // --- Tool Definitions ---
-
-    const searchCatalogTool: FunctionDeclaration = {
-        name: 'search_catalog',
-        description: 'Search the library catalog for books by title, author, or keyword. Returns a list of books with their availability and location.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {
-                query: {
-                    type: Type.STRING,
-                    description: 'The search term (e.g., "Great Gatsby", "Physics", "History").'
-                }
-            },
-            required: ['query']
-        }
-    };
-
-    const checkScheduleTool: FunctionDeclaration = {
-        name: 'check_schedule',
-        description: 'Check library opening hours, holidays, or upcoming events.',
-        parameters: {
-            type: Type.OBJECT,
-            properties: {},
-        }
-    };
-
     // --- Logic ---
 
     const handleSend = async () => {
@@ -61,70 +33,19 @@ const LibraryAssistant: React.FC = () => {
         setIsThinking(true);
 
         try {
-            // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const history = messages
+                .filter(m => !m.isError && m.text)
+                .map(m => ({ role: m.role, text: m.text }));
 
-            // Initial generation using gemini-3-flash-preview for text chat tasks
-            let response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: [
-                    { role: 'user', parts: [{ text: userMsg }] } // Simplified context for demo
-                ],
-                config: {
-                    systemInstruction: "You are a helpful and friendly library assistant for St. Thomas Secondary School. You have access to the library catalog and schedule via tools. When a user asks about books, ALWAYS use the `search_catalog` tool to find real data. If a book is AVAILABLE, tell them the Shelf Location. If it is LOANED, tell them it is currently out. Be concise.",
-                    tools: [{ functionDeclarations: [searchCatalogTool, checkScheduleTool] }]
-                }
+            const res = await fetch('/api/ai/chat/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMsg, history }),
             });
-
-            // Handle Function Calls
-            const functionCalls = response.functionCalls;
-
-            if (functionCalls && functionCalls.length > 0) {
-                const call = functionCalls[0];
-                let toolResult = {};
-
-                if (call.name === 'search_catalog') {
-                    const query = (call.args as any).query;
-                    const books = await mockSearchBooks(query);
-                    toolResult = {
-                        found_count: books.length,
-                        books: books.map(b => ({
-                            title: b.title,
-                            author: b.author,
-                            shelf: b.shelf_location,
-                            status: b.status,
-                            call_number: b.ddc_code
-                        }))
-                    };
-                } else if (call.name === 'check_schedule') {
-                    const events = await mockGetEvents();
-                    toolResult = { events: events };
-                }
-
-                // Send tool result back to model using gemini-3-flash-preview
-                response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: [
-                        { role: 'user', parts: [{ text: userMsg }] },
-                        { role: 'model', parts: response.candidates?.[0]?.content?.parts || [] }, // Previous model turn with function call
-                        {
-                            role: 'user', parts: [{
-                                functionResponse: {
-                                    name: call.name,
-                                    response: { result: toolResult }
-                                }
-                            }]
-                        }
-                    ],
-                });
-            }
-
-            // Final Text Response - Using .text property (not method) as per guidelines
-            const aiText = response.text || "I'm sorry, I couldn't process that request.";
-            setMessages(prev => [...prev, { role: 'model', text: aiText }]);
-
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            setMessages(prev => [...prev, { role: 'model', text: data.text || "I couldn't process that request." }]);
         } catch (err) {
-            console.error("AI Error:", err);
             setMessages(prev => [...prev, { role: 'model', text: "I'm having trouble connecting to the network right now. Please try searching manually.", isError: true }]);
         } finally {
             setIsThinking(false);
@@ -137,6 +58,7 @@ const LibraryAssistant: React.FC = () => {
             {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
+                    aria-label="Open Library Assistant"
                     className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95 animate-bounce-subtle"
                 >
                     <Sparkles className="h-6 w-6" />
@@ -161,7 +83,7 @@ const LibraryAssistant: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+                        <button onClick={() => setIsOpen(false)} aria-label="Close" className="text-slate-400 hover:text-white transition-colors">
                             <X className="h-5 w-5" />
                         </button>
                     </div>
@@ -204,6 +126,7 @@ const LibraryAssistant: React.FC = () => {
                             />
                             <button
                                 type="submit"
+                                aria-label="Send message"
                                 disabled={!input.trim() || isThinking}
                                 className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >

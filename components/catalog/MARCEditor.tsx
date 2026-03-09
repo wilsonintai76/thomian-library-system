@@ -10,12 +10,14 @@ interface MARCEditorProps {
     setBook: (book: Partial<Book>) => void;
     isManual: boolean;
     isSaving: boolean;
+    copies?: number;
     onCommit: () => void;
     onPreview: () => void;
     onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onCancel?: () => void;
 }
 
-const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSaving, onCommit, onPreview, onImageUpload }) => {
+const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSaving, copies = 1, onCommit, onPreview, onImageUpload, onCancel }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-detect classification and suggest call number when DDC or Author changes
@@ -229,8 +231,11 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                 <span className="text-[9px] font-black uppercase tracking-widest">Holdings are synchronized with primary catalog clusters.</span>
             </div>
             <div className="flex gap-4 w-full md:w-auto">
+                {book.id && onCancel && (
+                    <button onClick={onCancel} className="flex-1 md:flex-none px-8 py-4 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl font-black text-xs uppercase hover:bg-slate-50 transition-all">Cancel</button>
+                )}
                 <button onClick={onPreview} disabled={!book.title} className="flex-1 md:flex-none px-10 py-4 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl font-black text-xs uppercase hover:bg-slate-50 transition-all flex items-center justify-center gap-3 shadow-sm"><Eye className="h-4 w-4" /> Batch Preview</button>
-                <button onClick={onCommit} disabled={isSaving} className="flex-1 md:flex-none px-12 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-blue-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50">{isSaving ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : book.id ? 'Commit Updates' : 'Accession Item'}</button>
+                <button onClick={onCommit} disabled={isSaving} className="flex-1 md:flex-none px-12 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-blue-700 shadow-2xl transition-all active:scale-95 disabled:opacity-50">{isSaving ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : book.id ? 'Commit Updates' : copies > 1 ? `Accession ${copies} Copies` : 'Accession Item'}</button>
             </div>
         </div>
     </div>

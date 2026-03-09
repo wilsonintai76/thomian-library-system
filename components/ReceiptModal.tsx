@@ -39,7 +39,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, patron, config
             </div>
             <h3 className="text-xl font-black">Transaction Successful</h3>
             <p className="text-white/70 text-sm">
-                {transaction.type.includes('PAYMENT') ? `Payment of $${transaction.amount.toFixed(2)} recorded.` : `Charge of $${transaction.amount.toFixed(2)} applied.`}
+                {transaction.type.includes('PAYMENT') ? `Payment of RM ${transaction.amount.toFixed(2)} recorded.` : `Charge of RM ${transaction.amount.toFixed(2)} applied.`}
             </p>
         </div>
 
@@ -74,7 +74,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, patron, config
             <div className="space-y-3 mb-6">
                 <div className="flex justify-between items-center text-sm">
                     <span className="font-bold">{getTxnLabel(transaction.type)}</span>
-                    <span className="font-black">${transaction.amount.toFixed(2)}</span>
+                    <span className="font-black">RM {transaction.amount.toFixed(2)}</span>
                 </div>
                 {transaction.note && (
                     <p className="text-[10px] text-slate-500 italic">Note: {transaction.note}</p>
@@ -84,7 +84,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, patron, config
             <div className="border-t-2 border-slate-900 pt-4 mb-10">
                 <div className="flex justify-between items-center text-base">
                     <span className="font-black">Outstanding Balance:</span>
-                    <span className="font-black">${patron.fines.toFixed(2)}</span>
+                    <span className="font-black">RM {patron.fines.toFixed(2)}</span>
                 </div>
             </div>
 

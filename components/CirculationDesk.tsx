@@ -1,12 +1,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeftRight, User, BookOpen, CheckCircle, AlertTriangle, XCircle, Search, Calendar, DollarSign, ScanLine, ArrowRight, Camera, Zap, Smartphone, Monitor, Loader2, History, ChevronUp, ChevronDown, X, Trash2, UserCheck, ShieldCheck, CreditCard, Lock } from 'lucide-react';
-import { mockGetPatronById, mockGetBookByBarcode, mockProcessReturn, mockCheckoutBooks, mockGetMapConfig } from '../services/api';
+import { ArrowLeftRight, User, BookOpen, CheckCircle, AlertTriangle, XCircle, Search, Calendar, DollarSign, ScanLine, ArrowRight, Camera, Zap, Smartphone, Monitor, Loader2, History, ChevronUp, ChevronDown, X, Trash2, UserCheck, ShieldCheck, CreditCard, Lock, RefreshCw } from 'lucide-react';
+import { mockGetPatronById, mockGetBookByBarcode, mockProcessReturn, mockCheckoutBooks, mockGetMapConfig, mockRenewBook } from '../services/api';
 import { Patron, Book, CheckInResult, MapConfig } from '../types';
 import MobileScanner from './MobileScanner';
 
-const CirculationDesk: React.FC = () => {
-    const [mode, setMode] = useState<'CHECK_OUT' | 'CHECK_IN'>('CHECK_IN');
+const CirculationDesk: React.FC<{ initialMode?: 'CHECK_OUT' | 'CHECK_IN' | 'RENEW' }> = ({ initialMode }) => {
+    const [mode, setMode] = useState<'CHECK_OUT' | 'CHECK_IN' | 'RENEW'>(initialMode ?? 'CHECK_IN');
+
+    useEffect(() => {
+        if (initialMode) setMode(initialMode);
+    }, [initialMode]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -20,6 +24,7 @@ const CirculationDesk: React.FC = () => {
     const [scannedBooks, setScannedBooks] = useState<Book[]>([]);
     const [returnResult, setReturnResult] = useState<CheckInResult | null>(null);
     const [returnHistory, setReturnHistory] = useState<CheckInResult[]>([]);
+    const [renewHistory, setRenewHistory] = useState<{ book_title: string; due_date: string; renewal_count: number }[]>([]);
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,32 +64,64 @@ const CirculationDesk: React.FC = () => {
             } catch (err) {
                 console.error(err);
             }
+        } else if (mode === 'RENEW') {
+            try {
+                if (!currentPatron) {
+                    const patron = await mockGetPatronById(query);
+                    if (patron) {
+                        if (patron.is_blocked || patron.is_archived) {
+                            alert(`ACCESS BLOCKED: Patron is ${patron.is_archived ? 'ARCHIVED (Graduated)' : 'BLOCKED'}.`);
+                        } else {
+                            setCurrentPatron(patron);
+                            triggerFlash();
+                        }
+                    } else {
+                        alert('Identity not found in Thomian Core.');
+                    }
+                } else {
+                    const result = await mockRenewBook(query, currentPatron.student_id);
+                    setRenewHistory(prev => [{ book_title: result.book_title || query, due_date: result.due_date, renewal_count: result.renewal_count }, ...prev]);
+                    triggerFlash();
+                }
+            } catch (err: any) {
+                alert(`Renewal error: ${err.message || 'Please try again.'}`);
+            }
         } else {
-            if (!currentPatron) {
-                const patron = await mockGetPatronById(query);
-                if (patron) {
-                    if (patron.is_blocked || patron.is_archived) {
-                        alert(`ACCESS BLOCKED: Patron is ${patron.is_archived ? 'ARCHIVED (Graduated)' : 'BLOCKED (Fines)'}.`);
+            try {
+                if (!currentPatron) {
+                    const patron = await mockGetPatronById(query);
+                    if (patron) {
+                        if (patron.is_blocked || patron.is_archived) {
+                            alert(`ACCESS BLOCKED: Patron is ${patron.is_archived ? 'ARCHIVED (Graduated)' : 'BLOCKED (Fines)'}.`);
+                        } else {
+                            setCurrentPatron(patron);
+                            triggerFlash();
+                        }
                     } else {
-                        setCurrentPatron(patron);
-                        triggerFlash();
+                        const book = await mockGetBookByBarcode(query);
+                        if (book) {
+                            alert(`Scan patron card first, then scan books.\n\n"${book.title}" is ready to be added once a patron is identified.`);
+                        } else {
+                            alert("Identity not found in Thomian Core.");
+                        }
                     }
                 } else {
-                    alert("Identity not found in Thomian Core.");
-                }
-            } else {
-                const book = await mockGetBookByBarcode(query);
-                if (book) {
-                    if (scannedBooks.some(b => b.id === book.id)) return;
-                    if (book.status !== 'AVAILABLE' && book.status !== 'HELD') {
-                        alert(`Status Alert: ${book.title} is ${book.status}.`);
+                    const book = await mockGetBookByBarcode(query);
+                    if (book) {
+                        if (scannedBooks.some(b => b.id === book.id)) {
+                            alert(`"${book.title}" is already in this session.`);
+                        } else if (book.status !== 'AVAILABLE' && book.status !== 'HELD') {
+                            alert(`Cannot check out: "${book.title}" is currently ${book.status}.`);
+                        } else {
+                            setScannedBooks(prev => [...prev, book]);
+                            triggerFlash();
+                        }
                     } else {
-                        setScannedBooks(prev => [...prev, book]);
-                        triggerFlash();
+                        alert("Resource not cataloged.");
                     }
-                } else {
-                    alert("Resource not cataloged.");
                 }
+            } catch (err: any) {
+                alert(`Scan error: ${err.message || 'Please try again.'}`);
             }
         }
         setLoading(false);
@@ -96,13 +133,21 @@ const CirculationDesk: React.FC = () => {
     const handleCheckout = async () => {
         if (!currentPatron || scannedBooks.length === 0) return;
         setProcessingCheckout(true);
-        const barcodes = scannedBooks.map(b => b.barcode_id);
+        const barcodes = scannedBooks.map(b => b.id);
         try {
             const result = await mockCheckoutBooks(currentPatron.student_id, barcodes);
-            if (result.success) {
-                alert(`Success: ${scannedBooks.length} items issued.`);
+            if (result.processed > 0) {
+                if (result.errors?.length > 0) {
+                    alert(`Issued ${result.processed} of ${scannedBooks.length} item(s).\nWarnings:\n${result.errors.join('\n')}`);
+                } else {
+                    alert(`${result.processed} item(s) issued successfully.`);
+                }
                 clearSession();
+            } else {
+                alert(`Checkout failed:\n${result.errors?.join('\n') || result.message || 'No items were processed.'}`);
             }
+        } catch (err: any) {
+            alert(`Checkout error: ${err.message || 'Server error. Please try again.'}`);
         } finally {
             setProcessingCheckout(false);
         }
@@ -133,194 +178,237 @@ const CirculationDesk: React.FC = () => {
                 <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                     <button
                         onClick={() => { setMode('CHECK_OUT'); clearSession(); }}
-                        className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${mode === 'CHECK_OUT' ? 'bg-white text-emerald-600 shadow-md' : 'text-slate-400'}`}
+                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${mode === 'CHECK_OUT' ? 'bg-white text-emerald-600 shadow-md' : 'text-slate-400'}`}
                     >
                         <BookOpen className="h-3.5 w-3.5" /> Check-Out
                     </button>
                     <button
                         onClick={() => { setMode('CHECK_IN'); clearSession(); }}
-                        className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${mode === 'CHECK_IN' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400'}`}
+                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${mode === 'CHECK_IN' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400'}`}
                     >
                         <CheckCircle className="h-3.5 w-3.5" /> Check-In
+                    </button>
+                    <button
+                        onClick={() => { setMode('RENEW'); clearSession(); }}
+                        className={`flex-1 md:flex-none px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${mode === 'RENEW' ? 'bg-white text-violet-600 shadow-md' : 'text-slate-400'}`}
+                    >
+                        <RefreshCw className="h-3.5 w-3.5" /> Renew
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 p-4 md:p-6 grid grid-cols-12 gap-4 md:gap-6 min-h-0 overflow-y-auto lg:overflow-hidden relative">
-                {/* Interaction Column */}
-                <div className="col-span-12 lg:col-span-8 flex flex-col gap-6 h-full">
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center">
+              <div className="w-full max-w-5xl flex flex-col gap-5">
 
                     {/* Global Lock Overlay for Checkout */}
                     {mode === 'CHECK_OUT' && systemConfig?.circulationLocked ? (
-                        <div className="flex-1 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center p-12 text-center animate-fade-in">
-                            <div className="h-24 w-24 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-8 border-2 border-rose-100 shadow-lg">
-                                <Lock className="h-10 w-10" />
+                        <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-16 text-center">
+                            <div className="h-20 w-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-6 border border-rose-100">
+                                <Lock className="h-9 w-9" />
                             </div>
-                            <h3 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-4">Check-Out Restricted</h3>
-                            <p className="text-slate-500 font-medium max-w-md leading-relaxed text-lg">
-                                The core circulation engine is currently <span className="text-rose-600 font-black">LOCKED</span> for End-of-Year stocktake. No new items can be issued at this time.
+                            <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-3">Check-Out Restricted</h3>
+                            <p className="text-slate-400 font-medium max-w-sm leading-relaxed">
+                                The circulation engine is <span className="text-rose-500 font-black">LOCKED</span> for End-of-Year stocktake. Returns are still permitted.
                             </p>
-                            <div className="mt-10 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                                <ShieldCheck className="h-5 w-5 text-blue-500" />
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Returns are still permitted in Check-In mode.</span>
-                            </div>
                         </div>
                     ) : (
-                        <>
-                            <div className={`p-4 md:p-6 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border-4 transition-all duration-500 relative overflow-hidden flex flex-col items-center justify-center gap-4 md:gap-6 ${mode === 'CHECK_IN' ? 'bg-blue-600 border-blue-700' : 'bg-emerald-600 border-emerald-700'}`}>
-                                <div className="absolute inset-0 opacity-10 pointer-events-none">
-                                    <svg width="100%" height="100%"><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1" /></pattern><rect width="100%" height="100%" fill="url(#grid)" /></svg>
-                                </div>
+                        <div className="flex flex-col lg:flex-row gap-5 items-start">
 
-                                <div className="relative z-10 w-full max-w-xl flex flex-col gap-4 md:gap-5">
-                                    <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-md flex items-center justify-between border border-white/10 shadow-lg">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center shadow-inner">
-                                                <ScanLine className="h-5 w-5 text-slate-800" />
-                                            </div>
-                                            <span className="text-white text-[10px] font-black uppercase tracking-widest">Active Channel</span>
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            {[1, 2, 3].map(i => <div key={i} className="h-1 w-5 bg-white/20 rounded-full animate-pulse"></div>)}
-                                        </div>
-                                    </div>
+                            {/* ── Left column: scan bar + stream ── */}
+                            <div className="flex-1 min-w-0 flex flex-col gap-4">
 
+                                {/* Scan bar */}
+                                <div className={`rounded-2xl border-2 px-4 py-3 flex items-center gap-3 transition-colors duration-300 ${mode === 'CHECK_IN' ? 'bg-blue-600 border-blue-700' : mode === 'RENEW' ? 'bg-violet-600 border-violet-700' : 'bg-emerald-600 border-emerald-700'}`}>
+                                    <ScanLine className="h-4 w-4 text-white/70 shrink-0" />
                                     <input
                                         ref={inputRef}
                                         type="text"
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && processScan(input)}
-                                        className="w-full py-4 md:py-5 px-6 md:px-10 rounded-[1.5rem] md:rounded-[2rem] text-2xl md:text-3xl font-mono text-center shadow-2xl focus:ring-8 focus:ring-white/10 outline-none uppercase placeholder-white/20 bg-white border-4 border-transparent focus:border-white/20 transition-all"
-                                        placeholder={loading ? "SYNCING..." : "READY TO SCAN..."}
+                                        className="flex-1 min-w-0 bg-transparent outline-none text-sm font-mono text-white placeholder-white/40 uppercase tracking-widest"
+                                        placeholder={loading ? 'SYNCING...' : mode === 'CHECK_OUT' && !currentPatron ? 'SCAN PATRON CARD FIRST...' : 'SCAN BARCODE OR TYPE ISBN...'}
                                         disabled={loading}
                                     />
+                                    <button onClick={() => setIsScannerOpen(true)} className="flex items-center gap-1.5 h-7 px-3 bg-white/15 hover:bg-white/25 border border-white/20 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shrink-0">
+                                        <Camera className="h-3 w-3" /> Camera
+                                    </button>
+                                </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={() => setIsScannerOpen(true)} className="py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all border border-white/10 flex items-center justify-center gap-2">
-                                            <Camera className="h-3.5 w-3.5" /> Camera Scan
-                                        </button>
-                                        <div className="py-3 bg-black/20 text-white/40 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-white/5">
-                                            <Monitor className="h-3.5 w-3.5" /> Hardware: Sync
-                                        </div>
+                                {/* Transaction stream */}
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Transaction Stream</span>
+                                        <History className="h-4 w-4 text-slate-300" />
                                     </div>
-                                </div>
-                            </div>
-
-                            {/* Results Table (Responsive) */}
-                            <div className="bg-white flex-1 min-h-[400px] lg:min-h-0 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-                                <div className="px-6 md:px-8 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Transaction Stream</h3>
-                                    <History className="h-4 w-4 text-slate-300" />
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
-                                    {mode === 'CHECK_IN' ? (
-                                        returnHistory.length === 0 ? (
-                                            <div className="h-full flex flex-col items-center justify-center text-slate-300">
-                                                <ScanLine className="h-12 w-12 mb-4 opacity-5" />
-                                                <p className="text-sm font-black uppercase tracking-tighter opacity-20 text-center">Scan returned book to begin cycle...</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {returnHistory.map((res, i) => (
-                                                    <div key={i} className="flex items-center gap-4 md:gap-5 p-4 md:p-5 bg-slate-50 border border-slate-100 rounded-2xl animate-fade-in-up">
-                                                        <div className={`h-10 md:h-12 w-10 md:w-12 rounded-xl flex items-center justify-center shrink-0 ${res.fine_amount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600 shadow-sm'}`}>
-                                                            <CheckCircle className="h-5 md:h-6 w-5 md:w-6" />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-base md:text-lg font-black text-slate-800 truncate leading-none mb-1">{res.book.title}</p>
-                                                            <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest truncate">ID: {res.book.barcode_id} • Shelf: {res.book.shelf_location}</p>
-                                                        </div>
+                                    <div className="p-4 space-y-2.5 max-h-[420px] overflow-y-auto">
+                                        {mode === 'CHECK_IN' ? (
+                                            returnHistory.length === 0 ? (
+                                                <div className="py-16 flex flex-col items-center text-slate-200">
+                                                    <ScanLine className="h-10 w-10 mb-3" />
+                                                    <p className="text-xs font-black uppercase tracking-widest">Scan a book to begin</p>
+                                                </div>
+                                            ) : returnHistory.map((res, i) => (
+                                                <div key={i} className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${res.fine_amount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                        <CheckCircle className="h-5 w-5" />
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )
-                                    ) : (
-                                        scannedBooks.length === 0 ? (
-                                            <div className="h-full flex flex-col items-center justify-center text-slate-300">
-                                                <UserCheck className="h-12 w-12 mb-4 opacity-5" />
-                                                <p className="text-sm font-black uppercase tracking-tighter opacity-20 text-center">Scan Patron card to start session...</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {scannedBooks.map((book, i) => (
-                                                    <div key={i} className="flex justify-between items-center p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-all">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="h-10 w-10 bg-slate-900 rounded-lg flex items-center justify-center text-white font-black text-xs">{i + 1}</div>
-                                                            <div className="overflow-hidden">
-                                                                <p className="font-black text-slate-800 text-base leading-none mb-1 truncate">{book.title}</p>
-                                                                <p className="text-[9px] font-mono text-slate-400 tracking-widest uppercase">ID: {book.barcode_id}</p>
-                                                            </div>
-                                                        </div>
-                                                        <button onClick={() => setScannedBooks(prev => prev.filter((_, idx) => idx !== i))} className="p-2 text-slate-200 hover:text-rose-500 transition-colors shrink-0">
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-black text-slate-800 truncate leading-none mb-1">{res.book.title}</p>
+                                                        <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">Shelf: {res.book.shelf_location}</p>
                                                     </div>
-                                                ))}
+                                                    {res.fine_amount > 0 && (
+                                                        <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-black shrink-0">RM {res.fine_amount.toFixed(2)}</span>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : mode === 'RENEW' ? (
+                                            renewHistory.length === 0 ? (
+                                                <div className="py-16 flex flex-col items-center text-slate-200">
+                                                    <RefreshCw className="h-10 w-10 mb-3" />
+                                                    <p className="text-xs font-black uppercase tracking-widest">Scan patron, then books</p>
+                                                </div>
+                                            ) : renewHistory.map((res, i) => (
+                                                <div key={i} className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-violet-100 text-violet-600">
+                                                        <RefreshCw className="h-5 w-5" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-black text-slate-800 truncate leading-none mb-1">{res.book_title}</p>
+                                                        <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">Due: {new Date(res.due_date).toLocaleDateString('en-MY')} · ×{res.renewal_count} renewed</p>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            scannedBooks.length === 0 ? (
+                                                <div className="py-16 flex flex-col items-center text-slate-200">
+                                                    <UserCheck className="h-10 w-10 mb-3" />
+                                                    <p className="text-xs font-black uppercase tracking-widest">Scan patron card first</p>
+                                                </div>
+                                            ) : scannedBooks.map((book, i) => (
+                                                <div key={i} className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                                                    <div className="h-10 w-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0">{i + 1}</div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-black text-slate-800 truncate leading-none mb-1">{book.title}</p>
+                                                        <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">ISBN: {book.barcode_id || book.isbn}</p>
+                                                    </div>
+                                                    <button aria-label="Remove book" onClick={() => setScannedBooks(prev => prev.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-200 hover:text-rose-500 transition-colors shrink-0">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Right column: status card ── */}
+                            <div className="w-full lg:w-72 shrink-0 flex flex-col gap-4">
+
+                                {/* Patron / identity card */}
+                                <div className={`rounded-2xl border-2 overflow-hidden transition-colors duration-300 ${
+                                    mode === 'CHECK_IN' ? 'border-blue-100 bg-blue-50' :
+                                    mode === 'RENEW' ? 'border-violet-100 bg-violet-50' :
+                                    'border-emerald-100 bg-emerald-50'
+                                }`}>
+                                    <div className={`px-5 py-3 flex items-center gap-2 border-b ${
+                                        mode === 'CHECK_IN' ? 'border-blue-100' :
+                                        mode === 'RENEW' ? 'border-violet-100' :
+                                        'border-emerald-100'
+                                    }`}>
+                                        <div className={`h-1.5 w-1.5 rounded-full ${
+                                            mode === 'CHECK_IN' ? 'bg-blue-500' :
+                                            mode === 'RENEW' ? 'bg-violet-500' :
+                                            'bg-emerald-500'
+                                        }`} />
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                                            {mode === 'CHECK_IN' ? 'Return Mode' : mode === 'RENEW' ? 'Renewal Mode' : 'Issue Mode'}
+                                        </span>
+                                    </div>
+                                    <div className="p-5">
+                                        {(mode === 'CHECK_OUT' || mode === 'RENEW') ? (
+                                            currentPatron ? (
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-white text-xl font-black shrink-0 shadow-lg ${mode === 'RENEW' ? 'bg-violet-600' : 'bg-emerald-600'}`}>
+                                                        {currentPatron.full_name.charAt(0)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-black text-slate-800 leading-tight truncate">{currentPatron.full_name}</p>
+                                                        <p className="text-[10px] font-mono text-slate-400 mt-0.5 uppercase">{currentPatron.student_id}</p>
+                                                    </div>
+                                                    <button onClick={clearSession} title="Clear" className="text-slate-300 hover:text-rose-400 transition-colors shrink-0">
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-12 w-12 rounded-2xl bg-white border-2 border-dashed border-slate-200 flex items-center justify-center shrink-0">
+                                                        <User className="h-5 w-5 text-slate-300" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-400 text-sm uppercase tracking-wide">Identity Required</p>
+                                                        <p className="text-[9px] text-slate-300 mt-0.5">Scan patron card to begin</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-12 w-12 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
+                                                    <ScanLine className="h-5 w-5 text-blue-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-slate-800 text-sm">Ready to Accept</p>
+                                                    <p className="text-[9px] text-slate-400 mt-0.5">Scan any book barcode or ISBN</p>
+                                                </div>
                                             </div>
-                                        )
-                                    )}
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Sidebar Info Column */}
-                <div className="col-span-12 lg:col-span-4 flex flex-col h-full gap-6 pb-10">
-                    <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col p-8 shrink-0">
-                        {mode === 'CHECK_OUT' && currentPatron ? (
-                            <div className="animate-fade-in space-y-8">
-                                <div className="text-center">
-                                    <div className="h-24 w-24 md:h-28 md:w-28 bg-emerald-600 rounded-[1.5rem] md:rounded-[2rem] mx-auto flex items-center justify-center text-white text-3xl md:text-4xl font-black shadow-2xl mb-6 rotate-3 shadow-emerald-100">
-                                        {currentPatron.full_name.charAt(0)}
-                                    </div>
-                                    <h3 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight">{currentPatron.full_name}</h3>
-                                    <p className="text-slate-400 font-mono text-xs tracking-widest mt-2 uppercase">{currentPatron.student_id}</p>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div className="flex justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Account Status</span>
-                                        <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1.5 uppercase"><ShieldCheck className="h-3 w-3" /> Eligible</span>
-                                    </div>
-                                    <div className="flex justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Items In Queue</span>
-                                        <span className="text-base font-black text-emerald-600 font-mono">{scannedBooks.length}</span>
+                                        )}
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={handleCheckout}
-                                    disabled={scannedBooks.length === 0 || processingCheckout}
-                                    className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-base uppercase tracking-widest shadow-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30"
-                                >
-                                    {processingCheckout ? <Loader2 className="animate-spin h-5 w-5" /> : <>Finalize Session <ArrowRight className="h-5 w-5" /></>}
-                                </button>
-                                <button onClick={clearSession} className="w-full text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] hover:text-rose-500 transition-colors">Abort Context</button>
-                            </div>
-                        ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-center py-10 md:py-14">
-                                <div className="h-16 w-16 md:h-20 md:w-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 border-2 border-slate-100">
-                                    <User className="h-8 md:h-10 w-8 md:w-10 text-slate-200" />
-                                </div>
-                                <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Identity Required</h4>
-                                <p className="text-xs text-slate-400 mt-2 max-w-[200px] font-medium leading-relaxed mx-auto">Scan a valid Patron Identity Card to unlock circulation services.</p>
-                            </div>
-                        )}
-                    </div>
+                                {/* Stats */}
+                                {(mode === 'CHECK_OUT' || mode === 'RENEW') && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            {mode === 'RENEW' ? 'Renewed' : 'Queued'}
+                                        </span>
+                                        <span className={`text-2xl font-black font-mono ${mode === 'RENEW' ? 'text-violet-600' : 'text-emerald-600'}`}>
+                                            {mode === 'RENEW' ? renewHistory.length : scannedBooks.length}
+                                        </span>
+                                    </div>
+                                )}
+                                {mode === 'CHECK_IN' && returnHistory.length > 0 && (
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Returned</span>
+                                        <span className="text-2xl font-black font-mono text-blue-600">{returnHistory.length}</span>
+                                    </div>
+                                )}
 
-                    <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-xl shrink-0 hidden md:block">
-                        <ShieldCheck className="absolute -top-10 -right-10 h-32 w-32 opacity-5 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50"></div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Core Matrix Policy</h4>
+                                {/* Finalize (CHECK_OUT only) */}
+                                {mode === 'CHECK_OUT' && (
+                                    <button
+                                        onClick={handleCheckout}
+                                        disabled={!currentPatron || scannedBooks.length === 0 || processingCheckout}
+                                        className="w-full bg-slate-900 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-25 flex items-center justify-center gap-2"
+                                    >
+                                        {processingCheckout
+                                            ? <Loader2 className="animate-spin h-4 w-4" />
+                                            : <>{scannedBooks.length > 0 && <span className="bg-white/20 rounded-lg px-1.5 py-0.5 text-xs">{scannedBooks.length}</span>} Finalize Session <ArrowRight className="h-4 w-4" /></>
+                                        }
+                                    </button>
+                                )}
+
+                                {/* Policy note */}
+                                <div className="bg-slate-900 rounded-2xl p-5 text-white">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Core Matrix Policy</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 leading-relaxed">Rules derived from <strong className="text-slate-300">Circulation Matrix</strong>. All actions are logged.</p>
+                                </div>
+                            </div>
                         </div>
-                        <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                            System rules are derived from the <strong>Circulation Matrix</strong>. All actions are logged.
-                        </p>
-                    </div>
-                </div>
+                    )}
+              </div>
             </div>
         </div>
     );

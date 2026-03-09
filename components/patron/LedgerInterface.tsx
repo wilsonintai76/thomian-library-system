@@ -38,7 +38,7 @@ const LedgerInterface: React.FC<LedgerInterfaceProps> = ({
                 </div>
                 <div className="ml-auto text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Current Balance</p>
-                    <p className="text-4xl font-black">${patron.fines.toFixed(2)}</p>
+                    <p className="text-4xl font-black">RM {patron.fines.toFixed(2)}</p>
                 </div>
             </div>
 
@@ -56,8 +56,8 @@ const LedgerInterface: React.FC<LedgerInterfaceProps> = ({
                         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Accept Cash Payment</label>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-300">$</span>
-                                <input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="w-full text-4xl font-mono font-black p-5 pl-12 bg-white border-2 border-slate-200 rounded-2xl focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="0.00" autoFocus />
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-300">RM</span>
+                                <input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="w-full text-4xl font-mono font-black p-5 pl-16 bg-white border-2 border-slate-200 rounded-2xl focus:border-emerald-500 outline-none transition-all shadow-inner" placeholder="0.00" autoFocus />
                             </div>
                         </div>
                         <button onClick={onPayment} disabled={isProcessing || !paymentAmount} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-lg uppercase tracking-widest shadow-2xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50">{isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <><CreditCard className="h-6 w-6" /> Accept & Print Receipt</>}</button>
@@ -81,7 +81,7 @@ const LedgerInterface: React.FC<LedgerInterfaceProps> = ({
                                     <tr key={txn.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewReceipt(txn)}>
                                         <td className="px-6 py-4 text-xs text-slate-500 font-mono">{new Date(txn.timestamp).toLocaleDateString()}</td>
                                         <td className="px-6 py-4"><span className="text-xs font-bold text-slate-700 uppercase">{txn.type.replace('_', ' ')}</span></td>
-                                        <td className={`px-6 py-4 text-right text-sm font-black font-mono ${txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? 'text-emerald-600' : 'text-rose-600'}`}>{txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? '-' : '+'}${txn.amount.toFixed(2)}</td>
+                                        <td className={`px-6 py-4 text-right text-sm font-black font-mono ${txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? 'text-emerald-600' : 'text-rose-600'}`}>{txn.type.includes('PAYMENT') || txn.type === 'WAIVE' ? '-' : '+'}RM {txn.amount.toFixed(2)}</td>
                                     </tr>
                                 ))}
                             </tbody>

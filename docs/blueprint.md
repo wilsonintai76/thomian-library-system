@@ -21,7 +21,7 @@ The Thomian Library System is a full-stack web application designed for secondar
 - **QR/Barcode:** `html5-qrcode`
 - **Icons:** `lucide-react`
 - **Entry Point:** `index.tsx` → `App.tsx`
-- **Key Config:** `vite.config.ts` maps `process.env.API_KEY` and `process.env.GEMINI_API_KEY` from the `GEMINI_API_KEY` env variable at build time.
+- **Key Config:** `vite.config.ts` proxies `/api` to the Django backend in development. `GEMINI_API_KEY` lives exclusively in the backend `.env` — it is never exposed to the browser.
 
 ### Backend
 
