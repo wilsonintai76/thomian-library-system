@@ -41,6 +41,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     }, [isOpen]);
 
     useEffect(() => {
+        if (!isOpen) return;
         if (initialData) {
             setFormData(initialData);
         } else {
@@ -58,7 +59,8 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                 pin: generateRandomPin()
             });
         }
-    }, [initialData, isOpen]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, initialData?.student_id]);
 
     function generateRandomPin() {
         return Math.floor(1000 + Math.random() * 9000).toString();

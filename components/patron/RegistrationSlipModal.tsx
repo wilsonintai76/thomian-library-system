@@ -50,7 +50,7 @@ const RegistrationSlipModal: React.FC<RegistrationSlipModalProps> = ({ patron, o
                                 <Key className="h-3 w-3 text-blue-500 print:text-slate-400" />
                                 <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest print:text-slate-400">PIN</p>
                             </div>
-                            <p className="font-mono font-black text-xl text-blue-700 tracking-widest print:text-slate-800">{patron.pin}</p>
+                            <p className="pin-value font-mono font-black text-xl text-blue-700 tracking-widest print:text-slate-800">{patron.pin}</p>
                         </div>
                     </div>
 
@@ -69,7 +69,7 @@ const RegistrationSlipModal: React.FC<RegistrationSlipModalProps> = ({ patron, o
                         <Printer className="h-3.5 w-3.5" /> Print
                     </button>
                 </div>
-                <style>{`@media print{body *{visibility:hidden}.slip-print,.slip-print *{visibility:visible}.slip-print{position:fixed;top:20mm;left:50%;transform:translateX(-50%)}}`}</style>
+                <style>{`@media print{body *{visibility:hidden}.slip-print,.slip-print *{visibility:visible}.slip-print{position:fixed;top:20mm;left:50%;transform:translateX(-50%)}.pin-value{color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
             </div>
         </div>
     );
