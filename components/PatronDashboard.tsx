@@ -480,6 +480,7 @@ ${inlineStyles}
                                                     </>
                                                 )}
                                                 <button onClick={() => { setActiveLedgerPatron(patron); setLedgerMode('HISTORY'); mockGetTransactionsByPatron(patron.student_id).then(setHistory); }} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all" title="Audit History"><History className="h-4.5 w-4.5" /></button>
+                                                <button onClick={() => setNewPatronSlip(patron)} className="p-2 text-slate-300 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all" title="Print Registration Slip"><ShieldCheck className="h-4.5 w-4.5" /></button>
                                                 <button onClick={() => { setEditingPatron(patron); setIsFormOpen(true); }} className="p-2 text-slate-300 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all" title="Edit Identity"><Edit className="h-4.5 w-4.5" /></button>
                                                 <button onClick={() => handleDeletePatron(patron.student_id)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Delete Forever"><UserMinus className="h-4.5 w-4.5" /></button>
                                             </div>
