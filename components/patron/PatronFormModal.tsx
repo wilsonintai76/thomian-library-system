@@ -43,7 +43,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     useEffect(() => {
         if (!isOpen) return;
         if (initialData) {
-            setFormData(initialData);
+            setFormData({ pin: '1234', ...initialData });
         } else {
             setFormData({
                 student_id: generatePatronId(),
@@ -169,7 +169,8 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             alert("Class selection is mandatory for Student patrons.");
             return;
         }
-        if (!formData.pin || formData.pin.length !== 4) {
+        const pinUnchanged = !!initialData && formData.pin === initialData.pin;
+        if (!pinUnchanged && (!formData.pin || formData.pin.length !== 4)) {
             alert("Security PIN must be exactly 4 digits.");
             return;
         }
