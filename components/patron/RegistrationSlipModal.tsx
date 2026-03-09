@@ -8,7 +8,7 @@ interface RegistrationSlipModalProps {
 }
 
 const RegistrationSlipModal: React.FC<RegistrationSlipModalProps> = ({ patron, onClose }) => {
-    const pin = patron.pin || '—';
+    const pin = patron.pin || '1234';
 
     const handlePrint = () => {
         const esc = (s: string) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

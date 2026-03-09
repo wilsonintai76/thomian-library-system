@@ -195,7 +195,17 @@ export const mockGetFinancialSummary = async () => {
 
 export const mockGetPatrons = async (): Promise<Patron[]> => {
     const stored = localStorage.getItem(STORAGE_KEY_PATRONS);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+        const patrons: Patron[] = JSON.parse(stored);
+        // Migrate: ensure every patron has a pin (may be missing from pre-PIN records)
+        const needsMigration = patrons.some(p => !p.pin);
+        if (needsMigration) {
+            const migrated = patrons.map(p => ({ ...p, pin: p.pin || '1234' }));
+            localStorage.setItem(STORAGE_KEY_PATRONS, JSON.stringify(migrated));
+            return migrated;
+        }
+        return patrons;
+    }
     const defaults: Patron[] = [
         { student_id: 'ST-2024-001', full_name: 'John Doe', patron_group: 'STUDENT', class_name: 'Grade 10-A', is_blocked: false, fines: 0, email: 'j.doe@stthomas.edu', phone: '+1 (555) 001-2233', pin: '1234' },
         { student_id: 'ST-2024-002', full_name: 'Jane Smith', patron_group: 'STUDENT', class_name: 'Grade 12-B', is_blocked: true, fines: 45.00, email: 'j.smith@stthomas.edu', phone: '+1 (555) 001-4455', pin: '0000' },
