@@ -1,27 +1,32 @@
 import os
 import shutil
-import sqlite3
 import subprocess
 
 def cleanup():
     print("--- Thomian Library Data Cleanup ---")
-    
-    # 1. Kill running servers if possible (optional, might fail if permission denied)
-    # We assume the user stops the servers manually or the script handles files locked.
-    
-    # 2. Delete SQLite database
-    db_path = "db.sqlite3"
-    if os.path.exists(db_path):
-        try:
-            os.remove(db_path)
-            print(f"Removed database: {db_path}")
-        except Exception as e:
-            print(f"Error removing {db_path}: {e}")
-            print("Make sure the Django server is stopped!")
-    else:
-        print("No database file found.")
+    print("WARNING: This will permanently drop and recreate the PostgreSQL database,")
+    print("         clear all migrations, and wipe uploaded media files.")
+    confirm = input("Type 'yes' to continue: ")
+    if confirm.strip().lower() != 'yes':
+        print("Aborted.")
+        return
 
-    # 3. Clear Migrations (keep __init__.py)
+    # 1. Drop and recreate the PostgreSQL database via Docker Compose
+    print("\nResetting PostgreSQL database...")
+    try:
+        subprocess.run(
+            ["docker", "compose", "exec", "-T", "db",
+             "psql", "-U", "postgres", "-c",
+             "DROP DATABASE IF EXISTS thomian_db; CREATE DATABASE thomian_db;"],
+            check=True
+        )
+        print("Database reset complete.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error resetting database: {e}")
+        print("Make sure the Docker stack is running: docker compose up -d")
+        return
+
+    # 2. Clear migrations (keep __init__.py)
     migration_dir = os.path.join("backend", "migrations")
     if os.path.exists(migration_dir):
         for f in os.listdir(migration_dir):
@@ -29,7 +34,7 @@ def cleanup():
                 os.remove(os.path.join(migration_dir, f))
         print("Cleared backend migrations.")
 
-    # 4. Clear Media (uploaded covers)
+    # 3. Clear media (uploaded covers, patron photos)
     media_dir = os.path.join("media")
     if os.path.exists(media_dir):
         shutil.rmtree(media_dir)
@@ -38,9 +43,9 @@ def cleanup():
 
     print("\n--- Cleanup Complete ---")
     print("Run these commands to restart:")
-    print("1. python manage.py makemigrations backend")
-    print("2. python manage.py migrate")
-    print("3. python manage.py createsuperuser")
+    print("1. docker compose run --rm backend python manage.py makemigrations backend")
+    print("2. docker compose up --build -d")
+    print("3. docker compose exec backend python manage.py createsuperuser")
 
 if __name__ == "__main__":
     cleanup()

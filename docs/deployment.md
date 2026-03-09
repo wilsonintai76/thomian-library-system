@@ -1,8 +1,389 @@
 
 # Thomian Library System — Deployment Guide
 
-> **Last Updated:** 2026-02-26
-> **Target Stack:** React 19 (Vite) + Django 5 + PostgreSQL + Nginx + Gunicorn
+> **Last Updated:** 2026-03-09
+> **Target Stack:** React 19 (Vite) + Django 6 + PostgreSQL 16 + Nginx + Gunicorn
+> **Primary Deployment Method:** Docker Compose (Windows)
+
+---
+
+## 1. Architecture Overview
+
+All three services run inside Docker containers coordinated by Docker Compose, plus an optional Cloudflare layer in front for SSL and DDoS protection.
+
+```
+Internet
+   │
+   ▼
+Cloudflare (SSL, DNS — optional but recommended)
+   │  :443
+   ▼
+Windows Host
+   ├─ thomian-frontend  (Nginx :80)  ← serves React SPA + proxies /api/
+   ├─ thomian-backend   (Gunicorn :8000, internal only)
+   └─ thomian-db        (PostgreSQL :5432, internal only)
+```
+
+| Container | Image / Build | Role |
+|---|---|---|
+| `thomian-frontend` | `Dockerfile.frontend` (Nginx + React build) | Static SPA + reverse proxy |
+| `thomian-backend` | `Dockerfile.backend` (Python + Gunicorn) | REST API, Auth, migrations |
+| `thomian-db` | `postgres:16-alpine` | PostgreSQL with persistent volume |
+
+> **HTTPS is mandatory** for the Mobile Scanner, AI Vision Upload, and QR features (Secure Context requirement). Use Cloudflare Tunnel or a reverse proxy with a certificate in front of port 80.
+
+---
+
+## 2. Windows Prerequisites
+
+### Install Docker Desktop
+1. Download from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/).
+2. During install, select **"Use WSL 2 based engine"** (recommended).
+3. After install, open Docker Desktop — wait until the taskbar icon shows **"Engine running"**.
+4. Verify in PowerShell:
+   ```powershell
+   docker --version      # Docker Desktop 4.x or later
+   docker compose version # v2.x or later
+   ```
+
+> Docker Desktop includes both the Docker engine and Compose v2 (`docker compose`). No separate install needed.
+
+### Install Git (if not already present)
+```powershell
+winget install Git.Git
+```
+
+---
+
+## 3. Quick Start (5 minutes)
+
+```powershell
+# 1. Clone the repository
+git clone https://github.com/wilsonintai76/thomian-library-system.git
+cd thomian-library-system
+
+# 2. Create your environment file
+Copy-Item docs\.env.example .env
+
+# 3. Open .env and fill in required values (see Section 5)
+notepad .env
+
+# 4. Build and start all containers
+docker compose up --build -d
+
+# 5. Create the admin superuser (run once)
+docker compose exec backend python manage.py createsuperuser
+
+# 6. Open the app
+Start-Process "http://localhost"
+```
+
+That's it. The backend auto-runs `migrate` and `collectstatic` on every startup.
+
+---
+
+## 4. Pre-Deployment Checklist
+
+### ✅ Environment & Secrets
+- [ ] Copied `docs/.env.example` to `.env`
+- [ ] Set `DJANGO_SECRET_KEY` to a generated value (never use the default)
+- [ ] Set `DEBUG=False`
+- [ ] Set `ALLOWED_HOSTS` to your domain / server IP
+- [ ] Set `CSRF_TRUSTED_ORIGINS` to your HTTPS URL
+- [ ] Set a strong `DB_PASSWORD` (not `changeme`)
+- [ ] Obtained a `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/)
+
+### ✅ Docker
+- [ ] Docker Desktop is running (Engine status = Running)
+- [ ] `.env` file is present in the project root
+- [ ] Ports 80 (and optionally 443) are free on the host
+
+### ✅ First-run
+- [ ] Superuser created via `docker compose exec backend python manage.py createsuperuser`
+- [ ] Default password changed for `admin` and `librarian` accounts
+
+---
+
+## 5. Environment Variables (`.env`)
+
+| Variable | Required | Example | Notes |
+|---|---|---|---|
+| `DJANGO_SECRET_KEY` | ✅ | `abc123...` | Generate with the command below |
+| `DEBUG` | ✅ | `False` | Must be `False` in production |
+| `ALLOWED_HOSTS` | ✅ | `library.stthomas.edu,localhost` | Comma-separated |
+| `CSRF_TRUSTED_ORIGINS` | ✅ | `https://library.stthomas.edu` | Full HTTPS URL |
+| `CORS_ALLOWED_ORIGINS` | ✅ | `https://library.stthomas.edu` | Full HTTPS URL |
+| `DB_NAME` | ✅ | `thomian_db` | PostgreSQL database name |
+| `DB_USER` | ✅ | `postgres` | PostgreSQL user |
+| `DB_PASSWORD` | ✅ | `str0ngP@ss!` | Must not be `changeme` |
+| `DB_HOST` | ✅ | `db` | Always `db` inside Docker Compose |
+| `DB_PORT` | ✅ | `5432` | Default PostgreSQL port |
+| `GEMINI_API_KEY` | ✅ | `AIza...` | For AI features |
+| `USE_S3` | — | `False` | `True` only for Cloudflare R2 |
+
+**Generate a secret key:**
+```powershell
+docker compose run --rm backend python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+---
+
+## 6. Common Docker Commands
+
+```powershell
+# Start all services (detached)
+docker compose up -d
+
+# Start and rebuild images (after code changes)
+docker compose up --build -d
+
+# Stop all services
+docker compose down
+
+# Stop and delete volumes (⚠️ destroys database data)
+docker compose down -v
+
+# View live logs
+docker compose logs -f
+
+# View logs for a single service
+docker compose logs -f backend
+docker compose logs -f db
+
+# Open a shell inside the backend container
+docker compose exec backend bash
+
+# Run a Django management command
+docker compose exec backend python manage.py <command>
+
+# Check migration status
+docker compose exec backend python manage.py showmigrations
+
+# Create a superuser
+docker compose exec backend python manage.py createsuperuser
+
+# Restart a single service (e.g. after .env change)
+docker compose restart backend
+```
+
+---
+
+## 7. HTTPS with Cloudflare Tunnel (Recommended for Windows)
+
+Cloudflare Tunnel is the easiest way to get HTTPS on a Windows machine without opening firewall ports or managing certificates.
+
+### Setup
+
+1. **Create a Cloudflare account** at [cloudflare.com](https://cloudflare.com) and add your domain.
+
+2. **Install `cloudflared` on Windows:**
+   ```powershell
+   winget install Cloudflare.cloudflared
+   ```
+
+3. **Authenticate:**
+   ```powershell
+   cloudflared tunnel login
+   ```
+
+4. **Create a tunnel:**
+   ```powershell
+   cloudflared tunnel create thomian
+   ```
+
+5. **Create a config file** at `C:\Users\<you>\.cloudflared\config.yml`:
+   ```yaml
+   tunnel: <your-tunnel-id>
+   credentials-file: C:\Users\<you>\.cloudflared\<tunnel-id>.json
+
+   ingress:
+     - hostname: library.stthomas.edu
+       service: http://localhost:80
+     - service: http_status:404
+   ```
+
+6. **Route DNS and run:**
+   ```powershell
+   cloudflared tunnel route dns thomian library.stthomas.edu
+   cloudflared tunnel run thomian
+   ```
+
+7. **Update your `.env`** to reflect the live HTTPS domain:
+   ```
+   ALLOWED_HOSTS=library.stthomas.edu,localhost
+   CSRF_TRUSTED_ORIGINS=https://library.stthomas.edu
+   CORS_ALLOWED_ORIGINS=https://library.stthomas.edu
+   ```
+   Then: `docker compose restart backend`
+
+8. **Run cloudflared as a Windows Service** (runs on boot):
+   ```powershell
+   cloudflared service install
+   Start-Service cloudflared
+   ```
+
+---
+
+## 8. HTTPS with Nginx Reverse Proxy + Let's Encrypt (Alternative)
+
+If you manage your own domain DNS on Windows Server or a VM:
+
+```powershell
+# Install Nginx for Windows (or use the container approach below)
+# Then obtain a certificate with win-acme:
+winget install win-acme.win-acme
+wacs --target manual --host library.stthomas.edu --installation nginx
+```
+
+Add HTTPS to `nginx.conf` and mount it into the `thomian-frontend` container, or run a separate `certbot/certbot` container in `docker-compose.yml`.
+
+---
+
+## 9. Database Management
+
+### Backup (PowerShell)
+```powershell
+# Create a timestamped SQL dump
+$date = Get-Date -Format "yyyyMMdd_HHmmss"
+docker compose exec db pg_dump -U postgres thomian_db | Out-File "backup_$date.sql" -Encoding utf8
+```
+
+### Restore
+```powershell
+Get-Content .\backup_20260309_020000.sql | docker compose exec -T db psql -U postgres thomian_db
+```
+
+### Automated Nightly Backup (Windows Task Scheduler)
+1. Save the following as `C:\Scripts\thomian-backup.ps1`:
+   ```powershell
+   Set-Location C:\path\to\thomian-library-system
+   $date = Get-Date -Format "yyyyMMdd"
+   docker compose exec db pg_dump -U postgres thomian_db | Out-File "C:\Backups\thomian_$date.sql" -Encoding utf8
+   # Delete backups older than 30 days
+   Get-ChildItem C:\Backups\thomian_*.sql | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item
+   ```
+2. Open **Task Scheduler** → Create Basic Task → Daily at 02:00 AM → Action: `powershell.exe -File C:\Scripts\thomian-backup.ps1`.
+
+### Accessing PostgreSQL directly
+```powershell
+docker compose exec db psql -U postgres thomian_db
+```
+
+---
+
+## 10. Updating the Application
+
+```powershell
+# 1. Pull latest code
+git pull origin main
+
+# 2. Rebuild and restart (zero-downtime: db stays running)
+docker compose up --build -d
+
+# 3. Check logs to confirm migrations ran cleanly
+docker compose logs backend --tail 30
+```
+
+---
+
+## 11. Default Credentials (⚠️ Change Immediately)
+
+| Role | Username | Default Password |
+|---|---|---|
+| Administrator | `admin` | `admin123` |
+| Librarian | `librarian` | `lib123` |
+
+> **⚠️ CRITICAL:** Change these immediately via the Django Admin panel at `http://localhost/api/admin/` before going live.
+
+---
+
+## 12. Troubleshooting
+
+### Port 80 is already in use
+```powershell
+# Find what is using port 80
+netstat -ano | findstr :80
+# Kill it by PID (replace 1234)
+Stop-Process -Id 1234 -Force
+```
+Common culprits on Windows: **IIS** (`iisreset /stop`) or **SQL Server Reporting Services**.
+
+### Backend won't start — "could not connect to server"
+The backend depends on `db` being healthy. Check:
+```powershell
+docker compose logs db
+docker compose ps     # db should show "healthy"
+```
+If DB_PASSWORD in `.env` doesn't match what Docker Compose used to initialise the volume, destroy the volume and reinitialise:
+```powershell
+docker compose down -v
+docker compose up -d
+docker compose exec backend python manage.py createsuperuser
+```
+
+### Migration errors after a code update
+```powershell
+docker compose exec backend python manage.py showmigrations
+docker compose exec backend python manage.py migrate
+```
+
+### Frontend shows "Cannot reach API"
+Ensure `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` in `.env` exactly match the URL in the browser (including `https://`), then restart the backend: `docker compose restart backend`.
+
+### Checking which database is active
+```powershell
+docker compose exec backend python -c "from django.db import connection; print(connection.vendor, connection.settings_dict['NAME'])"
+# Expected: postgresql thomian_db
+```
+
+---
+
+## 13. Hardware Configuration
+
+### Zebra Printer (Labels, Cards & Slips)
+
+| Print Type | Format | Size |
+|---|---|---|
+| Spine Labels | ZPL (300 dpi) | 1.5" × 1" |
+| Patron ID Cards | ZPL (300 dpi) | CR80 — 3.375" × 2.125" |
+| Registration Slips | Receipt format | Standard width |
+
+- Assign a **Static IP** to the printer (e.g., `192.168.1.100`).
+- The backend sends ZPL over **raw TCP port 9100**.
+- Verify connectivity: `Test-NetConnection 192.168.1.100 -Port 9100`
+
+### Barcode Scanners
+- **Mode:** HID Keyboard Emulation
+- **Suffix:** Carriage Return (`CR`) after every scan
+- **Inter-Character Delay:** 0 ms
+
+---
+
+## 14. Manual Setup (No Docker — Not Recommended for Production)
+
+Only use this path for isolated testing or if Docker Desktop is unavailable.
+
+### Backend
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
+Copy-Item docs\.env.example .env   # edit .env and fill in all required values
+python manage.py migrate
+python manage.py collectstatic --noinput
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+### Frontend
+```powershell
+npm install
+npm run dev   # development HMR server on :5173
+# Or for a production build:
+npm run build
+# Serve dist/ with any static file server
+```
+
 
 ---
 

@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     'backend',
 ]
 
+INSTALLED_APPS.append('django.contrib.postgres')
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Must be at top
     'django.middleware.security.SecurityMiddleware',

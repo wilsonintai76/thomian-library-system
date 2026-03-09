@@ -14,7 +14,7 @@ from .serializers import (
     LibraryEventSerializer, SystemAlertSerializer, SystemConfigSerializer,
     LibraryClassSerializer, TransactionSerializer, LoanSerializer, HoldSerializer
 )
-from .services import CatalogingService
+from .services import CatalogingService, CirculationRPC
 
 
 class IsLibrarianOrAdmin(permissions.BasePermission):
@@ -113,11 +113,12 @@ class LibraryClassViewSet(viewsets.ModelViewSet):
 # ─────────────────────────────────────────────
 
 class CatalogViewSet(viewsets.ModelViewSet):
-    queryset = Book.objects.all()
+    queryset = Book.objects.prefetch_related('authors').select_related('publisher')
     serializer_class = BookSerializer
     lookup_field = 'pk'
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'author', 'isbn', 'barcode_id', 'call_number', 'shelf_location']
+    # authors__name replaces the old author CharField
+    search_fields = ['title', 'authors__name', 'isbn', 'barcode_id', 'call_number', 'shelf_location']
     ordering_fields = ['created_at', 'loan_count', 'title']
     ordering = ['-created_at']
 
@@ -131,12 +132,14 @@ class CatalogViewSet(viewsets.ModelViewSet):
         q = request.query_params.get('isbn') or request.query_params.get('q')
         if not q:
             return Response({'error': 'isbn or q parameter required'}, status=400)
-        # Check local first
-        book = Book.objects.filter(isbn=q).first() or \
-               Book.objects.filter(barcode_id=q).first()
+        book = (
+            Book.objects.prefetch_related('authors').select_related('publisher')
+            .filter(isbn=q).first()
+            or Book.objects.prefetch_related('authors').select_related('publisher')
+            .filter(barcode_id=q).first()
+        )
         if book:
             return Response({'source': 'LOCAL', 'status': 'FOUND', 'data': BookSerializer(book).data})
-        # External metadata fetch
         external_data = CatalogingService.fetch_book_metadata(q)
         if external_data:
             return Response({'source': 'EXTERNAL', 'status': 'FOUND', 'data': external_data})
@@ -144,7 +147,6 @@ class CatalogViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Dashboard KPI endpoint"""
         active_loans = Loan.objects.filter(returned_at__isnull=True)
         overdue = active_loans.filter(due_date__lt=timezone.now())
 
@@ -154,7 +156,6 @@ class CatalogViewSet(viewsets.ModelViewSet):
             lost_items=Count('id', filter=Q(status='LOST'))
         )
 
-        # Classification breakdown via database aggregation
         classification_qs = Book.objects.values('classification').annotate(
             count=Count('id'),
             loans=Sum('loan_count')
@@ -166,11 +167,9 @@ class CatalogViewSet(viewsets.ModelViewSet):
             } for item in classification_qs
         }
 
-        # Status breakdown via database aggregation
         status_qs = Book.objects.values('status').annotate(count=Count('id'))
         status_data = {item['status']: item['count'] for item in status_qs}
 
-        # Top readers optimized with selective fields and ordering
         top_readers = Loan.objects.values(
             'patron__student_id', 'patron__full_name'
         ).annotate(
@@ -200,7 +199,6 @@ class CatalogViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[IsLibrarianOrAdmin])
     def recent_activity(self, request):
-        """Last 20 loan/return events for the dashboard stream"""
         loans = Loan.objects.select_related('book', 'patron').order_by('-issued_at')[:20]
         activity = []
         for loan in loans:
@@ -228,11 +226,12 @@ class CatalogViewSet(viewsets.ModelViewSet):
 # ─────────────────────────────────────────────
 
 class PatronViewSet(viewsets.ModelViewSet):
-    queryset = Patron.objects.all()
+    queryset = Patron.objects.select_related('library_class')
     serializer_class = PatronSerializer
     permission_classes = [IsLibrarianOrAdmin]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['full_name', 'student_id', 'class_name']
+    # library_class__name replaces the removed class_name CharField
+    search_fields = ['full_name', 'student_id', 'library_class__name']
     lookup_field = 'student_id'
 
     def get_permissions(self):
@@ -242,12 +241,12 @@ class PatronViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def verify_pin(self, request):
-        """Kiosk self-service PIN authentication"""
+        """Kiosk self-service PIN authentication (uses hashed PIN comparison)."""
         student_id = request.data.get('student_id')
         pin = request.data.get('pin')
         try:
             patron = Patron.objects.get(student_id=student_id)
-            if patron.pin == pin:
+            if patron.check_pin(pin):
                 return Response({'success': True, 'patron': PatronSerializer(patron).data})
             return Response({'success': False, 'message': 'Invalid PIN'}, status=401)
         except Patron.DoesNotExist:
@@ -265,6 +264,12 @@ class PatronViewSet(viewsets.ModelViewSet):
         txns = Transaction.objects.filter(patron=patron).order_by('-timestamp')
         return Response(TransactionSerializer(txns, many=True).data)
 
+    @action(detail=True, methods=['get'], url_path='balance', permission_classes=[IsLibrarianOrAdmin])
+    def balance(self, request, student_id=None):
+        """Live financial balance via fn_patron_balance PostgreSQL RPC."""
+        patron = self.get_object()
+        return Response(CirculationRPC.patron_balance(patron.pk))
+
 
 # ─────────────────────────────────────────────
 # CIRCULATION
@@ -274,7 +279,7 @@ class CirculationViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
     def checkout(self, request):
-        patron_id = request.data.get('patron_id')
+        patron_id     = request.data.get('patron_id')
         book_barcodes = request.data.get('books', [])
         try:
             patron = Patron.objects.get(student_id=patron_id)
@@ -292,25 +297,14 @@ class CirculationViewSet(viewsets.ViewSet):
                     patron_group=patron.patron_group, material_type=book.material_type
                 ).first()
                 loan_days = rule.loan_days if rule else 14
-                due_date = timezone.now() + timedelta(days=loan_days)
+                due_date  = timezone.now() + timedelta(days=loan_days)
 
-                if book.status not in ('AVAILABLE', 'HELD'):
-                    errors.append(f"{book.title}: Status {book.status}")
-                    continue
-
-                if book.status == 'HELD':
-                    # Only the hold owner can pick it up
-                    active_hold = Hold.objects.filter(book=book, is_active=True, patron=patron).first()
-                    if not active_hold:
-                        errors.append(f"{book.title}: On hold for another patron")
-                        continue
-                    active_hold.delete()
-
-                Loan.objects.create(book=book, patron=patron, due_date=due_date)
-                book.status = 'LOANED'
-                book.loan_count += 1
-                book.save()
-                success_count += 1
+                # ── PostgreSQL RPC path ───────────────────────────────────────
+                rpc = CirculationRPC.checkout_book(patron.pk, book.pk, due_date)
+                if not rpc.get('success'):
+                    errors.append(f"{book.title}: {rpc.get('error')}")
+                else:
+                    success_count += 1
             except Book.DoesNotExist:
                 errors.append(f"Barcode {barcode}: Not found")
 
@@ -323,45 +317,23 @@ class CirculationViewSet(viewsets.ViewSet):
         if not book:
             return Response({'success': False, 'message': 'Book not found'}, status=404)
 
-        loan = Loan.objects.select_related('patron').filter(book=book, returned_at__isnull=True).first()
-        fine = Decimal('0.00')
+        # ── PostgreSQL RPC path ───────────────────────────────────────────────
+        rpc = CirculationRPC.return_book(barcode)
+        if not rpc.get('success'):
+            return Response({'success': False, 'message': rpc.get('error')}, status=400)
+        book.refresh_from_db()
+        loan = Loan.objects.select_related('patron').filter(
+            book=book, returned_at__isnull=False
+        ).order_by('-returned_at').first()
         next_patron = None
-
-        if loan:
-            loan.returned_at = timezone.now()
-            loan.save()
-            if loan.due_date < timezone.now():
-                delta = timezone.now() - loan.due_date
-                if delta.days > 0:
-                    rule = CirculationRule.objects.filter(
-                        patron_group=loan.patron.patron_group, material_type=book.material_type
-                    ).first()
-                    fine_rate = rule.fine_per_day if rule else Decimal('0.50')
-                    fine = Decimal(delta.days) * fine_rate
-                    loan.patron.fines += fine
-                    # Record fine transaction
-                    Transaction.objects.create(
-                        patron=loan.patron,
-                        amount=fine,
-                        type='FINE_ASSESSMENT',
-                        method='SYSTEM',
-                        librarian_id='SYSTEM',
-                        book_title=book.title,
-                    )
-                    loan.patron.save()
-
-        # Check if there's a hold queue — put book on HELD if so
-        next_hold = Hold.objects.filter(book=book, is_active=True).order_by('created_at').first()
-        if next_hold:
-            book.status = 'HELD'
-            next_patron = PatronSerializer(next_hold.patron).data
-        else:
-            book.status = 'AVAILABLE'
-        book.save()
-
+        if rpc.get('next_hold_id'):
+            from .models import Hold as HoldModel
+            nh = HoldModel.objects.select_related('patron').filter(pk=rpc['next_hold_id']).first()
+            if nh:
+                next_patron = PatronSerializer(nh.patron).data
         return Response({
             'success': True,
-            'fine_amount': float(fine),
+            'fine_amount': float(rpc.get('fine_amount', 0)),
             'book': BookSerializer(book).data,
             'patron': PatronSerializer(loan.patron).data if loan else None,
             'next_patron': next_patron,
@@ -369,7 +341,7 @@ class CirculationViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
     def renew(self, request):
-        barcode = request.data.get('barcode')
+        barcode   = request.data.get('barcode')
         patron_id = request.data.get('patron_id')
         book = Book.objects.filter(barcode_id=barcode).first()
         if not book:
@@ -381,7 +353,7 @@ class CirculationViewSet(viewsets.ViewSet):
             patron_group=loan.patron.patron_group, material_type=book.material_type
         ).first()
         loan_days = rule.loan_days if rule else 14
-        loan.due_date = timezone.now() + timedelta(days=loan_days)
+        loan.due_date      = timezone.now() + timedelta(days=loan_days)
         loan.renewal_count += 1
         loan.save()
         return Response({'success': True, 'due_date': loan.due_date.isoformat(), 'renewal_count': loan.renewal_count})
@@ -401,14 +373,14 @@ class CirculationViewSet(viewsets.ViewSet):
         for loan in overdue_loans:
             delta = now - loan.due_date
             result.append({
-                'loanId': str(loan.id),
-                'patronId': loan.patron.student_id,
-                'patronName': loan.patron.full_name,
-                'patronGroup': loan.patron.patron_group,
-                'bookTitle': loan.book.title,
-                'bookBarcode': loan.book.barcode_id or '',
-                'dueDate': loan.due_date.date().isoformat(),
-                'daysOverdue': delta.days,
+                'loanId':       str(loan.id),
+                'patronId':     loan.patron.student_id,
+                'patronName':   loan.patron.full_name,
+                'patronGroup':  loan.patron.patron_group,
+                'bookTitle':    loan.book.title,
+                'bookBarcode':  loan.book.barcode_id or '',
+                'dueDate':      loan.due_date.date().isoformat(),
+                'daysOverdue':  delta.days,
             })
         return Response(result)
 
@@ -430,7 +402,7 @@ class LoanViewSet(viewsets.ReadOnlyModelViewSet):
 # ─────────────────────────────────────────────
 
 class TransactionViewSet(viewsets.ModelViewSet):
-    queryset = Transaction.objects.select_related('patron').order_by('-timestamp')
+    queryset = Transaction.objects.select_related('patron', 'librarian').order_by('-timestamp')
     serializer_class = TransactionSerializer
     permission_classes = [IsLibrarianOrAdmin]
     filter_backends = [filters.OrderingFilter]
@@ -452,11 +424,11 @@ class TransactionViewSet(viewsets.ModelViewSet):
             total_waived=Sum('amount', filter=Q(type='WAIVE'))
         )
         return Response({
-            'totalCollected': float(summary_data['total_collected'] or 0),
-            'totalFinesAssessed': float(summary_data['total_fines'] or 0),
-            'totalReplacementsAssessed': float(summary_data['total_replacements'] or 0),
+            'totalCollected':           float(summary_data['total_collected']   or 0),
+            'totalFinesAssessed':       float(summary_data['total_fines']       or 0),
+            'totalReplacementsAssessed':float(summary_data['total_replacements'] or 0),
             'totalDamageAssessed': 0,
-            'totalWaived': float(summary_data['total_waived'] or 0),
+            'totalWaived':              float(summary_data['total_waived']      or 0),
         })
 
 

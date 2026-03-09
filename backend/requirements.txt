@@ -5,7 +5,7 @@ django-cors-headers>=4.3.1
 requests>=2.31
 python-dotenv>=1.0.1
 
-# Production (comment out for dev if not using PostgreSQL / S3)
+# PostgreSQL driver
 psycopg2-binary>=2.9
 # django-storages>=1.14
 # boto3>=1.34

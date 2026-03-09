@@ -6,7 +6,7 @@
 **Name:** Thomian Library (St. Thomas Secondary School)
 **Purpose:** Professional-grade Library Information System (ILS) with Wayfinding Kiosk.
 **Version:** 1.0 (Production-Ready Draft)
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-03-09
 
 The Thomian Library System is a full-stack web application designed for secondary school library operations. It supports end-to-end library workflows — cataloging, circulation, patron management, fine collection, and AI-assisted features — all accessible through a secure web interface.
 
@@ -30,7 +30,8 @@ The Thomian Library System is a full-stack web application designed for secondar
 - **CORS:** `django-cors-headers`
 - **File Storage:** Local `/media` (default) or Cloudflare R2/AWS S3 (`USE_S3=True`)
 - **App Server:** Gunicorn
-- **Database:** PostgreSQL
+- **Database:** PostgreSQL 16 (required — uses stored functions, GIN indexes, and JSONB features)
+- **DB Driver:** `psycopg2-binary`
 
 ### Professional Cataloging (MARC-Lite)
 
@@ -105,3 +106,4 @@ The Thomian Library System is a full-stack web application designed for secondar
 | API key for Gemini | Injected at Vite build time via `GEMINI_API_KEY`; never stored in source code |
 | Default storage | Local `/media` folder — requires manual backup strategy |
 | Auth default | `AllowAny` on DRF; specific views enforce `IsAuthenticated` or `IsAdminUser` |
+| Database | PostgreSQL 16 is **required**. The system uses stored functions (`fn_checkout_book`, `fn_return_book`, `fn_patron_balance`), JSONB GIN indexes, and `django.contrib.postgres` features that are not available on SQLite. |

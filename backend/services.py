@@ -1,7 +1,44 @@
 
 import requests
+from django.db import connection
+
+
+# ─── PostgreSQL RPC wrappers ──────────────────────────────────────────────────
+# Each method calls the corresponding stored function when connected to
+# PostgreSQL, and returns None on SQLite (so callers fall back to Python).
+
+class CirculationRPC:
+    """Thin Python wrapper around the PostgreSQL stored functions defined in migration 0007."""
+
+    @staticmethod
+    def checkout_book(patron_pk: int, book_pk: int, due_date) -> dict:
+        """Call fn_checkout_book(patron_pk, book_pk, due_date) → JSONB."""
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT fn_checkout_book(%s, %s, %s);",
+                [patron_pk, book_pk, due_date],
+            )
+            return cur.fetchone()[0]
+
+    @staticmethod
+    def return_book(book_barcode: str) -> dict:
+        """Call fn_return_book(barcode) → JSONB."""
+        with connection.cursor() as cur:
+            cur.execute("SELECT fn_return_book(%s);", [book_barcode])
+            return cur.fetchone()[0]
+
+    @staticmethod
+    def patron_balance(patron_pk: int) -> dict:
+        """Call fn_patron_balance(patron_pk) → JSONB."""
+        with connection.cursor() as cur:
+            cur.execute("SELECT fn_patron_balance(%s);", [patron_pk])
+            return cur.fetchone()[0]
+
+
+# ─── Cataloging helpers ───────────────────────────────────────────────────────
 
 class CatalogingService:
+
     @staticmethod
     def fetch_book_metadata(isbn):
         try:
@@ -40,11 +77,18 @@ class CatalogingService:
     @staticmethod
     def generate_zpl(book):
         def get_field(obj, field):
-            if isinstance(obj, dict): return obj.get(field, '')
+            if isinstance(obj, dict):
+                return obj.get(field, '')
             return getattr(obj, field, '')
 
-        author = get_field(book, 'author')
-        ddc_code = get_field(book, 'ddc_code')
+        # Support both dicts (external metadata) and normalised Book instances
+        if isinstance(book, dict):
+            author = book.get('author', '')
+        else:
+            first_author = book.authors.first()
+            author = first_author.name if first_author else ''
+
+        ddc_code   = get_field(book, 'ddc_code')
         barcode_id = get_field(book, 'barcode_id')
         author_short = author[:3].upper() if author else "UNK"
         
