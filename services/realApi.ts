@@ -6,7 +6,7 @@
 import type {
     Book, Patron, Transaction, AuthUser, MapConfig, LibraryEvent,
     SystemStats, OverdueReportItem, SystemAlert, CirculationRule,
-    CheckInResult, CheckoutResult, LibraryClass, Loan,
+    CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition,
 } from '../types';
 
 const API_BASE = '/api';
@@ -219,3 +219,18 @@ export const mockSaveMapConfig = async (c: MapConfig): Promise<void> => {
 export const mockGetSystemStats = async (): Promise<SystemStats> => request<SystemStats>('GET', '/catalog/stats/', undefined, true);
 export const mockGetOverdueItems = async (): Promise<OverdueReportItem[]> => request<OverdueReportItem[]>('GET', '/circulation/overdue/', undefined, true);
 export const mockGetRecentActivity = async () => request<any[]>('GET', '/catalog/recent_activity/');
+
+export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
+    const res = await fetch('/api/ai/analyze-blueprint/', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ imageBase64, levelId }),
+    });
+    if (res.status === 429) throw new Error('QUOTA_EXHAUSTED');
+    if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const e = await res.json(); msg = e.error || msg; } catch { /* ignore */ }
+        throw new Error(msg);
+    }
+    return res.json();
+};

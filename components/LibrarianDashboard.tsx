@@ -168,7 +168,6 @@ const LibrarianDashboard: React.FC<LibrarianDashboardProps> = ({ onSelectTab }) 
               <HealthItem label="Database Sync" status="Optimal" />
               <HealthItem label="Printer Connection" status="Ready" />
               <HealthItem label="Scanner Interface" status="Active" />
-              <HealthItem label="Cloud Backup" status="12m ago" />
             </div>
           </div>
         </div>

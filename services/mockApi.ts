@@ -1,6 +1,5 @@
 
 import { Book, Patron, Transaction, AuthUser, MapConfig, MapLevel, ShelfDefinition, LibraryEvent, SystemStats, OverdueReportItem, SystemAlert, CirculationRule, CheckInResult, CheckoutResult, LibraryClass, Loan } from '../types';
-import { GoogleGenAI, Type } from "@google/genai";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -306,44 +305,10 @@ export const mockGetTrendingBooks = async (): Promise<Book[]> => {
     return [...books].sort((a, b) => (b.loan_count || 0) - (a.loan_count || 0)).slice(0, 4);
 };
 
-export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: {
-                parts: [
-                    /* Fix: Corrected variable name from image64 to imageBase64 */
-                    { inlineData: { mimeType: 'image/jpeg', data: imageBase64.split(',')[1] || imageBase64 } },
-                    { text: "Analyze this library floor plan and identify shelving units. Return a JSON array." }
-                ]
-            },
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            label: { type: Type.STRING },
-                            minDDC: { type: Type.NUMBER },
-                            maxDDC: { type: Type.NUMBER },
-                            x: { type: Type.NUMBER },
-                            y: { type: Type.NUMBER },
-                            width: { type: Type.NUMBER },
-                            height: { type: Type.NUMBER },
-                        },
-                        required: ['label', 'x', 'y', 'width', 'height', 'minDDC', 'maxDDC']
-                    }
-                }
-            }
-        });
-        const data = JSON.parse(response.text || '[]');
-        return data.map((s: any) => ({ ...s, id: `shelf_${Math.random().toString(36).substr(2, 9)}`, levelId }));
-    } catch (e: any) {
-        if (e.status === 429) throw new Error("QUOTA_EXHAUSTED");
-        return [];
-    }
+export const aiAnalyzeBlueprint = async (_imageBase64: string, _levelId: string): Promise<ShelfDefinition[]> => {
+    // Gemini calls are proxied through the Django backend (see /api/ai/analyze-blueprint/).
+    // This stub should never be reached — api.ts routes directly to realApi.
+    return [];
 };
 
 export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (source: string, status: string) => void): Promise<Partial<Book> | null> => {

@@ -7,7 +7,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CatalogViewSet, CirculationViewSet, AuthViewSet, PatronViewSet,
     CirculationRuleViewSet, LibraryEventViewSet, SystemAlertViewSet,
-    SystemConfigViewSet, LibraryClassViewSet, LoanViewSet, TransactionViewSet
+    SystemConfigViewSet, LibraryClassViewSet, LoanViewSet, TransactionViewSet,
+    GeminiProxyViewSet,
 )
 
 router = DefaultRouter()
@@ -22,6 +23,7 @@ router.register(r'events', LibraryEventViewSet, basename='events')
 router.register(r'alerts', SystemAlertViewSet, basename='alerts')
 router.register(r'loans', LoanViewSet, basename='loans')
 router.register(r'transactions', TransactionViewSet, basename='transactions')
+router.register(r'ai', GeminiProxyViewSet, basename='ai')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

@@ -103,4 +103,5 @@ export const mockPrintBookLabel = (b: any) => mock.mockPrintBookLabel(b);
 export const mockPrintPatronCard = (p: any) => mock.mockPrintPatronCard(p);
 export const mockBulkPrintPatrons = (p: any) => mock.mockBulkPrintPatrons(p);
 export const mockBulkPrintLabels = (b: any) => mock.mockBulkPrintLabels(b);
-export const aiAnalyzeBlueprint = (i: any, l: any) => mock.aiAnalyzeBlueprint(i, l);
+// Gemini AI — key is server-side only; always routes through Django proxy
+export const aiAnalyzeBlueprint = (i: string, l: string) => real.aiAnalyzeBlueprint(i, l);

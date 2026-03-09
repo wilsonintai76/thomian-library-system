@@ -1,4 +1,9 @@
 
+import json
+import os
+import random
+import string
+import requests as http_requests
 from django.db.models import Count, Sum, Q
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.decorators import action
@@ -469,3 +474,60 @@ class SystemAlertViewSet(viewsets.ModelViewSet):
         alert.is_resolved = True
         alert.save()
         return Response({'success': True})
+
+
+# ─────────────────────────────────────────────
+# AI PROXY  (Gemini key lives server-side only)
+# ─────────────────────────────────────────────
+
+GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+
+
+class GeminiProxyViewSet(viewsets.ViewSet):
+    permission_classes = [IsLibrarianOrAdmin]
+
+    @action(detail=False, methods=['post'], url_path='analyze-blueprint')
+    def analyze_blueprint(self, request):
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            return Response({'error': 'Gemini API key not configured on server.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        image_base64 = request.data.get('imageBase64', '')
+        level_id = request.data.get('levelId', '')
+
+        # Strip data-URL prefix (e.g. "data:image/jpeg;base64,")
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',', 1)[1]
+
+        payload = {
+            'contents': [{
+                'parts': [
+                    {'inlineData': {'mimeType': 'image/jpeg', 'data': image_base64}},
+                    {'text': (
+                        'Analyze this library floor plan and identify all shelving units. '
+                        'Return a JSON array where each item has: '
+                        'label (string), minDDC (number), maxDDC (number), '
+                        'x (number), y (number), width (number), height (number).'
+                    )},
+                ]
+            }],
+            'generationConfig': {'responseMimeType': 'application/json'},
+        }
+
+        try:
+            resp = http_requests.post(
+                GEMINI_API_URL,
+                params={'key': api_key},
+                json=payload,
+                timeout=30,
+            )
+            if resp.status_code == 429:
+                return Response({'error': 'QUOTA_EXHAUSTED'}, status=429)
+            resp.raise_for_status()
+            text = resp.json()['candidates'][0]['content']['parts'][0]['text']
+            shelves = json.loads(text)
+            rand_id = lambda: ''.join(random.choices(string.ascii_lowercase + string.digits, k=9))
+            result = [{**s, 'id': f'shelf_{rand_id()}', 'levelId': level_id} for s in shelves]
+            return Response(result)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)

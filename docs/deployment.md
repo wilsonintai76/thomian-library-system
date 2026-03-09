@@ -168,59 +168,183 @@ docker compose restart backend
 
 ---
 
-## 7. HTTPS with Cloudflare Tunnel (Recommended for Windows)
+## 7. Production Hosting — Own Domain + Cloudflare Tunnel (Recommended, No Cloud Server)
 
-Cloudflare Tunnel is the easiest way to get HTTPS on a Windows machine without opening firewall ports or managing certificates.
+This is the recommended zero-cloud-cost production setup: your school PC runs the full stack and Cloudflare Tunnel makes it securely accessible from the internet on your own domain — no open firewall ports, no SSL certificate management, no monthly server bills.
 
-### Setup
+### What you need
+| Item | Cost | Where |
+|---|---|---|
+| A domain name (e.g. `thomianlib.com.my`) | ~RM40–60/year | Any registrar — Exabytes, Shinjiru, or Namecheap |
+| Cloudflare account | Free | cloudflare.com |
+| `cloudflared` (tunnel agent) | Free | Installed on the school PC |
+| School PC running Docker Compose | — | Already done |
 
-1. **Create a Cloudflare account** at [cloudflare.com](https://cloudflare.com) and add your domain.
+---
 
-2. **Install `cloudflared` on Windows:**
-   ```powershell
-   winget install Cloudflare.cloudflared
+### Step 1 — Buy a domain and point it to Cloudflare DNS
+
+1. Purchase a domain from any registrar (e.g. `thomianlib.com.my`).
+2. Sign up at [cloudflare.com](https://cloudflare.com) — free plan is sufficient.
+3. In Cloudflare dashboard: **Add a site** → enter your domain.
+4. Cloudflare will show you two nameservers, for example:
    ```
-
-3. **Authenticate:**
-   ```powershell
-   cloudflared tunnel login
+   anya.ns.cloudflare.com
+   blake.ns.cloudflare.com
    ```
+5. Log in to your domain registrar's dashboard and **replace the existing nameservers** with the two Cloudflare ones.
+6. Wait 5–30 minutes for DNS propagation. Cloudflare will email you when active.
 
-4. **Create a tunnel:**
-   ```powershell
-   cloudflared tunnel create thomian
-   ```
+> After this step, Cloudflare manages all your DNS. SSL is handled automatically.
 
-5. **Create a config file** at `C:\Users\<you>\.cloudflared\config.yml`:
-   ```yaml
-   tunnel: <your-tunnel-id>
-   credentials-file: C:\Users\<you>\.cloudflared\<tunnel-id>.json
+---
 
-   ingress:
-     - hostname: library.stthomas.edu
-       service: http://localhost:80
-     - service: http_status:404
-   ```
+### Step 2 — Install `cloudflared` on the school PC
 
-6. **Route DNS and run:**
-   ```powershell
-   cloudflared tunnel route dns thomian library.stthomas.edu
-   cloudflared tunnel run thomian
-   ```
+```powershell
+winget install Cloudflare.cloudflared
+```
 
-7. **Update your `.env`** to reflect the live HTTPS domain:
-   ```
-   ALLOWED_HOSTS=library.stthomas.edu,localhost
-   CSRF_TRUSTED_ORIGINS=https://library.stthomas.edu
-   CORS_ALLOWED_ORIGINS=https://library.stthomas.edu
-   ```
-   Then: `docker compose restart backend`
+Verify:
+```powershell
+cloudflared --version
+```
 
-8. **Run cloudflared as a Windows Service** (runs on boot):
-   ```powershell
-   cloudflared service install
-   Start-Service cloudflared
-   ```
+---
+
+### Step 3 — Authenticate and create a named tunnel
+
+```powershell
+# Log in — browser will open for one-click authorisation
+cloudflared tunnel login
+
+# Create a named tunnel (do this once)
+cloudflared tunnel create thomian-library
+```
+
+Note the **Tunnel ID** printed — you'll use it in the config file.
+
+---
+
+### Step 4 — Create the tunnel config file
+
+Create `C:\Users\<YourUsername>\.cloudflared\config.yml`:
+
+```yaml
+tunnel: <your-tunnel-id>
+credentials-file: C:\Users\<YourUsername>\.cloudflared\<your-tunnel-id>.json
+
+ingress:
+  - hostname: thomianlib.com.my
+    service: http://localhost:80
+  - service: http_status:404
+```
+
+Replace `thomianlib.com.my` with your actual domain.
+
+---
+
+### Step 5 — Route your domain's DNS through the tunnel
+
+```powershell
+cloudflared tunnel route dns thomian-library thomianlib.com.my
+```
+
+This automatically creates a CNAME record in Cloudflare DNS pointing your domain to the tunnel.
+
+---
+
+### Step 6 — Update `.env` on the school PC
+
+Edit the `.env` file in your project folder:
+
+```env
+DEBUG=False
+DJANGO_SECRET_KEY=<generate a strong key>
+ALLOWED_HOSTS=thomianlib.com.my,localhost
+CSRF_TRUSTED_ORIGINS=https://thomianlib.com.my
+CORS_ALLOWED_ORIGINS=https://thomianlib.com.my
+GEMINI_API_KEY=<your-google-ai-studio-key>
+```
+
+Generate a secret key:
+```powershell
+docker compose exec backend python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Apply the new env:
+```powershell
+docker compose restart backend
+```
+
+---
+
+### Step 7 — Test the tunnel manually first
+
+```powershell
+cloudflared tunnel run thomian-library
+```
+
+Open `https://thomianlib.com.my` in a browser from another device. If it loads — tunnel is working. Press `Ctrl+C` to stop.
+
+---
+
+### Step 8 — Install `cloudflared` as a Windows Service (auto-start on boot)
+
+```powershell
+# Run PowerShell as Administrator
+cloudflared service install
+Start-Service cloudflared
+```
+
+Verify it is running:
+```powershell
+Get-Service cloudflared
+# Status should be: Running
+```
+
+Now the tunnel starts automatically whenever the PC boots — no manual steps needed.
+
+---
+
+### Step 9 — Keep Docker Compose starting on boot
+
+In Docker Desktop: **Settings → General → ✅ Start Docker Desktop when you sign in to Windows**.
+
+Then set your compose stack to always restart:
+```yaml
+# Already set in docker-compose.yml — each service has:
+restart: unless-stopped
+```
+
+This means after any reboot, Docker Desktop starts automatically, then all three containers (`db`, `backend`, `frontend`) restart automatically, then `cloudflared` service starts the tunnel — your site is live again with no manual steps.
+
+---
+
+### Step 10 — Change default passwords before going live
+
+1. Open `https://thomianlib.com.my/api/admin/`
+2. Log in with `20261001` / `1234`
+3. Change the password for both `20261001` and `20261002` immediately.
+
+---
+
+### Architecture summary
+
+```
+Users worldwide (HTTPS)
+        │
+        ▼
+ Cloudflare Edge (SSL termination, DDoS protection)
+        │  Cloudflare Tunnel (outbound only — no open firewall ports)
+        ▼
+ School PC — Docker Compose
+   ├─ thomian-frontend  (Nginx :80)   ← serves React + proxies /api/
+   ├─ thomian-backend   (Gunicorn :8000, internal)
+   └─ thomian-db        (PostgreSQL :5432, internal)
+```
+
+**Total monthly cost after domain purchase: RM0.**
 
 ---
 
@@ -288,10 +412,10 @@ docker compose logs backend --tail 30
 
 ## 11. Default Credentials (⚠️ Change Immediately)
 
-| Role | Username | Default Password |
-|---|---|---|
-| Administrator | `admin` | `admin123` |
-| Librarian | `librarian` | `lib123` |
+| Role | Username | Default Password | Patron Record |
+|---|---|---|---|
+| Administrator | `20261001` | `1234` | System Administrator |
+| Librarian | `20261002` | `5678` | School Librarian |
 
 > **⚠️ CRITICAL:** Change these immediately via the Django Admin panel at `http://localhost/api/admin/` before going live.
 
@@ -427,7 +551,6 @@ Before running any deployment command, verify the following items:
 - [ ] Default librarian account created via Django Admin
 
 ### ✅ Frontend
-- [ ] `.env` file contains `GEMINI_API_KEY`
 - [ ] Production build completed (`npm run build`)
 - [ ] `dist/` folder is present and populated
 
@@ -472,7 +595,7 @@ python manage.py createsuperuser
 # 1. Install Node dependencies
 npm install
 
-# 2. Ensure GEMINI_API_KEY is set in your .env file, then build
+# 2. Build (GEMINI_API_KEY is not needed here — it lives in the backend .env)
 npm run build
 
 # 3. Output will be in dist/
@@ -601,12 +724,12 @@ USE_S3=False  # True only if using Cloudflare R2
 
 ## 5. Default Credentials (⚠️ Change Immediately After First Login)
 
-The system includes pre-configured demo accounts for initial access:
+The system includes pre-configured accounts created by `inject_users.py`:
 
-| Role | Username | Default Password |
-|---|---|---|
-| Administrator | `admin` | `admin123` |
-| Librarian | `librarian` | `lib123` |
+| Role | Username | Default Password | Patron Record |
+|---|---|---|---|
+| Administrator | `20261001` | `1234` | System Administrator |
+| Librarian | `20261002` | `5678` | School Librarian |
 
 > **⚠️ CRITICAL:** Change these passwords immediately via the Django Admin panel (`/api/admin/`) before going live. Leaving these defaults active is a security vulnerability.
 
@@ -642,10 +765,10 @@ Since local storage is used by default, the `/media` folder must be backed up se
 
 ### AI Features (Gemini)
 1. Obtain an API Key from [Google AI Studio](https://aistudio.google.com/).
-2. Add it to your `.env` file as `GEMINI_API_KEY`.
-3. The Vite build process injects it into the bundle at compile time. **Rebuild the frontend** any time the key changes.
+2. Add it to your **backend** `.env` file as `GEMINI_API_KEY` on the school PC.
+3. The key is **never sent to the browser** — the frontend calls `/api/ai/analyze-blueprint/` and Django makes the Gemini request server-side.
 
-> **Note:** The API key will be embedded in the compiled JavaScript bundle. Restrict the key in Google AI Studio to your production domain to prevent misuse.
+> **No frontend rebuild needed** when the key changes — just update `.env` and run `docker compose restart backend`.
 
 ### HTTPS Requirement
 The **Mobile Scanner** and **AI Vision Uploads** strictly require a Secure Context (HTTPS).
@@ -716,11 +839,11 @@ sudo systemctl reload nginx
 | Django project shell | ⚠️ Missing | No `manage.py` or `wsgi.py` found in root — verify project structure |
 | Migrations | ⚠️ Unverified | No `migrations/` folder found; must confirm before first deploy |
 | Frontend build | ✅ Ready | `npm run build` will produce `dist/` |
-| API key handling | ⚠️ Review | Gemini key embedded in JS bundle — restrict key to your domain |
+| API key handling | ✅ Secure | Gemini key is server-side only — proxied via `/api/ai/analyze-blueprint/` |
 | Nginx config | ✅ Provided | Full config in this guide |
 | Gunicorn service | ✅ Provided | Systemd unit in this guide |
 | CORS policy | ⚠️ Too open | Change `CORS_ALLOW_ALL_ORIGINS=True` to `CORS_ALLOWED_ORIGINS=[...]` |
-| Default credentials | ⚠️ Danger | Must change `admin/admin123` and `librarian/lib123` before go-live |
+| Default credentials | ⚠️ Danger | Must change `20261001/1234` and `20261002/5678` before go-live |
 | Backup strategy | ✅ Documented | pg_dump + rsync plan documented above |
 | SSL/HTTPS | ✅ Documented | Nginx + Certbot or Cloudflare |
 | Hardware (Zebra/Scanner) | ✅ Documented | Static IP + port 9100 + HID mode |

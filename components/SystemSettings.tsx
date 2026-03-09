@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Settings, Download, Upload, Trash2, AlertTriangle, CheckCircle, ShieldAlert, FileJson, Loader2, RefreshCw, Database, HardDrive, Wifi, Globe, Server, Save, Printer, StickyNote, Sliders, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles } from 'lucide-react';
+import { Settings, Download, Upload, Trash2, AlertTriangle, CheckCircle, ShieldAlert, FileJson, Loader2, RefreshCw, Database, HardDrive, Wifi, Server, Save, Printer, StickyNote, Sliders, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles } from 'lucide-react';
 import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, getLanUrl, setLanUrl, initializeNetwork, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
@@ -326,10 +326,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Sync Mode</label>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 gap-3">
                                 <button onClick={() => setNetworkMode('AUTO')} className={`py-5 rounded-2xl text-[10px] font-black flex flex-col items-center gap-3 border-2 transition-all ${networkMode === 'AUTO' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-100 text-slate-500'}`}><RefreshCw className="h-6 w-6" /> AUTO</button>
                                 <button onClick={() => setNetworkMode('LAN')} className={`py-5 rounded-2xl text-[10px] font-black flex flex-col items-center gap-3 border-2 transition-all ${networkMode === 'LAN' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-100 text-slate-500'}`}><Wifi className="h-6 w-6" /> LAN</button>
-                                <button onClick={() => setNetworkMode('CLOUD')} className={`py-5 rounded-2xl text-[10px] font-black flex flex-col items-center gap-3 border-2 transition-all ${networkMode === 'CLOUD' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-white border-slate-100 text-slate-500'}`}><Globe className="h-6 w-6" /> CLOUD</button>
                             </div>
                         </div>
                         <div>
