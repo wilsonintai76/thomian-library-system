@@ -115,8 +115,8 @@ class PatronSerializer(serializers.ModelSerializer):
         queryset=LibraryClass.objects.all(), source='library_class',
         write_only=True, required=False, allow_null=True,
     )
-    # Never expose hashed PIN in list/retrieve responses
-    pin = serializers.CharField(write_only=True, required=False)
+    # PIN is plain text — returned in responses so librarians can view/reprint
+    pin = serializers.CharField(required=False, default='1234')
 
     class Meta:
         model = Patron
@@ -126,19 +126,10 @@ class PatronSerializer(serializers.ModelSerializer):
         return obj.library_class.name if obj.library_class_id else None
 
     def create(self, validated_data):
-        raw_pin = validated_data.pop('pin', '0000')
-        patron = super().create(validated_data)
-        patron.set_pin(raw_pin)
-        patron.save(update_fields=['pin'])
-        return patron
+        return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        raw_pin = validated_data.pop('pin', None)
-        instance = super().update(instance, validated_data)
-        if raw_pin is not None:
-            instance.set_pin(raw_pin)
-            instance.save(update_fields=['pin'])
-        return instance
+        return super().update(instance, validated_data)
 
 
 class LoanSerializer(serializers.ModelSerializer):

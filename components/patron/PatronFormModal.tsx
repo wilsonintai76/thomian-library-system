@@ -43,9 +43,8 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     useEffect(() => {
         if (!isOpen) return;
         if (initialData) {
-            // PIN is write-only on the backend — never returned in responses.
-            // Load as empty so it is NOT sent unless the user explicitly types a new one.
-            setFormData({ ...initialData, pin: '' });
+            // PIN is now returned by the API as plain text — load it directly
+            setFormData({ ...initialData });
         } else {
             setFormData({
                 student_id: generatePatronId(),
@@ -171,23 +170,11 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             alert("Class selection is mandatory for Student patrons.");
             return;
         }
-        if (initialData) {
-            // Edit mode: pin is optional — empty means "keep existing"
-            if (formData.pin && formData.pin.length !== 4) {
-                alert("Security PIN must be exactly 4 digits.");
-                return;
-            }
-            // Strip pin from payload if not changed so the backend doesn't overwrite it
-            const payload = { ...formData };
-            if (!payload.pin) delete payload.pin;
-            onSave(payload);
-        } else {
-            if (!formData.pin || formData.pin.length !== 4) {
-                alert("Security PIN must be exactly 4 digits.");
-                return;
-            }
-            onSave(formData);
+        if (!formData.pin || formData.pin.length !== 4) {
+            alert("Security PIN must be exactly 4 digits.");
+            return;
         }
+        onSave(formData);
     };
 
     return (
@@ -319,7 +306,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                             value={formData.pin}
                                             onChange={(e) => setFormData({ ...formData, pin: e.target.value.replace(/\D/g, '') })}
                                             className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-10 py-3 font-mono font-black text-blue-600 outline-none focus:border-blue-500"
-                                            placeholder={initialData ? 'Leave blank to keep' : '••••'}
+                                            placeholder="••••"
                                         />
                                         <button
                                             type="button"

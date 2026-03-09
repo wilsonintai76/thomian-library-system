@@ -1,7 +1,6 @@
 
 from django.db import models
 from django.db.models import JSONField
-from django.contrib.auth.hashers import make_password, check_password as _check_password
 from django.utils import timezone
 
 
@@ -131,14 +130,14 @@ class Patron(models.Model):
     # Cached aggregates – maintained by fn_checkout_book / fn_return_book stored procedures
     fines      = models.DecimalField(max_digits=8,  decimal_places=2, default=0.00)
     total_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    # Hashed with Django's PBKDF2 hasher (max_length raised to 128 in migration 0006)
-    pin = models.CharField(max_length=128, default='')
+    # Plain-text 4-digit kiosk PIN (not a login credential — no hashing needed)
+    pin = models.CharField(max_length=10, default='1234')
 
     def set_pin(self, raw_pin: str) -> None:
-        self.pin = make_password(str(raw_pin))
+        self.pin = str(raw_pin)
 
     def check_pin(self, raw_pin: str) -> bool:
-        return _check_password(str(raw_pin), self.pin)
+        return self.pin == str(raw_pin)
 
     def __str__(self):
         return f"{self.full_name} ({self.student_id})"
