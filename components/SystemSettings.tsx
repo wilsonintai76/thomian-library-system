@@ -177,7 +177,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     return (
         <div className="p-8 max-w-6xl mx-auto space-y-12 animate-fade-in-up pb-32">
             <div className="flex items-center gap-4 border-b border-slate-200 pb-8">
-                <div className="bg-slate-900 p-4 rounded-[1.5rem] shadow-xl">
+                <div className="bg-slate-900 p-4 rounded-[1.5rem]">
                     <Settings className="h-8 w-8 text-white" />
                 </div>
                 <div>
@@ -194,7 +194,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                             <h3 className="text-xl font-bold">Visual Branding & Themes</h3>
                         </div>
                         {/* Logo Upload */}
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">School Logo</p>
                             <div className="flex items-center gap-6">
                                 <div className="h-24 w-24 rounded-2xl border-2 border-slate-100 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
@@ -223,7 +223,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                             </div>
                         </div>
 
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Select UI Palette & Text Pairings</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {themeOptions.map((theme) => {
@@ -257,7 +257,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                             <IdCard className="h-6 w-6 text-emerald-600" />
                             <h3 className="text-xl font-bold">Member Card Templates</h3>
                         </div>
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {templateOptions.map((opt) => (
                                     <button
@@ -299,7 +299,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                     <CalendarRange className="h-6 w-6 text-indigo-600" />
                     <h3 className="text-xl font-bold">End-of-Year Processing</h3>
                 </div>
-                <div className={`bg-white p-10 rounded-[2.5rem] border-2 transition-all ${config?.circulationLocked ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200 shadow-sm'}`}>
+                <div className={`bg-white p-10 rounded-[2.5rem] border-2 transition-all ${config?.circulationLocked ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200'}`}>
                     <div className="flex flex-col md:flex-row items-center justify-between gap-10">
                         <div className="max-w-2xl">
                             <div className="flex items-center gap-3 mb-4">
@@ -322,7 +322,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                     <Server className="h-6 w-6 text-blue-600" />
                     <h3 className="text-xl font-bold">Infrastructure</h3>
                 </div>
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Sync Mode</label>
@@ -348,7 +348,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                     <h3 className="text-xl font-bold">Database Lifecycle</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col">
+                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 flex flex-col">
                         <div className="flex justify-between items-start mb-8">
                             <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-inner"><Download className="h-8 w-8" /></div>
                             <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100"><Database className="h-4 w-4 text-blue-600" /><span className="text-xs font-black text-blue-700">{stats.size}</span></div>
@@ -357,7 +357,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                         <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Download complete database as a portable JSON archive.</p>
                         <button onClick={handleBackup} className="w-full py-5 rounded-2xl bg-blue-600 text-white font-black text-xs uppercase hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-blue-100">Export Repository</button>
                     </div>
-                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col">
+                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 flex flex-col">
                         <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center shadow-inner mb-8"><Upload className="h-8 w-8" /></div>
                         <h4 className="text-xl font-black uppercase tracking-tight mb-2">Restore Backup</h4>
                         <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Overwrite local cache with an external backup file.</p>

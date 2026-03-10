@@ -5,6 +5,12 @@
 > **Target Stack:** React 19 (Vite) + Django 6 + PostgreSQL 16 + Nginx + Gunicorn
 > **Primary Deployment Method:** Docker Compose (Windows)
 
+## Cross-Platform Runbooks
+
+- Unified guide (Windows + Debian/Ubuntu): `docs/deployment-windows-linux.md`
+- Windows 10 guide: `docs/windows10-cloudflare-runbook.md`
+- Debian/Ubuntu guide: `docs/debian-ubuntu-cloudflare-runbook.md`
+
 ---
 
 ## 1. Architecture Overview
