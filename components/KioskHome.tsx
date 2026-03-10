@@ -44,6 +44,7 @@ const KioskHome: React.FC = () => {
     const inputRef = useRef<HTMLInputElement>(null);
     const mapSectionRef = useRef<HTMLDivElement>(null);
     const resultsSectionRef = useRef<HTMLDivElement>(null);
+    const reserveSectionRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         inputRef.current?.focus();
@@ -71,7 +72,9 @@ const KioskHome: React.FC = () => {
     const selectBook = (book: Book) => {
         setSelectedBook(book);
         setHoldConfirmationId(null);
-        mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+            reserveSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
     };
 
     const handlePatronLogin = async () => {
@@ -146,15 +149,30 @@ const KioskHome: React.FC = () => {
         setTimeout(() => setHelpStatus('IDLE'), 4000);
     };
 
-    const BookPosterCard: React.FC<{ book: Book }> = ({ book }) => (
-        <div onClick={() => selectBook(book)} className="flex-none w-36 md:w-44 group cursor-pointer snap-start">
-            <div className="relative aspect-[2/3] mb-3 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm group-hover:shadow-xl group-hover:-translate-y-1 transition-all">
-                {book.cover_url ? <img src={book.cover_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 p-2 text-center"><ImageOff className="h-8 w-8 mb-2 opacity-50" /><span className="text-[10px] font-black uppercase">No Cover</span></div>}
-                <div className="absolute bottom-2 left-2 right-2"><span className={`block text-center text-[10px] font-bold uppercase py-1 rounded shadow-sm backdrop-blur-md ${book.status === 'AVAILABLE' ? 'bg-green-500/90 text-white' : 'bg-slate-800/90 text-white'}`}>{book.status}</span></div>
+    const BookPosterCard: React.FC<{ book: Book }> = ({ book }) => {
+        const isSelected = selectedBook?.id === book.id;
+        return (
+            <div onClick={() => selectBook(book)} className="flex-none w-36 md:w-44 cursor-pointer snap-start">
+                <div className={`relative aspect-[2/3] mb-3 bg-slate-100 rounded-xl overflow-hidden shadow-sm transition-all duration-200 ${
+                    isSelected
+                        ? 'ring-4 ring-blue-600 ring-offset-2 scale-[1.04] shadow-2xl shadow-blue-200'
+                        : 'border border-slate-200 hover:shadow-xl hover:-translate-y-1'
+                }`}>
+                    {book.cover_url ? <img src={book.cover_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 p-2 text-center"><ImageOff className="h-8 w-8 mb-2 opacity-50" /><span className="text-[10px] font-black uppercase">No Cover</span></div>}
+                    <div className="absolute bottom-2 left-2 right-2"><span className={`block text-center text-[10px] font-bold uppercase py-1 rounded shadow-sm backdrop-blur-md ${book.status === 'AVAILABLE' ? 'bg-green-500/90 text-white' : 'bg-slate-800/90 text-white'}`}>{book.status}</span></div>
+                    {isSelected && (
+                        <div className="absolute top-2 right-2 h-7 w-7 bg-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                            <CheckCircle2 className="h-4 w-4 text-white" />
+                        </div>
+                    )}
+                </div>
+                <div className="px-1">
+                    <h4 className={`font-bold text-sm leading-tight line-clamp-2 ${isSelected ? 'text-blue-600' : 'text-slate-800'}`}>{book.title}</h4>
+                    <p className="text-xs text-slate-500 truncate">{book.author}</p>
+                </div>
             </div>
-            <div className="px-1"><h4 className="font-bold text-slate-800 text-sm leading-tight line-clamp-2">{book.title}</h4><p className="text-xs text-slate-500 truncate">{book.author}</p></div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-8 flex flex-col gap-6 md:gap-8 pb-24 font-sans relative">
@@ -482,7 +500,7 @@ const KioskHome: React.FC = () => {
 
                     <div ref={mapSectionRef} className="scroll-mt-6">
                         {selectedBook && (
-                            <div className={`mb-6 rounded-3xl p-6 border-2 transition-all duration-500 shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 ${holdConfirmationId === selectedBook.id ? 'bg-emerald-600 border-emerald-500 text-white animate-bounce-subtle' : 'bg-white border-slate-200 text-slate-800'}`}>
+                            <div ref={reserveSectionRef} className={`mb-6 rounded-3xl p-6 border-2 transition-all duration-500 shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 ${holdConfirmationId === selectedBook.id ? 'bg-emerald-600 border-emerald-500 text-white animate-bounce-subtle' : 'bg-white border-blue-400 text-slate-800'}`}>
                                 <div className="flex items-center gap-4">
                                     <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${holdConfirmationId === selectedBook.id ? 'bg-white/20' : 'bg-blue-50 text-blue-600'}`}>
                                         {holdConfirmationId === selectedBook.id ? <CheckCircle2 className="h-8 w-8" /> : <Bookmark className="h-7 w-7 fill-current" />}
@@ -491,7 +509,10 @@ const KioskHome: React.FC = () => {
                                         <h3 className={`text-lg font-black uppercase tracking-tight ${holdConfirmationId === selectedBook.id ? 'text-white' : 'text-slate-800'}`}>
                                             {holdConfirmationId === selectedBook.id ? 'Hold Confirmed!' : 'Reserve This Item'}
                                         </h3>
-                                        <p className={`text-sm font-medium ${holdConfirmationId === selectedBook.id ? 'text-emerald-50' : 'text-slate-500'}`}>
+                                        <p className={`text-sm font-black truncate max-w-xs ${holdConfirmationId === selectedBook.id ? 'text-emerald-100' : 'text-blue-600'}`}>
+                                            {holdConfirmationId === selectedBook.id ? selectedBook.title : selectedBook.title}
+                                        </p>
+                                        <p className={`text-xs font-medium mt-0.5 ${holdConfirmationId === selectedBook.id ? 'text-emerald-50' : 'text-slate-500'}`}>
                                             {holdConfirmationId === selectedBook.id
                                                 ? `Identity ${activePatron?.student_id || holdStudentId} linked. Collect from desk.`
                                                 : (selectedBook.status === 'AVAILABLE' ? 'Book is on shelf. Reserve for pickup.' : 'Book is currently loaned. Join the queue.')}
