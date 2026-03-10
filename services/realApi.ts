@@ -267,7 +267,18 @@ export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): 
 export const generateBookZpl = (book: Partial<Book>): string => {
     const authorShort = (book.author || 'UNK').slice(0, 3).toUpperCase();
     const ddc = book.ddc_code || '000.00';
-    return `^XA^FO30,30^A0N,30,30^FD${ddc}^FS^FO30,100^A0N,25,25^FD${authorShort}^FS^FO150,30^BCN,60,Y,N,N^FD${book.barcode_id || 'TEMP-ID'}^FS^XZ`;
+    const barcodeId = book.barcode_id || 'TEMP-ID';
+    // ^BCN,60,Y,N,N  — Code128, height 60, YES print interpretation line below
+    // Extra ^A0N,28,28 text field beneath the barcode so it remains legible
+    // even if the printer interpretation-line font is tiny (enter manually if scanner down)
+    return [
+        '^XA',
+        `^FO30,30^A0N,30,30^FD${ddc}^FS`,
+        `^FO30,100^A0N,25,25^FD${authorShort}^FS`,
+        `^FO150,25^BCN,55,N,N,N^FD${barcodeId}^FS`,
+        `^FO150,88^A0N,28,28^FB200,1,0,C^FD${barcodeId}^FS`,
+        '^XZ',
+    ].join('');
 };
 
 export const generatePatronZpl = (patron: Patron): string => {

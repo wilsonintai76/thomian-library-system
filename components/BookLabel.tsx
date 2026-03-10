@@ -84,7 +84,8 @@ const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
                         <div className="w-full px-0.5">
                             <Code39Barcode value={book.barcode_id || String(book.id || 'NOID')} height={28} />
                         </div>
-                        <span className="text-[8px] font-black mt-0.5 tracking-[0.1em]">
+                        {/* Human-readable code — large enough to type manually if scanner is out */}
+                        <span className="text-[9px] font-black mt-0.5 tracking-[0.15em] font-mono text-center w-full leading-tight">
                             {book.barcode_id || (book.id ? `#${book.id}` : 'NO BARCODE')}
                         </span>
                     </div>
