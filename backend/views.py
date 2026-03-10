@@ -18,7 +18,8 @@ from .models import Book, Patron, Loan, CirculationRule, LibraryEvent, Hold, Sys
 from .serializers import (
     BookSerializer, PatronSerializer, CirculationRuleSerializer,
     LibraryEventSerializer, SystemAlertSerializer, SystemConfigSerializer,
-    LibraryClassSerializer, TransactionSerializer, LoanSerializer, HoldSerializer
+    LibraryClassSerializer, TransactionSerializer, LoanSerializer, HoldSerializer,
+    normalize_isbn,
 )
 from .services import CatalogingService, CirculationRPC
 
@@ -203,12 +204,12 @@ class SystemConfigViewSet(viewsets.ViewSet):
                     'material_type': b.get('material_type') or 'REGULAR',
                     'loan_count': b.get('loan_count') or 0,
                 }
-                isbn = (b.get('isbn') or '').strip()
-                barcode = (b.get('barcode_id') or '').strip()
+                isbn = normalize_isbn(b.get('isbn') or '')
+                barcode = (b.get('barcode_id') or '').strip() or None
                 if isbn:
                     book_obj, _ = Book.objects.update_or_create(
                         isbn=isbn,
-                        defaults={**book_defaults, 'barcode_id': barcode or None}
+                        defaults={**book_defaults, 'barcode_id': barcode}
                     )
                 elif barcode:
                     book_obj, _ = Book.objects.update_or_create(

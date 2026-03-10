@@ -1,6 +1,12 @@
 
+import datetime
 from rest_framework import serializers
 from .models import Book, Patron, Loan, CirculationRule, LibraryEvent, SystemAlert, SystemConfiguration, LibraryClass, Hold, Transaction, Author, Publisher
+
+
+def normalize_isbn(raw: str) -> str:
+    """Strip hyphens and spaces from an ISBN and uppercase it (for ISBN-10 with X check digit)."""
+    return raw.replace('-', '').replace(' ', '').strip().upper()
 
 
 class SystemConfigSerializer(serializers.ModelSerializer):
@@ -67,6 +73,32 @@ class BookSerializer(serializers.ModelSerializer):
         data['queue_length'] = instance.queue_length
         return data
 
+    def validate_isbn(self, value):
+        """Normalize ISBN: strip hyphens/spaces, validate 10 or 13 chars."""
+        if not value:
+            raise serializers.ValidationError('ISBN is required.')
+        normalized = normalize_isbn(value)
+        if len(normalized) == 10:
+            if not (normalized[:9].isdigit() and (normalized[9].isdigit() or normalized[9] == 'X')):
+                raise serializers.ValidationError(
+                    'ISBN-10 must be 9 digits followed by a digit or X.'
+                )
+        elif len(normalized) == 13:
+            if not normalized.isdigit():
+                raise serializers.ValidationError('ISBN-13 must be 13 digits.')
+        else:
+            raise serializers.ValidationError(
+                f'ISBN must be 10 or 13 characters after removing hyphens and spaces '
+                f'(got {len(normalized)} characters: "{normalized}").'
+            )
+        return normalized
+
+    def validate_barcode_id(self, value):
+        """Convert empty string to None so multiple blank barcodes don't violate unique constraint."""
+        if not value or not value.strip():
+            return None
+        return value.strip()
+
     def _resolve_authors(self, author_str):
         """Convert comma-separated name string to a list of Author objects."""
         authors = []
@@ -84,6 +116,18 @@ class BookSerializer(serializers.ModelSerializer):
         return pub
 
     def create(self, validated_data):
+        # Auto-generate barcode if not provided so copies don't clash on unique=True
+        if not validated_data.get('barcode_id'):
+            year = datetime.date.today().year
+            prefix = f'BK{year}'
+            last = Book.objects.filter(barcode_id__startswith=prefix).order_by('barcode_id').last()
+            counter = 1
+            if last and last.barcode_id and len(last.barcode_id) > len(prefix):
+                try:
+                    counter = int(last.barcode_id[len(prefix):]) + 1
+                except ValueError:
+                    counter = Book.objects.filter(barcode_id__startswith=prefix).count() + 1
+            validated_data['barcode_id'] = f'{prefix}{counter:04d}'
         # Accept flat-string author/publisher from MARCEditor when IDs not given
         author_str = self.initial_data.get('author')
         publisher_str = self.initial_data.get('publisher')
