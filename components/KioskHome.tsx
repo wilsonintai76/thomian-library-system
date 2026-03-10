@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, LogIn, RefreshCw, Sparkles, ImageOff, History, BookOpen, Bookmark, Clock, Calendar, Bell, Phone, Mail, Save, Loader2, FileText, Banknote, UserCheck, TrendingUp, CalendarOff, GraduationCap, Lightbulb, Users, Settings, LogOut, Key, ChevronRight, AlertCircle, ShieldCheck, CheckCircle2, Trophy } from 'lucide-react';
-import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockGetPatronById, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron } from '../services/api';
+import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockGetPatronById, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron, mockGetPatronLoans } from '../services/api';
 import { Book, LibraryEvent, MapConfig, Patron, Loan, Transaction } from '../types';
 import WayfinderMap from './WayfinderMap';
 import LibraryAssistant from './LibraryAssistant';
@@ -80,9 +80,7 @@ const KioskHome: React.FC = () => {
         const patron = await mockVerifyPatron(loginId, loginPin);
         if (patron) {
             setActivePatron(patron);
-            setPatronLoans([
-                { id: 'L-demo', book_id: 'B-1', patron_id: patron.student_id, issued_at: new Date().toISOString(), due_date: new Date(Date.now() + 604800000).toISOString(), renewal_count: 0, book_title: 'Introduction to Physics' }
-            ]);
+            mockGetPatronLoans(patron.student_id).then(setPatronLoans).catch(() => setPatronLoans([]));
             setShowAccountLogin(false);
             setLoginId('');
             setLoginPin('');

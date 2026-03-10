@@ -169,6 +169,16 @@ class PatronSerializer(serializers.ModelSerializer):
     def get_class_name(self, obj):
         return obj.library_class.name if obj.library_class_id else None
 
+    def validate(self, data):
+        """Allow frontend to submit class_name string when library_class_id is not provided."""
+        if 'library_class' not in data:
+            class_name = self.initial_data.get('class_name', '').strip()
+            if class_name:
+                lc = LibraryClass.objects.filter(name=class_name).first()
+                if lc:
+                    data['library_class'] = lc
+        return data
+
     def create(self, validated_data):
         return super().create(validated_data)
 
@@ -219,6 +229,19 @@ class TransactionSerializer(serializers.ModelSerializer):
         if obj.librarian_id:
             return obj.librarian.username
         return 'SYSTEM'
+
+    def to_internal_value(self, data):
+        """Accept patron as student_id string (frontend) in addition to integer PK."""
+        raw_patron = data.get('patron')
+        if raw_patron is not None and isinstance(raw_patron, str):
+            # String that looks like a PK (all digits) — check PK first, fall back to student_id
+            if not Patron.objects.filter(pk=raw_patron).exists():
+                try:
+                    patron_obj = Patron.objects.get(student_id=raw_patron)
+                    data = {**data, 'patron': patron_obj.pk}
+                except Patron.DoesNotExist:
+                    pass  # Let default FK validation raise a clear error
+        return super().to_internal_value(data)
 
 
 class CirculationRuleSerializer(serializers.ModelSerializer):

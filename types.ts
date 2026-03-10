@@ -48,7 +48,7 @@ export interface Book {
   status: 'AVAILABLE' | 'LOANED' | 'LOST' | 'PROCESSING' | 'HELD';
   hold_expires_at?: string;
   shelf_location: string; 
-  marc_data?: Record<string, any>;
+  marc_metadata?: Record<string, any>;
   queue_length?: number;
   last_inventoried?: string;
   value: number; 
@@ -153,13 +153,19 @@ export interface LibraryEvent {
 
 export interface Loan {
   id: string;
-  book_id: string;
-  patron_id: string;
+  book: number;           // integer PK from DB
+  patron: number;         // integer PK from DB
+  patron_id?: string;     // student_id string (read-only, via serializer)
+  patron_name?: string;
+  book_title?: string;
+  book_barcode?: string;
+  book_isbn?: string;
+  book_cover_url?: string;
   issued_at: string;
   due_date: string;
   returned_at?: string;
   renewal_count: number;
-  book_title?: string;
+  fine_assessed?: number;
 }
 
 export interface SystemAlert {

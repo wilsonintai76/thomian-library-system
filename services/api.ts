@@ -50,6 +50,7 @@ export const mockCheckoutBooks = (p: any, b: any) => real.mockCheckoutBooks(p, b
 export const mockProcessReturn = (b: any) => real.mockProcessReturn(b);
 export const mockRenewBook = (b: any, p: any) => real.mockRenewBook(b, p);
 export const mockGetActiveLoans = () => real.mockGetActiveLoans();
+export const mockGetPatronLoans = (id: any) => real.mockGetPatronLoans(id);
 
 // ── Events ────────────────────────────────────────────────────────────────────
 export const mockGetEvents = () => real.mockGetEvents();

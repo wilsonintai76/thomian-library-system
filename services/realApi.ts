@@ -189,9 +189,8 @@ export const mockAddClass = async (c: Omit<LibraryClass, 'id'>): Promise<Library
 export const mockDeleteClass = async (id: string): Promise<void> => request<void>('DELETE', `/classes/${id}/`);
 
 export const mockRecordTransaction = async (t: Omit<Transaction, 'id' | 'timestamp'>): Promise<Transaction> => {
-    const p = await mockGetPatronById(t.patron_id);
-    if (!p) throw new Error('Patron not found');
-    return request<Transaction>('POST', '/transactions/', { ...t, patron: p.student_id });
+    // Backend TransactionSerializer accepts patron as student_id string (patron_id field)
+    return request<Transaction>('POST', '/transactions/', { ...t, patron: t.patron_id });
 };
 export const mockGetTransactions = async (): Promise<Transaction[]> => list<Transaction>('/transactions/');
 export const mockGetTransactionsByPatron = async (id: string): Promise<Transaction[]> => list<Transaction>('/transactions/', { patron_id: id });
@@ -207,6 +206,7 @@ export const mockProcessReturn = async (b: string): Promise<CheckInResult> => {
 };
 export const mockRenewBook = async (b: string, pid: string): Promise<any> => request('POST', '/circulation/renew/', { barcode: b, patron_id: pid });
 export const mockGetActiveLoans = async (): Promise<Loan[]> => list<Loan>('/circulation/active_loans/');
+export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => list<Loan>(`/patrons/${studentId}/loans/`);
 
 export const mockGetEvents = async (): Promise<LibraryEvent[]> => list<LibraryEvent>('/events/', undefined, true);
 export const mockAddEvent = async (e: any): Promise<LibraryEvent> => request<LibraryEvent>('POST', '/events/', e);
