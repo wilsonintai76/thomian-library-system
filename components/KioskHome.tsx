@@ -126,10 +126,15 @@ const KioskHome: React.FC = () => {
 
         try {
             const result = await mockPlaceHold(selectedBook.id, studentId);
-            const updatedBook = { ...selectedBook, status: result.queued ? selectedBook.status : 'HELD' as const };
+            const newStatus = result.queued ? 'ON_HOLD' as const : 'HELD' as const;
+            const updatedBook = { ...selectedBook, status: newStatus };
             setHoldConfirmationId(selectedBook.id);
             setSelectedBook(updatedBook);
-            setResults(prev => prev.map(b => b.id === selectedBook.id ? updatedBook : b));
+            const patchList = <T extends { id: string }>(list: T[]) =>
+                list.map(b => b.id === selectedBook.id ? { ...b, status: newStatus } : b);
+            setResults(patchList);
+            setNewArrivals(patchList);
+            setTrending(patchList);
             setHoldSuccess(true);
             if (activePatron) {
                 setTimeout(() => setHoldSuccess(false), 5000);
