@@ -51,13 +51,9 @@ const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
     
     const [main, sub] = ddc.includes('.') ? ddc.split('.') : [ddc, ''];
 
-    // Resolve barcode: stored ID → fallback derived from ISBN → fallback from DB pk
+    // Resolve barcode: stored ID preferred; fallback to BK{year}{pk} if not yet assigned
     const year = new Date().getFullYear();
-    const derivedBarcode = book.isbn
-        ? `BK${year}${book.isbn.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}`
-        : book.id
-            ? `BK${year}${String(book.id).padStart(4, '0')}`
-            : null;
+    const derivedBarcode = book.id ? `BK${year}${String(book.id).padStart(4, '0')}` : null;
     const barcodeValue = book.barcode_id || derivedBarcode;
 
     return (
