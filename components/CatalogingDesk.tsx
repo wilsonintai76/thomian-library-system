@@ -201,52 +201,46 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   };
 
   const handlePrintAction = async () => {
-    const area = document.querySelector<HTMLElement>('.print-area');
-    if (!area) return;
-    const labelEls = area.querySelectorAll<HTMLElement>(':scope > div');
-    const labelHTMLs = Array.from(labelEls).map(el => el.outerHTML);
-    if (labelHTMLs.length === 0) return;
-
-    // Fetch & inline all stylesheets — popup is about:blank so relative paths fail;
-    // l.href is always absolute in the browser so we can fetch it directly.
-    const cssTexts = await Promise.all(
-      Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map(async (l) => {
-        try { return await fetch(l.href).then(r => r.text()); } catch { return ''; }
-      })
-    );
-    const inlineStyles = Array.from(document.querySelectorAll('style'))
-      .map(s => `<style>${(s as HTMLStyleElement).innerHTML}</style>`).join('\n');
-    const allCss = `<style>${cssTexts.join('\n')}</style>${inlineStyles}`;
-
-    // SHEET = 5-up Avery label sheet (1.5" × 1")
-    // SINGLE = 2-up cut sheet on plain A4 paper — bigger labels, easier to cut by hand
-    const cols = printLayout === 'SHEET' ? 5 : 2;
-    const LABEL_W = printLayout === 'SHEET' ? '1.5in' : '3in';
-    const LABELS_PER_PAGE = printLayout === 'SHEET' ? 50 : 20;
-    const pages: string[][] = [];
-    for (let i = 0; i < labelHTMLs.length; i += LABELS_PER_PAGE) {
-      pages.push(labelHTMLs.slice(i, i + LABELS_PER_PAGE));
+    if (!bulkPreviewBooks || bulkPreviewBooks.length === 0) return;
+    const bookIds = bulkPreviewBooks.map(b => b.id).filter(Boolean) as number[];
+    const token = localStorage.getItem('thomian_auth_token');
+    // Open preview tab immediately to avoid popup blockers after async fetch.
+    const previewWin = window.open('', '_blank');
+    if (previewWin) {
+      previewWin.document.write('<!doctype html><html><body style="font-family:monospace;padding:16px">Generating PDF preview...</body></html>');
+      previewWin.document.close();
     }
-
-    const pageBlocks = pages.map((pageLabels, pi) => {
-      const brk = pi < pages.length - 1 ? 'page-break-after:always;' : '';
-      return `<div style="display:grid;grid-template-columns:repeat(${cols},${LABEL_W});gap:2mm;justify-content:center;${brk}">${pageLabels.join('')}</div>`;
-    }).join('');
-
-    const printWin = window.open('', '_blank')!;
-    printWin.document.write(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Book Labels</title>
-${allCss}
-<style>
-  @page { size: A4 portrait; margin: 10mm; }
-  * { box-sizing: border-box; }
-  body { background: white; margin: 0; padding: 0; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style>
-</head><body>${pageBlocks}
-<script>window.print();<\/script>
-</body></html>`);
-    printWin.document.close();
+    try {
+      const resp = await fetch('/api/catalog/print_labels/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Token ${token}` } : {}),
+        },
+        body: JSON.stringify({ book_ids: bookIds, layout: printLayout }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      if (!blob.size) {
+        throw new Error('Server returned an empty PDF file');
+      }
+      const url = URL.createObjectURL(blob);
+      if (previewWin) {
+        previewWin.location.href = url;
+      } else {
+        window.open(url, '_blank');
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err: unknown) {
+      if (previewWin && !previewWin.closed) {
+        previewWin.close();
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Could not generate PDF: ${msg}`);
+    }
   };
 
   const startBlankAsset = () => {

@@ -13,5 +13,8 @@ psycopg2-binary>=2.9
 # Optional: MARC/cataloging metadata lookup
 # PyZ3950>=2.0
 
+# PDF generation (book labels)
+weasyprint>=62.0
+
 # Deployment
 gunicorn>=21.2

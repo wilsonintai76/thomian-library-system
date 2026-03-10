@@ -6,6 +6,7 @@ import string
 import requests as http_requests
 from django.db.models import Count, Sum, Q, F
 from django.db import transaction as db_transaction
+from django.http import HttpResponse
 from rest_framework import viewsets, status, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -293,6 +294,124 @@ class LibraryClassViewSet(viewsets.ModelViewSet):
 
 
 # ─────────────────────────────────────────────
+# BOOK LABEL PDF HELPERS
+# ─────────────────────────────────────────────
+
+_CODE39 = {
+    '0':'nnnwwnwnn','1':'wnnwnnnnw','2':'nnwwnnnnw','3':'wnwwnnnnn','4':'nnnwwnnnw',
+    '5':'wnnwwnnnn','6':'nnwwwnnnn','7':'nnnwnnwnw','8':'wnnwnnwnn','9':'nnwwnnwnn',
+    'A':'wnnnnwnnw','B':'nnwnnwnnw','C':'wnwnnwnnn','D':'nnnnwwnnw','E':'wnnnwwnnn',
+    'F':'nnwnwwnnn','G':'nnnnnwwnw','H':'wnnnnwwnn','I':'nnwnnwwnn','J':'nnnnwwwnn',
+    'K':'wnnnnnnww','L':'nnwnnnnww','M':'wnwnnnnwn','N':'nnnnwnnww','O':'wnnnwnnwn',
+    'P':'nnwnwnnwn','Q':'nnnnnwnww','R':'wnnnnwnwn','S':'nnwnnwnwn','T':'nnnnwwnwn',
+    'U':'wwnnnnnnw','V':'nwwnnnnnw','W':'wwwnnnnnn','X':'nwnnwnnnw','Y':'wwnnwnnnn',
+    'Z':'nwwnwnnnn','-':'nwnnnnwnw',' ':'nwnnwwnnn','*':'nwnnwnwnn','.':'wwnnnnwnn',
+    '$':'nwnwnwnnn','/':'nwnwnnnwn','+':'nwnnnwnwn','%':'nnnwnwnwn',
+}
+
+def _code39_svg(value: str, bar_height: int = 26) -> str:
+    """Return an SVG Code39 barcode identical to the frontend Code39Barcode component."""
+    WIDE, NARROW, GAP = 3, 1, 1
+    text = '*' + ''.join(c for c in value.upper() if c in _CODE39) + '*'
+    bars: list[tuple[int, int]] = []
+    x = 0
+    for ch in text:
+        pat = _CODE39.get(ch, _CODE39['*'])
+        for i in range(9):
+            w = WIDE if pat[i] == 'w' else NARROW
+            if i % 2 == 0:
+                bars.append((x, w))
+            x += w + (GAP if i % 2 == 1 else 0)
+        x += GAP
+    total_w = x
+    rects = ''.join(
+        f'<rect x="{bx}" y="0" width="{bw}" height="{bar_height}" fill="#000"/>'
+        for bx, bw in bars
+    )
+    return (
+        f'<svg viewBox="0 0 {total_w} {bar_height}" preserveAspectRatio="none" '
+        f'style="width:100%;height:{bar_height}px;display:block">{rects}</svg>'
+    )
+
+
+def _book_label_html(book, is_sheet: bool) -> str:
+    """Generate the HTML for a single book label, mirroring BookLabel.tsx."""
+    from datetime import date
+
+    # ── barcode ──────────────────────────────────────────────────────────────
+    year = date.today().year
+    barcode_value = book.barcode_id or f'BK{year}{book.pk:04d}'
+    is_temp = not book.barcode_id
+
+    # ── DDC ──────────────────────────────────────────────────────────────────
+    ddc = book.ddc_code or '000'
+    is_genre = ddc and not ddc[0].isdigit()
+    if '.' in ddc:
+        main_ddc, sub_ddc = ddc.split('.', 1)
+    else:
+        main_ddc, sub_ddc = ddc, ''
+
+    # ── author short (first 3 chars of first author) ──────────────────────────
+    authors = list(book.authors.all())
+    author_str = ', '.join(a.name for a in authors) if authors else ''
+    author_short = (author_str[:3] if author_str else 'UNK').upper()
+
+    classification = (book.classification or 'GEN').upper()
+
+    # ── sizes (sheet vs cut-sheet) ────────────────────────────────────────────
+    if is_sheet:
+        lw, lh = '1.5in', '1in'
+        ddc_sz, sub_sz, ab_sz, bc_sz, ft_sz, bc_h = '17px', '13px', '8px', '6px', '4px', 22
+    else:
+        lw, lh = '3in', '2in'
+        ddc_sz, sub_sz, ab_sz, bc_sz, ft_sz, bc_h = '26px', '20px', '11px', '9px', '5px', 36
+
+    # ── DDC block ─────────────────────────────────────────────────────────────
+    if is_genre:
+        ddc_html = f'<span style="font-size:{ddc_sz};font-weight:900;color:#000;letter-spacing:-0.03em;display:block;line-height:1">{ddc}</span>'
+    else:
+        ddc_html = f'<span style="font-size:{ddc_sz};font-weight:900;color:#000;display:block;line-height:1">{main_ddc}</span>'
+        if sub_ddc:
+            ddc_html += f'<span style="font-size:{sub_sz};font-weight:700;color:#000;display:block;line-height:1">.{sub_ddc}</span>'
+
+    temp_note = ''
+    if is_temp:
+        temp_note = (
+            '<span style="font-size:5px;color:#f59e0b;font-weight:900;text-transform:uppercase;'
+            'letter-spacing:0.08em;display:block;text-align:center;line-height:1.2;margin-top:1px;">'
+            'TEMP \u2014 save to lock</span>'
+        )
+
+    barcode_svg = _code39_svg(barcode_value, bar_height=bc_h)
+
+    return f'''<div style="
+        width:{lw};height:{lh};border:1px solid #e2e8f0;
+        font-family:'Courier New',Courier,monospace;background:white;
+        overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;padding:4px;
+    ">
+      <div style="display:flex;flex:1;gap:6px;align-items:flex-start;min-height:0;">
+        <div style="display:flex;flex-direction:column;line-height:1.1;flex-shrink:0;">
+          {ddc_html}
+          <div style="margin-top:3px;background:#000;color:#fff;padding:1px 4px;display:inline-block;border-radius:2px;">
+            <span style="font-size:{ab_sz};font-weight:900;text-transform:uppercase;letter-spacing:-0.05em;">{author_short}</span>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;overflow:hidden;">
+          {barcode_svg}
+          <span style="font-size:{bc_sz};font-weight:900;margin-top:1px;letter-spacing:0.1em;
+            font-family:'Courier New',Courier,monospace;text-align:center;word-break:break-all;
+            display:block;width:100%;line-height:1.1;">{barcode_value}</span>
+          {temp_note}
+        </div>
+      </div>
+      <div style="margin-top:auto;padding-top:2px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;opacity:0.45;">
+        <span style="font-size:{ft_sz};font-weight:900;text-transform:uppercase;letter-spacing:0.08em;">Thomian Lib LIS</span>
+        <span style="font-size:{ft_sz};font-weight:900;text-transform:uppercase;letter-spacing:0.08em;">{classification}</span>
+      </div>
+    </div>'''
+
+
+# ─────────────────────────────────────────────
 # CATALOG
 # ─────────────────────────────────────────────
 
@@ -420,6 +539,57 @@ class CatalogViewSet(viewsets.ModelViewSet):
             'topClasses': [],
             'acquisitionHistory': [],
         })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
+    def print_labels(self, request):
+        """Generate a PDF of book spine/asset labels using WeasyPrint."""
+        try:
+            from weasyprint import HTML as WeasyHTML
+        except ImportError:
+            return Response({'error': 'weasyprint is not installed on the server'}, status=500)
+
+        book_ids = request.data.get('book_ids', [])
+        layout = request.data.get('layout', 'SHEET')  # 'SHEET' or 'SINGLE'
+        if not book_ids:
+            return Response({'error': 'book_ids required'}, status=400)
+
+        books = list(
+            Book.objects.filter(pk__in=book_ids).prefetch_related('authors')
+        )
+        if not books:
+            return Response({'error': 'No matching books found'}, status=404)
+
+        is_sheet = layout != 'SINGLE'
+        cols = 5 if is_sheet else 2
+        labels_per_page = 50 if is_sheet else 20
+
+        label_htmls = [_book_label_html(b, is_sheet) for b in books]
+
+        pages = [label_htmls[i:i + labels_per_page] for i in range(0, len(label_htmls), labels_per_page)]
+        page_blocks = ''
+        for pi, page_labels in enumerate(pages):
+            brk = 'page-break-after:always;' if pi < len(pages) - 1 else ''
+            page_blocks += (
+                f'<div style="display:grid;grid-template-columns:repeat({cols},auto);'
+                f'gap:2mm;justify-content:center;{brk}">'
+                + ''.join(page_labels)
+                + '</div>'
+            )
+
+        html_src = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Book Labels</title>
+<style>
+  @page {{ size: A4 portrait; margin: 10mm; }}
+  * {{ box-sizing: border-box; }}
+  body {{ background: white; margin: 0; padding: 0;
+         font-family: 'Courier New', Courier, monospace; }}
+</style>
+</head><body>{page_blocks}</body></html>'''
+
+        pdf_bytes = WeasyHTML(string=html_src).write_pdf()
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="book-labels.pdf"'
+        return response
 
     @action(detail=False, methods=['get'], permission_classes=[IsLibrarianOrAdmin])
     def recent_activity(self, request):
