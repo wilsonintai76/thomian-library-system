@@ -261,3 +261,61 @@ export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): 
     }
     return res.json();
 };
+
+// ── ZPL / Print Utilities ─────────────────────────────────────────────────────
+
+export const generateBookZpl = (book: Partial<Book>): string => {
+    const authorShort = (book.author || 'UNK').slice(0, 3).toUpperCase();
+    const ddc = book.ddc_code || '000.00';
+    return `^XA^FO30,30^A0N,30,30^FD${ddc}^FS^FO30,100^A0N,25,25^FD${authorShort}^FS^FO150,30^BCN,60,Y,N,N^FD${book.barcode_id || 'TEMP-ID'}^FS^XZ`;
+};
+
+export const generatePatronZpl = (patron: Patron): string => {
+    return `^XA^CI28^FO40,40^A0N,35,35^FDSt. Thomas Library^FS^FO40,160^A0N,50,50^FD${patron.full_name}^FS^FO40,300^BCN,100,Y,N,N^FD${patron.student_id}^FS^XZ`;
+};
+
+export const mockPrintBookLabel = async (book: Book): Promise<void> => {
+    generateBookZpl(book);
+    await new Promise(r => setTimeout(r, 800));
+};
+
+export const mockPrintPatronCard = async (patron: Patron): Promise<void> => {
+    generatePatronZpl(patron);
+    await new Promise(r => setTimeout(r, 1200));
+};
+
+export const mockBulkPrintPatrons = async (patrons: Patron[]): Promise<void> => {
+    await new Promise(r => setTimeout(r, 500 * patrons.length));
+};
+
+export const mockBulkPrintLabels = async (books: Partial<Book>[]): Promise<void> => {
+    await new Promise(r => setTimeout(r, 300 * books.length));
+};
+
+// ── LAN URL (user preference — stored locally) ───────────────────────────────
+
+const LAN_URL_KEY = 'thomian_lan_url';
+export const getLanUrl = (): string => localStorage.getItem(LAN_URL_KEY) || 'http://localhost:8000';
+export const setLanUrl = (url: string): void => { localStorage.setItem(LAN_URL_KEY, url); };
+
+// ── Data Export / Import / Factory Reset ─────────────────────────────────────
+
+export const exportSystemData = async (): Promise<string> => {
+    const data = await request<object>('GET', '/system-config/export/');
+    return JSON.stringify(data, null, 2);
+};
+
+export const importSystemData = async (jsonString: string): Promise<boolean> => {
+    try {
+        const data = JSON.parse(jsonString);
+        await request('POST', '/system-config/import/', data);
+        return true;
+    } catch (e) {
+        console.error('Import failed:', e);
+        return false;
+    }
+};
+
+export const performFactoryReset = async (): Promise<void> => {
+    await request('POST', '/system-config/factory_reset/');
+};

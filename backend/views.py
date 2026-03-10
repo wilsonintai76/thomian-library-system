@@ -14,7 +14,7 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
-from .models import Book, Patron, Loan, CirculationRule, LibraryEvent, Hold, SystemAlert, SystemConfiguration, LibraryClass, Transaction
+from .models import Book, Patron, Loan, CirculationRule, LibraryEvent, Hold, SystemAlert, SystemConfiguration, LibraryClass, Transaction, Author, Publisher
 from .serializers import (
     BookSerializer, PatronSerializer, CirculationRuleSerializer,
     LibraryEventSerializer, SystemAlertSerializer, SystemConfigSerializer,
@@ -101,6 +101,175 @@ class SystemConfigViewSet(viewsets.ViewSet):
         config.logo = request.data.get('logo', config.logo)
         config.map_data = request.data.get('map_data', config.map_data)
         config.save()
+        return Response({'success': True})
+
+    @action(detail=False, methods=['get'], permission_classes=[IsLibrarianOrAdmin])
+    def export_data(self, request):
+        config, _ = SystemConfiguration.objects.get_or_create(pk=1)
+        data = {
+            'version': '2.0',
+            'timestamp': timezone.now().isoformat(),
+            'books': BookSerializer(
+                Book.objects.prefetch_related('authors').select_related('publisher').all(), many=True
+            ).data,
+            'patrons': PatronSerializer(
+                Patron.objects.select_related('library_class').all(), many=True
+            ).data,
+            'classes': LibraryClassSerializer(LibraryClass.objects.all(), many=True).data,
+            'transactions': TransactionSerializer(
+                Transaction.objects.select_related('patron', 'book').all(), many=True
+            ).data,
+            'events': LibraryEventSerializer(LibraryEvent.objects.all(), many=True).data,
+            'rules': CirculationRuleSerializer(CirculationRule.objects.all(), many=True).data,
+            'mapConfig': SystemConfigSerializer(config).data,
+        }
+        return Response(data)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
+    def import_data(self, request):
+        raw = request.data
+        if not isinstance(raw, dict) or ('books' not in raw and 'patrons' not in raw):
+            return Response({'error': 'Invalid backup format'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with db_transaction.atomic():
+            # 1. Classes
+            class_name_map = {}
+            for c in raw.get('classes', []):
+                obj, _ = LibraryClass.objects.update_or_create(
+                    name=c['name'],
+                    defaults={
+                        'grade_level': c.get('grade_level') or '',
+                        'room_number': c.get('room_number') or '',
+                    }
+                )
+                class_name_map[c['name']] = obj
+
+            # 2. Patrons
+            for p in raw.get('patrons', []):
+                class_obj = class_name_map.get(p.get('class_name'))
+                Patron.objects.update_or_create(
+                    student_id=p['student_id'],
+                    defaults={
+                        'full_name': p.get('full_name') or '',
+                        'card_name': p.get('card_name') or '',
+                        'patron_group': p.get('patron_group') or 'STUDENT',
+                        'library_class': class_obj,
+                        'email': p.get('email') or '',
+                        'phone': p.get('phone') or '',
+                        'photo_url': p.get('photo_url') or '',
+                        'is_blocked': p.get('is_blocked', False),
+                        'is_archived': p.get('is_archived', False),
+                        'fines': p.get('fines') or 0,
+                        'total_paid': p.get('total_paid') or 0,
+                        'pin': p.get('pin') or '1234',
+                    }
+                )
+
+            # 3. Books
+            for b in raw.get('books', []):
+                author_str = b.get('author') or ''
+                publisher_str = b.get('publisher') or ''
+
+                publisher_obj = None
+                if publisher_str:
+                    publisher_obj, _ = Publisher.objects.get_or_create(name=publisher_str)
+
+                author_objs = []
+                for name in [n.strip() for n in author_str.split(',') if n.strip()]:
+                    a, _ = Author.objects.get_or_create(name=name)
+                    author_objs.append(a)
+
+                book_defaults = {
+                    'title': b.get('title') or '',
+                    'ddc_code': b.get('ddc_code') or '000',
+                    'classification': b.get('classification') or 'General',
+                    'call_number': b.get('call_number') or '',
+                    'shelf_location': b.get('shelf_location') or '',
+                    'cover_url': b.get('cover_url') or '',
+                    'value': b.get('value') or 25.00,
+                    'vendor': b.get('vendor') or '',
+                    'acquisition_date': b.get('acquisition_date') or None,
+                    'series': b.get('series') or '',
+                    'edition': b.get('edition') or '',
+                    'publisher': publisher_obj,
+                    'pub_year': b.get('pub_year') or '',
+                    'format': b.get('format') or 'PAPERBACK',
+                    'language': b.get('language') or 'English',
+                    'pages': b.get('pages') or None,
+                    'summary': b.get('summary') or '',
+                    'subjects': b.get('subjects') or [],
+                    'marc_metadata': b.get('marc_metadata') or {},
+                    'status': b.get('status') or 'AVAILABLE',
+                    'material_type': b.get('material_type') or 'REGULAR',
+                    'loan_count': b.get('loan_count') or 0,
+                }
+                isbn = (b.get('isbn') or '').strip()
+                barcode = (b.get('barcode_id') or '').strip()
+                if isbn:
+                    book_obj, _ = Book.objects.update_or_create(
+                        isbn=isbn,
+                        defaults={**book_defaults, 'barcode_id': barcode or None}
+                    )
+                elif barcode:
+                    book_obj, _ = Book.objects.update_or_create(
+                        barcode_id=barcode, defaults=book_defaults
+                    )
+                else:
+                    continue
+                if author_objs:
+                    book_obj.authors.set(author_objs)
+
+            # 4. Circulation rules
+            for r in raw.get('rules', []):
+                CirculationRule.objects.update_or_create(
+                    patron_group=r.get('patron_group') or 'STUDENT',
+                    material_type=r.get('material_type') or 'REGULAR',
+                    defaults={
+                        'loan_days': r.get('loan_days') or 14,
+                        'max_items': r.get('max_items') or 5,
+                        'fine_per_day': r.get('fine_per_day') or 0.50,
+                    }
+                )
+
+            # 5. Events
+            for e in raw.get('events', []):
+                if not e.get('title') or not e.get('date'):
+                    continue
+                LibraryEvent.objects.get_or_create(
+                    title=e['title'],
+                    date=e['date'],
+                    defaults={
+                        'type': e.get('type') or 'GENERAL',
+                        'description': e.get('description') or '',
+                    }
+                )
+
+            # 6. Map config
+            mc = raw.get('mapConfig')
+            if mc:
+                config, _ = SystemConfiguration.objects.get_or_create(pk=1)
+                if 'map_data' in mc:
+                    config.map_data = mc['map_data']
+                if mc.get('logo'):
+                    config.logo = mc['logo']
+                config.save()
+
+        return Response({'success': True})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
+    def factory_reset(self, request):
+        with db_transaction.atomic():
+            Hold.objects.all().delete()
+            Loan.objects.all().delete()
+            Transaction.objects.all().delete()
+            SystemAlert.objects.all().delete()
+            LibraryEvent.objects.all().delete()
+            Book.objects.all().delete()
+            Patron.objects.all().delete()
+            CirculationRule.objects.all().delete()
+            LibraryClass.objects.all().delete()
+            Author.objects.all().delete()
+            Publisher.objects.all().delete()
         return Response({'success': True})
 
 
