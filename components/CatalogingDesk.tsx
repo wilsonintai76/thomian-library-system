@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, DollarSign, CheckCircle } from 'lucide-react';
-import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockPrintBookLabel, mockBulkPrintLabels, mockDeleteBook, mockRestoreBook } from '../services/api';
+import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, DollarSign, CheckCircle, Scissors } from 'lucide-react';
+import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook } from '../services/api';
 import { Book as BookType } from '../types';
 import { getClassificationFromDDC } from '../utils';
 import MobileScanner from './MobileScanner';
@@ -185,8 +185,6 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const handlePrintRequest = (books: Partial<BookType>[]) => {
     setBulkPreviewBooks(books);
     setPrintLayout(books.length > 1 ? 'SHEET' : 'SINGLE');
-    if (books.length === 1) mockPrintBookLabel(books[0] as BookType);
-    else mockBulkPrintLabels(books);
   };
 
   const handlePrintAction = () => {
@@ -200,9 +198,11 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     const inlineStyles = Array.from(document.querySelectorAll('style'))
       .map(s => `<style>${(s as HTMLStyleElement).innerHTML}</style>`).join('\n');
 
-    const cols = printLayout === 'SHEET' ? 5 : 1;
-    const LABEL_W = '1.5in';
-    const LABELS_PER_PAGE = printLayout === 'SHEET' ? 50 : 10;
+    // SHEET = 5-up Avery label sheet (1.5" × 1")
+    // SINGLE = 2-up cut sheet on plain A4 paper — bigger labels, easier to cut by hand
+    const cols = printLayout === 'SHEET' ? 5 : 2;
+    const LABEL_W = printLayout === 'SHEET' ? '1.5in' : '3in';
+    const LABELS_PER_PAGE = printLayout === 'SHEET' ? 50 : 20;
     const pages: string[][] = [];
     for (let i = 0; i < labelHTMLs.length; i += LABELS_PER_PAGE) {
       pages.push(labelHTMLs.slice(i, i + LABELS_PER_PAGE));
@@ -268,11 +268,11 @@ ${inlineStyles}
                 <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">
                   {bulkPreviewBooks.length > 1 ? `Batch Print Job: ${bulkPreviewBooks.length} Stickers` : 'Asset Sticker Preview'}
                 </h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Configured for 1.5" x 1" Standard Labels</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Print on plain A4 paper — cut &amp; stick, or use Avery adhesive label sheets</p>
               </div>
               <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button onClick={() => setPrintLayout('SINGLE')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SINGLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Printer className="h-3.5 w-3.5" /> Thermal</button>
-                <button onClick={() => setPrintLayout('SHEET')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SHEET' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><LayoutGrid className="h-3.5 w-3.5" /> Sheet Grid</button>
+                <button onClick={() => setPrintLayout('SINGLE')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SINGLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Scissors className="h-3.5 w-3.5" /> Cut Sheet (A4)</button>
+                <button onClick={() => setPrintLayout('SHEET')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SHEET' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><LayoutGrid className="h-3.5 w-3.5" /> Label Sheet (Avery)</button>
               </div>
             </div>
 
@@ -290,7 +290,7 @@ ${inlineStyles}
             <div className="flex gap-4 w-full print:hidden shrink-0 mt-4 border-t border-slate-100 pt-6">
               <div className="flex-1 flex items-center gap-3 text-slate-400 text-[10px] font-bold uppercase tracking-tighter">
                 <Settings2 className="h-4 w-4" />
-                <span>Ensure "Background Graphics" is ON in print settings.</span>
+                <span>Enable "Background Graphics" in browser print settings for correct barcode printing.</span>
               </div>
               <button onClick={() => setBulkPreviewBooks(null)} className="px-8 py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200">Cancel Job</button>
               <button onClick={handlePrintAction} className="px-12 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 flex items-center justify-center gap-2 shadow-xl shadow-blue-100 active:scale-95 transition-all">

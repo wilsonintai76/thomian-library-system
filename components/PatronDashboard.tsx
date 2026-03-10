@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 
 import { Users, Search, Loader2, Banknote, History, Download, Archive, UserPlus, Building2, RefreshCw, Edit, UserMinus, Mail, Phone, GraduationCap, IdCard, Printer, ShieldCheck, Filter, ChevronDown, X } from 'lucide-react';
 import { Patron, Transaction, AuthUser, MapConfig, LibraryClass } from '../types';
-import { mockGetPatrons, mockUpdatePatron, mockGetMapConfig, mockRecordTransaction, mockGetTransactionsByPatron, mockCheckSession, mockPrintPatronCard, mockBulkPrintPatrons, mockAddPatron, mockDeletePatron, mockGetClasses, mockRestorePatron } from '../services/api';
+import { mockGetPatrons, mockUpdatePatron, mockGetMapConfig, mockRecordTransaction, mockGetTransactionsByPatron, mockCheckSession, mockAddPatron, mockDeletePatron, mockGetClasses, mockRestorePatron } from '../services/api';
 import { exportToCSV } from '../utils';
 import ReceiptModal from './ReceiptModal';
 import PatronCard from './PatronCard';
@@ -122,7 +122,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
         setPatrons(prev => prev.map(pat => pat.student_id === id ? updated : pat));
     };
 
-    const [zebraSent, setZebraSent] = useState(false);
+
     const [isPrinting, setIsPrinting] = useState(false);
 
     const handlePdfPrint = () => {
@@ -174,15 +174,7 @@ ${inlineStyles}
     };
 
     const handlePrintRequest = (items: Patron[]) => {
-        setZebraSent(false);
         setBulkPreviewPatrons(items);
-    };
-
-    const handleZebraPrint = async () => {
-        if (!bulkPreviewPatrons) return;
-        if (bulkPreviewPatrons.length === 1) await mockPrintPatronCard(bulkPreviewPatrons[0]);
-        else await mockBulkPrintPatrons(bulkPreviewPatrons);
-        setZebraSent(true);
     };
 
     const handleCsvExport = () => {
@@ -281,20 +273,11 @@ ${inlineStyles}
                             ))}
                         </div>
                         <div className="flex flex-col gap-3 w-full max-w-sm print:hidden shrink-0">
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={handleZebraPrint}
-                                    className={`py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-2 ${
-                                        zebraSent ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-900 border-slate-900 text-white hover:bg-slate-800'
-                                    }`}
-                                >
-                                    {zebraSent ? <><span>✓</span> ZPL Sent</> : <><Printer className="h-4 w-4" /> ZPL Zebra</>}
-                                </button>
-                                                <button onClick={handlePdfPrint} disabled={isPrinting} className="py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2 disabled:opacity-60">
-                                    {isPrinting ? <><Loader2 className="h-4 w-4 animate-spin" /> Rendering…</> : <><Printer className="h-4 w-4" /> Print / PDF</>}
-                                </button>
-                            </div>
-                            <button onClick={() => { setBulkPreviewPatrons(null); setZebraSent(false); }} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>
+                            <button onClick={handlePdfPrint} disabled={isPrinting} className="w-full py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2 disabled:opacity-60">
+                                {isPrinting ? <><Loader2 className="h-4 w-4 animate-spin" /> Rendering…</> : <><Printer className="h-4 w-4" /> Print / Save as PDF</>}
+                            </button>
+                            <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">Print on paper · Laminate · Done</p>
+                            <button onClick={() => setBulkPreviewPatrons(null)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>
                         </div>
                     </div>
                 </div>

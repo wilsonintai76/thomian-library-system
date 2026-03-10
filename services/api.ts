@@ -82,13 +82,6 @@ export const mockGetRecentActivity = () => real.mockGetRecentActivity();
 export const initializeNetwork = () => real.initializeNetwork();
 export const getNetworkStatus = () => real.getNetworkStatus();
 
-// ── ZPL / Print ───────────────────────────────────────────────────────────────
-export { generateBookZpl, generatePatronZpl } from './realApi';
-export const mockPrintBookLabel = (b: any) => real.mockPrintBookLabel(b);
-export const mockPrintPatronCard = (p: any) => real.mockPrintPatronCard(p);
-export const mockBulkPrintPatrons = (p: any) => real.mockBulkPrintPatrons(p);
-export const mockBulkPrintLabels = (b: any) => real.mockBulkPrintLabels(b);
-
 // ── LAN URL ───────────────────────────────────────────────────────────────────
 export const getLanUrl = () => real.getLanUrl();
 export const setLanUrl = (u: any) => real.setLanUrl(u);
