@@ -125,49 +125,47 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
     const [isPrinting, setIsPrinting] = useState(false);
 
-    const handlePdfPrint = () => {
-        const area = document.getElementById('card-print-area');
-        if (!area) return;
+    const handlePdfPrint = async () => {
+        if (!bulkPreviewPatrons || bulkPreviewPatrons.length === 0) return;
         setIsPrinting(true);
+        const patronIds = bulkPreviewPatrons.map(p => p.student_id);
+        const token = localStorage.getItem('thomian_auth_token');
+        // Pre-open preview tab to avoid popup blockers
+        const previewWin = window.open('', '_blank');
+        if (previewWin) {
+            previewWin.document.write('<!doctype html><html><body style="font-family:sans-serif;padding:16px">Generating patron cards...</body></html>');
+            previewWin.document.close();
+        }
         try {
-            // Grab rendered HTML of every card wrapper directly — no canvas, no screenshot.
-            // At CSS 96dpi: 324px = 85.6mm and 204px = 54mm exactly (CR80 ISO).
-            const cardEls = area.querySelectorAll<HTMLElement>(':scope > div');
-            const cardHTMLs = Array.from(cardEls).map(el => el.outerHTML);
-
-            // Copy all stylesheets from the current page so Tailwind + inline styles resolve correctly.
-            const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-                .map(l => (l as HTMLElement).outerHTML).join('\n');
-            const inlineStyles = Array.from(document.querySelectorAll('style'))
-                .map(s => `<style>${(s as HTMLStyleElement).innerHTML}</style>`).join('\n');
-
-            const CARDS_PER_PAGE = 8;
-            const pages: string[][] = [];
-            for (let i = 0; i < cardHTMLs.length; i += CARDS_PER_PAGE) {
-                pages.push(cardHTMLs.slice(i, i + CARDS_PER_PAGE));
+            const resp = await fetch('/api/patrons/print_patron_cards/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Token ${token}` } : {}),
+                },
+                body: JSON.stringify({ patron_ids: patronIds }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `Server error ${resp.status}`);
             }
-
-            const pageBlocks = pages.map((pageCards, pi) => {
-                const cells = pageCards.join('');
-                const brk = pi < pages.length - 1 ? 'break-after:page;' : '';
-                return `<div style="display:grid;grid-template-columns:85.6mm 85.6mm;column-gap:10mm;row-gap:6mm;justify-content:center;${brk}">${cells}</div>`;
-            }).join('');
-
-            const printWin = window.open('', '_blank')!;
-            printWin.document.write(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Patron Cards</title>
-${styleLinks}
-${inlineStyles}
-<style>
-  @page { size: A4 portrait; margin: 10mm; }
-  * { box-sizing: border-box; }
-  body { background: white; margin: 0; padding: 0; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style>
-</head><body>${pageBlocks}
-<script>window.onload=function(){window.print();};<\/script>
-</body></html>`);
-            printWin.document.close();
+            const blob = await resp.blob();
+            if (!blob.size) {
+                throw new Error('Server returned an empty PDF file');
+            }
+            const url = URL.createObjectURL(blob);
+            if (previewWin) {
+                previewWin.location.href = url;
+            } else {
+                window.open(url, '_blank');
+            }
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        } catch (err: unknown) {
+            if (previewWin && !previewWin.closed) {
+                previewWin.close();
+            }
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`Could not generate PDF: ${msg}`);
         } finally {
             setIsPrinting(false);
         }

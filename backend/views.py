@@ -664,6 +664,164 @@ class PatronViewSet(viewsets.ModelViewSet):
         patron = self.get_object()
         return Response(CirculationRPC.patron_balance(patron.pk))
 
+    @action(detail=False, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
+    def print_patron_cards(self, request):
+        """Generate a PDF of patron ID cards using WeasyPrint."""
+        try:
+            from weasyprint import HTML as WeasyHTML
+        except ImportError:
+            return Response({'error': 'weasyprint is not installed on the server'}, status=500)
+
+        patron_ids = request.data.get('patron_ids', [])
+        if not patron_ids:
+            return Response({'error': 'patron_ids required'}, status=400)
+
+        patrons = list(
+            Patron.objects.filter(student_id__in=patron_ids).select_related('library_class')
+        )
+        if not patrons:
+            return Response({'error': 'No matching patrons found'}, status=404)
+
+        # Get system logo from config (if any)
+        config = SystemConfiguration.objects.filter(pk=1).first()
+        logo_url = config.logo if config else ''
+
+        card_htmls = [_patron_card_html(p, logo_url) for p in patrons]
+
+        # 2 cards per row, 4 rows per page (85.6mm × 54mm cards on A4)
+        cards_per_page = 8
+        pages = [card_htmls[i:i + cards_per_page] for i in range(0, len(card_htmls), cards_per_page)]
+        page_blocks = ''
+        for pi, page_cards in enumerate(pages):
+            brk = 'page-break-after:always;' if pi < len(pages) - 1 else ''
+            page_blocks += (
+                f'<div style="display:grid;grid-template-columns:85.6mm 85.6mm;'
+                f'column-gap:10mm;row-gap:6mm;justify-content:center;{brk}">'
+                + ''.join(page_cards)
+                + '</div>'
+            )
+
+        html_src = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Patron Cards</title>
+<style>
+  @page {{ size: A4 portrait; margin: 10mm; }}
+  * {{ box-sizing: border-box; }}
+  body {{ background: white; margin: 0; padding: 0; font-family: sans-serif; }}
+</style>
+</head><body>{page_blocks}</body></html>'''
+
+        pdf_bytes = WeasyHTML(string=html_src).write_pdf()
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="patron-cards.pdf"'
+        return response
+
+
+# ─────────────────────────────────────────────
+# PATRON CARD PDF HELPERS
+# ─────────────────────────────────────────────
+
+_ROLE_COLORS = {
+    'STUDENT':       {'dark': '#0c4a6e', 'accent': '#0ea5e9'},
+    'TEACHER':       {'dark': '#064e3b', 'accent': '#10b981'},
+    'LIBRARIAN':     {'dark': '#4c1d95', 'accent': '#8b5cf6'},
+    'ADMINISTRATOR': {'dark': '#881337', 'accent': '#f43f5e'},
+}
+
+def _get_role_colors(group: str):
+    return _ROLE_COLORS.get(group, {'dark': '#1e293b', 'accent': '#64748b'})
+
+def _format_card_name(name: str) -> str:
+    """Abbreviate middle names: 'GWENYTTA VENETIA BINTI POLOI' → 'GWENYTTA V. B. POLOI'"""
+    parts = name.strip().split()
+    if len(parts) <= 3:
+        return name
+    first = parts[0]
+    last = parts[-1]
+    mid_initials = ' '.join(p[0] + '.' for p in parts[1:-1])
+    return f'{first} {mid_initials} {last}'
+
+def _patron_card_html(patron, logo_url: str) -> str:
+    """Generate TRADITIONAL patron card HTML (324×204px) mirroring PatronCard.tsx."""
+    colors = _get_role_colors(patron.patron_group)
+    display_name = patron.card_name or _format_card_name(patron.full_name)
+    name_len = len(display_name)
+    
+    # Dynamic font sizing
+    if name_len > 26:
+        name_size = '9px'
+    elif name_len > 20:
+        name_size = '10px'
+    elif name_len > 14:
+        name_size = '12px'
+    else:
+        name_size = '14px'
+
+    photo_html = ''
+    if patron.photo_url:
+        photo_html = f'<img src="{patron.photo_url}" alt="" style="position:absolute;top:0;left:0;width:68px;height:66px;object-fit:cover;display:block">'
+    else:
+        photo_html = '<div style="position:absolute;top:0;left:0;width:68px;height:66px;display:flex;align-items:center;justify-content:center;color:#cbd5e1"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>'
+
+    logo_html = ''
+    if logo_url:
+        logo_html = f'<img src="{logo_url}" alt="" style="width:100%;height:100%;object-fit:contain">'
+    else:
+        logo_html = '<div style="width:100%;height:100%;border-radius:4px;background:#059669"></div>'
+
+    barcode_svg = _code39_svg(patron.student_id, bar_height=24)
+
+    group_label = 'ADMIN' if patron.patron_group == 'ADMINISTRATOR' else patron.patron_group
+    class_name = patron.library_class.name if patron.library_class else ''
+
+    return f'''<div style="
+        width:324px;height:204px;background:white;border-radius:12px;overflow:hidden;
+        border:1px solid #e2e8f0;display:flex;flex-direction:column;font-family:sans-serif;
+        user-select:none;box-shadow:0 20px 60px rgba(0,0,0,0.2);
+    ">
+      <!-- Header -->
+      <div style="height:48px;flex-shrink:0;background:{colors['dark']};display:flex;align-items:center;padding:0 16px;gap:12px;overflow:hidden;position:relative">
+        <div style="height:32px;width:32px;background:white;border-radius:8px;padding:4px;flex-shrink:0;z-index:1">
+          {logo_html}
+        </div>
+        <div style="overflow:hidden;z-index:1">
+          <p style="font-size:10px;font-weight:900;color:white;line-height:1;text-transform:uppercase;letter-spacing:-0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">St. Thomas Secondary</p>
+          <p style="font-size:7px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.1em;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">Identity &amp; Resource Access</p>
+        </div>
+      </div>
+      <!-- Body -->
+      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding:8px 12px;gap:6px;background:white">
+        <!-- Row 1: Photo + Info -->
+        <div style="display:flex;align-items:flex-start;gap:12px;overflow:hidden">
+          <!-- Photo -->
+          <div style="width:68px;height:80px;flex-shrink:0;background:#f1f5f9;border-radius:6px;border:2px solid #e2e8f0;overflow:hidden;position:relative">
+            {photo_html}
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(226,232,240,0.9);text-align:center;padding:2px 0">
+              <span style="font-size:5px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:0.1em">Verified</span>
+            </div>
+          </div>
+          <!-- Info -->
+          <div style="width:220px;overflow:hidden">
+            <p style="font-size:6px;font-weight:900;color:{colors['accent']};text-transform:uppercase;letter-spacing:0.15em;margin-bottom:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Official Patron</p>
+            <p style="font-size:{name_size};font-weight:900;color:#1e293b;text-transform:uppercase;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word">
+              {display_name}
+            </p>
+            <div style="margin-top:4px;display:flex;align-items:center;gap:4px;overflow:hidden">
+              <span style="flex-shrink:0;padding:1px 4px;background:{colors['dark']};color:white;font-size:6px;font-weight:900;border-radius:3px;text-transform:uppercase">{group_label}</span>
+              <span style="flex-shrink:0;display:flex;align-items:center;gap:2px;font-size:6px;font-weight:700;color:{colors['accent']}">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                ACTIVE
+              </span>
+            </div>
+          </div>
+        </div>
+        <!-- Row 2: Barcode -->
+        <div style="width:100%;overflow:hidden">
+          {barcode_svg}
+          <p style="font-size:7px;font-family:monospace;font-weight:700;color:#334155;margin-top:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{patron.student_id}</p>
+        </div>
+      </div>
+    </div>'''
+
 
 # ─────────────────────────────────────────────
 # CIRCULATION
