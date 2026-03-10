@@ -54,7 +54,7 @@ class Book(models.Model):
         ('HELD',       'Held'),
     ]
 
-    isbn          = models.CharField(max_length=13,  unique=True, db_index=True)
+    isbn          = models.CharField(max_length=13,  db_index=True)
     title         = models.CharField(max_length=255)
     # 3NF: authors live in their own table; many-to-many allows co-authorship
     authors       = models.ManyToManyField(Author, related_name='books', blank=True)

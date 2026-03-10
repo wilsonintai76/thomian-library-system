@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, DollarSign } from 'lucide-react';
+import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, DollarSign, CheckCircle } from 'lucide-react';
 import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockPrintBookLabel, mockBulkPrintLabels, mockDeleteBook, mockRestoreBook } from '../services/api';
 import { Book as BookType } from '../types';
 import { getClassificationFromDDC } from '../utils';
@@ -31,6 +31,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [isManual, setIsManual] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [existingBook, setExistingBook] = useState<Partial<BookType> | null>(null);
   const [copies, setCopies] = useState(1);
   const [inventory, setInventory] = useState<BookType[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,11 +61,18 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
       setSteps(prev => prev.map(s => s.source === source ? { ...s, status: status as WaterfallStatus } : s));
     }).then((data) => {
       if (data) {
+        if ((data as BookType).id) {
+          // Book already in catalog — switch to the add-copies flow
+          setExistingBook(data);
+          setResult(null);
+          return;
+        }
+        setExistingBook(null);
         const ddc = data.ddc_code;
         const authorShort = (data.author || '').slice(0, 3).toUpperCase();
         setResult({
           ...data,
-          id: undefined,        // always create a new copy — never overwrite the existing record
+          id: undefined,
           material_type: 'REGULAR',
           status: 'AVAILABLE',
           value: data.value || 25.00,
@@ -76,6 +84,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
         // MANUAL stub = no API had data; open editor with ISBN pre-filled
         setIsManual(!data.title);
       } else {
+        setExistingBook(null);
         setIsManual(true);
         setResult({ isbn, status: 'AVAILABLE', material_type: 'REGULAR', value: 25.00 });
       }
@@ -114,6 +123,31 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     }
   };
 
+  const handleAddCopies = async () => {
+    if (!existingBook) return;
+    setIsSaving(true);
+    try {
+      const base = {
+        ...existingBook,
+        id: undefined,
+        barcode_id: '',
+        status: 'AVAILABLE' as const,
+        acquisition_date: new Date().toISOString().split('T')[0],
+      };
+      for (let i = 0; i < copies; i++) {
+        await mockAddBook(base as BookType);
+      }
+      setCopies(1);
+      setExistingBook(null);
+      setIsbn('');
+      setView('LIST');
+    } catch (err: any) {
+      alert(`Failed to add copies: ${err?.message || 'Unknown error.'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure? This will remove the item from active holdings. All loan history will be archived.")) return;
 
@@ -141,6 +175,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   };
 
   const handleEditBook = (book: BookType) => {
+    setExistingBook(null);
     setResult(book);
     setIsbn(book.isbn);
     setIsManual(true);
@@ -196,6 +231,7 @@ ${inlineStyles}
   };
 
   const startBlankAsset = () => {
+    setExistingBook(null);
     setResult({
       title: '',
       author: '',
@@ -277,7 +313,7 @@ ${inlineStyles}
           <div className="flex items-center gap-4">
             <div className="bg-slate-100 p-1 rounded-2xl flex border border-slate-200">
               <button onClick={() => setView('LIST')} className={`px-6 py-2.5 text-[10px] font-black uppercase rounded-xl flex items-center gap-2 transition-all ${view === 'LIST' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><List className="h-3.5 w-3.5" /> Registry</button>
-              <button onClick={() => { setView('ADD'); setResult(null); setIsbn(''); }} className={`px-6 py-2.5 text-[10px] font-black uppercase rounded-xl flex items-center gap-2 transition-all ${view === 'ADD' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><Plus className="h-3.5 w-3.5" /> Acquisition</button>
+              <button onClick={() => { setView('ADD'); setResult(null); setIsbn(''); setExistingBook(null); }} className={`px-6 py-2.5 text-[10px] font-black uppercase rounded-xl flex items-center gap-2 transition-all ${view === 'ADD' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><Plus className="h-3.5 w-3.5" /> Acquisition</button>
               <button onClick={() => setView('STOCKTAKE')} className={`px-6 py-2.5 text-[10px] font-black uppercase rounded-xl flex items-center gap-2 transition-all ${view === 'STOCKTAKE' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><PackageSearch className="h-3.5 w-3.5" /> Inventory Audit</button>
             </div>
           </div>
@@ -327,21 +363,96 @@ ${inlineStyles}
             <AcquisitionWaterfall steps={steps} />
           </div>
           <div className="lg:col-span-8 h-full min-h-[800px]">
-            <MARCEditor
-              book={result || {}}
-              setBook={setResult}
-              isManual={isManual}
-              isSaving={isSaving}
-              copies={copies}
-              onCommit={handleCommit}
-              onPreview={() => handlePrintRequest([result as BookType])}
-              onCancel={() => { setCopies(1); setResult(null); setIsbn(''); setView('LIST'); }}
-              onImageUpload={(e) => {
-                const reader = new FileReader();
-                reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));
-                if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
-              }}
-            />
+            {existingBook ? (
+              <div className="bg-white rounded-[2.5rem] border-2 border-emerald-200 shadow-2xl h-full flex flex-col ring-8 ring-emerald-50">
+                <div className="p-8 border-b border-emerald-100 flex justify-between items-center bg-emerald-50/50 rounded-t-[2.5rem]">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 bg-emerald-100 rounded-2xl flex items-center justify-center">
+                      <CheckCircle className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Already in Catalog</h3>
+                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">This title is registered — adding new physical copies</p>
+                    </div>
+                  </div>
+                  <span className="bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">EXISTING TITLE</span>
+                </div>
+                <div className="p-8 flex-1 flex gap-8 overflow-y-auto">
+                  {existingBook.cover_url && (
+                    <img src={existingBook.cover_url} alt="Cover" className="w-36 h-52 object-cover rounded-2xl shadow-lg shrink-0" />
+                  )}
+                  <div className="flex-1 space-y-6">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Title</p>
+                      <p className="text-2xl font-black text-slate-800 leading-tight">{existingBook.title}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Author</p>
+                        <p className="font-bold text-slate-700">{existingBook.author}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ISBN</p>
+                        <p className="font-mono font-bold text-slate-700">{existingBook.isbn}</p>
+                      </div>
+                      {existingBook.call_number && <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Call Number</p>
+                        <p className="font-mono font-bold text-slate-700">{existingBook.call_number}</p>
+                      </div>}
+                      {existingBook.shelf_location && <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Shelf Location</p>
+                        <p className="font-bold text-slate-700">{existingBook.shelf_location}</p>
+                      </div>}
+                      {existingBook.pub_year && <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Year Published</p>
+                        <p className="font-bold text-slate-700">{existingBook.pub_year}</p>
+                      </div>}
+                      {existingBook.publisher && <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Publisher</p>
+                        <p className="font-bold text-slate-700">{existingBook.publisher as string}</p>
+                      </div>}
+                    </div>
+                    <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100">
+                      <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">
+                        {copies === 1 ? '1 new physical copy' : `${copies} new physical copies`} will be added to holdings. Each copy receives a unique auto-generated barcode ID.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-8 border-t border-emerald-100 flex gap-4 shrink-0">
+                  <button
+                    onClick={() => { setExistingBook(null); setIsbn(''); setCopies(1); setSteps(prev => prev.map(s => ({ ...s, status: 'IDLE' }))); }}
+                    className="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddCopies}
+                    disabled={isSaving}
+                    className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-emerald-700 flex items-center justify-center gap-3 shadow-xl shadow-emerald-100 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                    {isSaving ? 'Adding...' : `Add ${copies} Physical ${copies === 1 ? 'Copy' : 'Copies'} to Holdings`}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <MARCEditor
+                book={result || {}}
+                setBook={setResult}
+                isManual={isManual}
+                isSaving={isSaving}
+                copies={copies}
+                onCommit={handleCommit}
+                onPreview={() => handlePrintRequest([result as BookType])}
+                onCancel={() => { setCopies(1); setResult(null); setIsbn(''); setView('LIST'); }}
+                onImageUpload={(e) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));
+                  if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
+                }}
+              />
+            )}
           </div>
         </div>
       )}

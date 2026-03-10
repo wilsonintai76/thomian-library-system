@@ -206,15 +206,23 @@ class SystemConfigViewSet(viewsets.ViewSet):
                 }
                 isbn = normalize_isbn(b.get('isbn') or '')
                 barcode = (b.get('barcode_id') or '').strip() or None
-                if isbn:
+                if barcode:
+                    # Barcode is the unique copy identifier — use it as the primary key
                     book_obj, _ = Book.objects.update_or_create(
-                        isbn=isbn,
-                        defaults={**book_defaults, 'barcode_id': barcode}
+                        barcode_id=barcode,
+                        defaults={**book_defaults, 'isbn': isbn}
                     )
-                elif barcode:
-                    book_obj, _ = Book.objects.update_or_create(
-                        barcode_id=barcode, defaults=book_defaults
-                    )
+                elif isbn:
+                    # Legacy backup without barcodes — update first matching copy or create new
+                    existing = Book.objects.filter(isbn=isbn).first()
+                    if existing:
+                        for k, v in book_defaults.items():
+                            setattr(existing, k, v)
+                        existing.isbn = isbn
+                        existing.save()
+                        book_obj = existing
+                    else:
+                        book_obj = Book.objects.create(isbn=isbn, **book_defaults)
                 else:
                     continue
                 if author_objs:
