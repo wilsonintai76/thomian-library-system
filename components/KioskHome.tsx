@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, LogIn, RefreshCw, Sparkles, ImageOff, History, BookOpen, Bookmark, Clock, Calendar, Bell, Phone, Mail, Save, Loader2, FileText, Banknote, UserCheck, TrendingUp, CalendarOff, GraduationCap, Lightbulb, Users, Settings, LogOut, Key, ChevronRight, AlertCircle, ShieldCheck, CheckCircle2, Trophy } from 'lucide-react';
-import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockGetPatronById, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron, mockGetPatronLoans } from '../services/api';
+import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron, mockGetPatronLoans } from '../services/api';
 import { Book, LibraryEvent, MapConfig, Patron, Loan, Transaction } from '../types';
 import WayfinderMap from './WayfinderMap';
 import LibraryAssistant from './LibraryAssistant';
@@ -121,28 +121,20 @@ const KioskHome: React.FC = () => {
         if (!selectedBook) return;
         setIsPlacingHold(true);
 
-        if (!activePatron) {
-            const patron = await mockGetPatronById(studentId);
-            if (!patron) { alert("Student ID not recognized."); setIsPlacingHold(false); return; }
-            if (patron.is_blocked) { alert("Account Blocked: Visit desk to clear fines."); setIsPlacingHold(false); return; }
-        }
-
-        await mockPlaceHold(selectedBook.id, studentId);
-
-        if (selectedBook) {
-            const updatedBook = { ...selectedBook, status: 'HELD' as const };
+        try {
+            const result = await mockPlaceHold(selectedBook.id, studentId);
+            const updatedBook = { ...selectedBook, status: result.queued ? selectedBook.status : 'HELD' as const };
             setHoldConfirmationId(selectedBook.id);
             setSelectedBook(updatedBook);
             setResults(prev => prev.map(b => b.id === selectedBook.id ? updatedBook : b));
-        }
-
-        setIsPlacingHold(false);
-        setHoldSuccess(true);
-
-        if (activePatron) {
-            setTimeout(() => {
-                setHoldSuccess(false);
-            }, 5000);
+            setHoldSuccess(true);
+            if (activePatron) {
+                setTimeout(() => setHoldSuccess(false), 5000);
+            }
+        } catch (err: any) {
+            alert(err.message || 'Unable to place hold. Please try again.');
+        } finally {
+            setIsPlacingHold(false);
         }
     };
 

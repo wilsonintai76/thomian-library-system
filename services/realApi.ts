@@ -118,10 +118,12 @@ export const mockGetBooksByShelf = async (shelf: string): Promise<Book[]> => {
 };
 export const mockGetNewArrivals = async (): Promise<Book[]> => list<Book>('/catalog/', { ordering: '-created_at', page_size: '4' }, true);
 export const mockGetTrendingBooks = async (): Promise<Book[]> => list<Book>('/catalog/', { ordering: '-loan_count', page_size: '4' }, true);
-export const mockPlaceHold = async (bookId: string, patronId: string): Promise<void> => {
-    try { await request('POST', '/circulation/place_hold/', { book_id: bookId, patron_id: patronId }); } catch {
-        await request('PATCH', `/catalog/${bookId}/`, { status: 'HELD' });
-    }
+export const mockPlaceHold = async (bookId: string, patronId: string): Promise<{ queued: boolean }> => {
+    const res = await request<{ success: boolean; queued: boolean; message?: string }>(
+        'POST', '/circulation/place_hold/', { book_id: bookId, patron_id: patronId }
+    );
+    if (!res.success) throw new Error(res.message || 'Hold failed');
+    return { queued: res.queued };
 };
 export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: string, st: string) => void): Promise<Partial<Book> | null> => {
     onUpdate('LOCAL', 'PENDING');

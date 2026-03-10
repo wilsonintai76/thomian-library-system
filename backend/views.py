@@ -716,6 +716,40 @@ class CirculationViewSet(viewsets.ViewSet):
             })
         return Response(result)
 
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def place_hold(self, request):
+        """Kiosk/unauthenticated: place a hold queue entry for a book."""
+        patron_id = request.data.get('patron_id')
+        book_id   = request.data.get('book_id')
+
+        try:
+            patron = Patron.objects.get(student_id=str(patron_id))
+        except Patron.DoesNotExist:
+            return Response({'success': False, 'message': 'Student ID not found. Please check your ID and try again.'}, status=404)
+
+        if patron.is_blocked:
+            return Response({'success': False, 'message': 'Your account is blocked. Please visit the library desk.'}, status=403)
+
+        try:
+            book = Book.objects.get(pk=book_id)
+        except Book.DoesNotExist:
+            return Response({'success': False, 'message': 'Book not found.'}, status=404)
+
+        # Prevent duplicate holds from the same patron on the same book
+        if Hold.objects.filter(book=book, patron=patron, is_active=True).exists():
+            return Response({'success': False, 'message': 'You already have an active hold on this book.'}, status=400)
+
+        next_position = (Hold.objects.filter(book=book).order_by('-position').values_list('position', flat=True).first() or 0) + 1
+        # Hold is immediately active if the book is available; queued if already loaned/held
+        is_active = book.status in ('AVAILABLE', 'HELD')
+
+        Hold.objects.create(book=book, patron=patron, is_active=is_active, position=next_position)
+
+        if is_active:
+            Book.objects.filter(pk=book.pk).update(status='HELD')
+
+        return Response({'success': True, 'queued': not is_active})
+
 
 # ─────────────────────────────────────────────
 # LOANS (read-only / patron view)

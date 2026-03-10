@@ -153,6 +153,9 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
                                         <span className="text-xs font-black uppercase tracking-widest">Terminate Session</span>
                                     </button>
                                 </div>
+                                <div className="pb-3 pt-1 text-center">
+                                    <p className="text-[8px] font-mono text-slate-300 tracking-widest">v{__APP_VERSION__}</p>
+                                </div>
                             </div>
                         )}
                     </div>
