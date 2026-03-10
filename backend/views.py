@@ -319,14 +319,25 @@ class CatalogViewSet(viewsets.ModelViewSet):
             return Response({'error': 'q parameter required'}, status=400)
         # Normalise: strip hyphens and spaces so ISBN-10/-13 both match
         q_norm = q.replace('-', '').replace(' ', '')
+
+        # Barcode sticker is unique — exact match identifies one physical copy
         book = (
             Book.objects.prefetch_related('authors').select_related('publisher')
             .filter(barcode_id=q).first()
-            or Book.objects.prefetch_related('authors').select_related('publisher')
-            .filter(isbn=q).first()
-            or Book.objects.prefetch_related('authors').select_related('publisher')
-            .filter(isbn=q_norm).first()
         )
+        if not book:
+            # ISBN scan: multiple copies share the same ISBN.
+            # Prefer an AVAILABLE copy so the librarian can issue it immediately;
+            # fall back to HELD (hold patron can still take it), then any copy.
+            isbn_qs = (
+                Book.objects.prefetch_related('authors').select_related('publisher')
+                .filter(isbn=q_norm)
+            )
+            book = (
+                isbn_qs.filter(status='AVAILABLE').first()
+                or isbn_qs.filter(status='HELD').first()
+                or isbn_qs.first()
+            )
         if not book:
             return Response({'found': False}, status=404)
         return Response({'found': True, 'book': BookSerializer(book).data})
@@ -564,12 +575,28 @@ class CirculationViewSet(viewsets.ViewSet):
         raw = (request.data.get('barcode') or '').strip()
         norm = raw.replace('-', '').replace(' ', '')
 
+        # Step 1: try barcode sticker (unique — identifies one physical copy)
         book = (
             Book.objects.select_for_update().filter(barcode_id=raw).first()
             or Book.objects.select_for_update().filter(barcode_id=norm).first()
-            or Book.objects.select_for_update().filter(isbn=raw).first()
-            or Book.objects.select_for_update().filter(isbn=norm).first()
         )
+        if not book:
+            # Step 2: ISBN scan fallback — multiple copies share the same ISBN.
+            # Among those copies, find the one that has an active (unreturned) loan;
+            # that is the physical copy being handed back across the desk.
+            active_loan = (
+                Loan.objects.filter(
+                    returned_at__isnull=True,
+                    book__isbn__in=[raw, norm],
+                ).select_related('book').first()
+            )
+            if active_loan:
+                book = Book.objects.select_for_update().get(pk=active_loan.book_id)
+            else:
+                book = (
+                    Book.objects.select_for_update().filter(isbn=raw).first()
+                    or Book.objects.select_for_update().filter(isbn=norm).first()
+                )
         if not book:
             return Response({'success': False, 'message': 'Book not found'}, status=404)
 
@@ -621,12 +648,29 @@ class CirculationViewSet(viewsets.ViewSet):
         raw       = (request.data.get('barcode') or '').strip()
         norm      = raw.replace('-', '').replace(' ', '')
         patron_id = request.data.get('patron_id')
+
+        # Step 1: try barcode sticker (unique — identifies one physical copy)
         book = (
             Book.objects.filter(barcode_id=raw).first()
             or Book.objects.filter(barcode_id=norm).first()
-            or Book.objects.filter(isbn=raw).first()
-            or Book.objects.filter(isbn=norm).first()
         )
+        if not book:
+            # Step 2: ISBN scan fallback — multiple copies share the same ISBN.
+            # Find the copy this specific patron currently has on loan.
+            active_loan = (
+                Loan.objects.filter(
+                    returned_at__isnull=True,
+                    patron__student_id=patron_id,
+                    book__isbn__in=[raw, norm],
+                ).select_related('book').first()
+            )
+            if active_loan:
+                book = active_loan.book
+            else:
+                book = (
+                    Book.objects.filter(isbn=raw).first()
+                    or Book.objects.filter(isbn=norm).first()
+                )
         if not book:
             return Response({'success': False, 'message': 'Book not found'}, status=404)
         loan = Loan.objects.filter(book=book, patron__student_id=patron_id, returned_at__isnull=True).first()
