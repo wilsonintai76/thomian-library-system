@@ -51,6 +51,15 @@ const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
     
     const [main, sub] = ddc.includes('.') ? ddc.split('.') : [ddc, ''];
 
+    // Resolve barcode: stored ID → fallback derived from ISBN → fallback from DB pk
+    const year = new Date().getFullYear();
+    const derivedBarcode = book.isbn
+        ? `BK${year}${book.isbn.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}`
+        : book.id
+            ? `BK${year}${String(book.id).padStart(4, '0')}`
+            : null;
+    const barcodeValue = book.barcode_id || derivedBarcode;
+
     return (
         <div className={`
             relative group overflow-hidden bg-white font-mono select-none
@@ -81,15 +90,20 @@ const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
 
                     {/* Barcode */}
                     <div className="flex-1 flex flex-col items-center justify-center">
-                        {book.barcode_id ? (
+                        {barcodeValue ? (
                             <>
                                 <div className="w-full px-0.5">
-                                    <Code39Barcode value={book.barcode_id} height={28} />
+                                    <Code39Barcode value={barcodeValue} height={28} />
                                 </div>
                                 {/* Human-readable — large enough to type manually if scanner fails */}
                                 <span className="text-[9px] font-black mt-0.5 tracking-[0.15em] font-mono text-center w-full leading-tight break-all">
-                                    {book.barcode_id}
+                                    {barcodeValue}
                                 </span>
+                                {!book.barcode_id && (
+                                    <span className="text-[6px] text-amber-500 font-black uppercase tracking-widest text-center leading-tight mt-0.5">
+                                        TEMP — save to lock
+                                    </span>
+                                )}
                             </>
                         ) : (
                             <div className="w-full flex flex-col items-center justify-center gap-0.5 border border-dashed border-slate-300 rounded py-1 px-1">

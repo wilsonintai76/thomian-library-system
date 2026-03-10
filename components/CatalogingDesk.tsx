@@ -182,9 +182,22 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     setView('ADD');
   };
 
-  const handlePrintRequest = (books: Partial<BookType>[]) => {
-    setBulkPreviewBooks(books);
-    setPrintLayout(books.length > 1 ? 'SHEET' : 'SINGLE');
+  const handlePrintRequest = async (books: Partial<BookType>[]) => {
+    // Auto-assign barcodes for any books that don't have one yet
+    const resolved = await Promise.all(
+      books.map(async (b) => {
+        if (b.barcode_id || !b.id) return b;
+        try {
+          // PATCH with no barcode_id triggers backend auto-generation
+          const saved = await mockUpdateBook(b as BookType);
+          return saved;
+        } catch {
+          return b; // keep as-is if patch fails
+        }
+      })
+    );
+    setBulkPreviewBooks(resolved);
+    setPrintLayout(resolved.length > 1 ? 'SHEET' : 'SINGLE');
   };
 
   const handlePrintAction = () => {
