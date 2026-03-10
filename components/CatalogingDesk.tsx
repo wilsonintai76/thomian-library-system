@@ -200,16 +200,23 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     setPrintLayout(resolved.length > 1 ? 'SHEET' : 'SINGLE');
   };
 
-  const handlePrintAction = () => {
+  const handlePrintAction = async () => {
     const area = document.querySelector<HTMLElement>('.print-area');
     if (!area) return;
     const labelEls = area.querySelectorAll<HTMLElement>(':scope > div');
     const labelHTMLs = Array.from(labelEls).map(el => el.outerHTML);
+    if (labelHTMLs.length === 0) return;
 
-    const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-      .map(l => (l as HTMLElement).outerHTML).join('\n');
+    // Fetch & inline all stylesheets — popup is about:blank so relative paths fail;
+    // l.href is always absolute in the browser so we can fetch it directly.
+    const cssTexts = await Promise.all(
+      Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).map(async (l) => {
+        try { return await fetch(l.href).then(r => r.text()); } catch { return ''; }
+      })
+    );
     const inlineStyles = Array.from(document.querySelectorAll('style'))
       .map(s => `<style>${(s as HTMLStyleElement).innerHTML}</style>`).join('\n');
+    const allCss = `<style>${cssTexts.join('\n')}</style>${inlineStyles}`;
 
     // SHEET = 5-up Avery label sheet (1.5" × 1")
     // SINGLE = 2-up cut sheet on plain A4 paper — bigger labels, easier to cut by hand
@@ -222,15 +229,14 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     }
 
     const pageBlocks = pages.map((pageLabels, pi) => {
-      const brk = pi < pages.length - 1 ? 'break-after:page;' : '';
+      const brk = pi < pages.length - 1 ? 'page-break-after:always;' : '';
       return `<div style="display:grid;grid-template-columns:repeat(${cols},${LABEL_W});gap:2mm;justify-content:center;${brk}">${pageLabels.join('')}</div>`;
     }).join('');
 
     const printWin = window.open('', '_blank')!;
     printWin.document.write(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Book Labels</title>
-${styleLinks}
-${inlineStyles}
+${allCss}
 <style>
   @page { size: A4 portrait; margin: 10mm; }
   * { box-sizing: border-box; }
@@ -238,7 +244,7 @@ ${inlineStyles}
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head><body>${pageBlocks}
-<script>window.onload=function(){window.print();};<\/script>
+<script>window.print();<\/script>
 </body></html>`);
     printWin.document.close();
   };
