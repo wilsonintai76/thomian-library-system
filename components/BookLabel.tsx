@@ -81,13 +81,22 @@ const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
 
                     {/* Barcode */}
                     <div className="flex-1 flex flex-col items-center justify-center">
-                        <div className="w-full px-0.5">
-                            <Code39Barcode value={book.barcode_id || String(book.id || 'NOID')} height={28} />
-                        </div>
-                        {/* Human-readable code — large enough to type manually if scanner is out */}
-                        <span className="text-[9px] font-black mt-0.5 tracking-[0.15em] font-mono text-center w-full leading-tight">
-                            {book.barcode_id || (book.id ? `#${book.id}` : 'NO BARCODE')}
-                        </span>
+                        {book.barcode_id ? (
+                            <>
+                                <div className="w-full px-0.5">
+                                    <Code39Barcode value={book.barcode_id} height={28} />
+                                </div>
+                                {/* Human-readable — large enough to type manually if scanner fails */}
+                                <span className="text-[9px] font-black mt-0.5 tracking-[0.15em] font-mono text-center w-full leading-tight break-all">
+                                    {book.barcode_id}
+                                </span>
+                            </>
+                        ) : (
+                            <div className="w-full flex flex-col items-center justify-center gap-0.5 border border-dashed border-slate-300 rounded py-1 px-1">
+                                <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 text-center leading-tight">No Barcode</span>
+                                <span className="text-[6px] text-slate-300 font-mono text-center leading-tight">Assign in Catalog</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
