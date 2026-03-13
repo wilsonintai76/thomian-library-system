@@ -24,7 +24,12 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
   const [isbn, setIsbn] = useState('');
   const [steps, setSteps] = useState<StepStatus[]>([
-    { source: 'LOCAL', status: 'IDLE' }, { source: 'MALCAT', status: 'IDLE' }, { source: 'OPEN_LIBRARY', status: 'IDLE' }, { source: 'GOOGLE_BOOKS', status: 'IDLE' }
+    { source: 'LOCAL', status: 'IDLE' },
+    { source: 'MALCAT', status: 'IDLE' },
+    { source: 'WORLDCAT', status: 'IDLE' },
+    { source: 'CLASSIFY', status: 'IDLE' },
+    { source: 'OPEN_LIBRARY', status: 'IDLE' },
+    { source: 'GOOGLE_BOOKS', status: 'IDLE' }
   ]);
   const [result, setResult] = useState<Partial<BookType> | null>(null);
   const [bulkPreviewBooks, setBulkPreviewBooks] = useState<Partial<BookType>[] | null>(null);
@@ -58,7 +63,11 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     if (!isbn) return;
     setSteps(prev => prev.map(s => ({ ...s, status: 'IDLE' })));
     await simulateCatalogWaterfall(isbn, (source, status) => {
-      setSteps(prev => prev.map(s => s.source === source ? { ...s, status: status as WaterfallStatus } : s));
+      // Map backend sources to step keys
+      let mappedSource = source;
+      if (source === 'WorldCat') mappedSource = 'WORLDCAT';
+      if (source === 'Classify') mappedSource = 'CLASSIFY';
+      setSteps(prev => prev.map(s => s.source === mappedSource ? { ...s, status: status as WaterfallStatus } : s));
     }).then((data) => {
       if (data) {
         if ((data as BookType).id) {
@@ -80,14 +89,18 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
           classification: getClassificationFromDDC(ddc),
           call_number: ddc ? `${ddc} ${authorShort}` : '',
           cutter_number: authorShort,
+          _source: data.source || '', // Track which API provided the data
         });
         // MANUAL stub = no API had data; open editor with ISBN pre-filled
         setIsManual(!data.title);
       } else {
         setExistingBook(null);
         setIsManual(true);
-        setResult({ isbn, status: 'AVAILABLE', material_type: 'REGULAR', value: 25.00 });
+        setResult({ isbn, status: 'AVAILABLE', material_type: 'REGULAR', value: 25.00, _source: '' });
       }
+      // Optionally, display the source of cataloging data in the UI
+      // Example usage in your render:
+      // {result?._source && <div className="text-xs text-slate-500 mt-1">Source: {result._source}</div>}
     });
   };
 
@@ -450,21 +463,32 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                 </div>
               </div>
             ) : (
-              <MARCEditor
-                book={result || {}}
-                setBook={setResult}
-                isManual={isManual}
-                isSaving={isSaving}
-                copies={copies}
-                onCommit={handleCommit}
-                onPreview={() => handlePrintRequest([result as BookType])}
-                onCancel={() => { setCopies(1); setResult(null); setIsbn(''); setView('LIST'); }}
-                onImageUpload={(e) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));
-                  if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
-                }}
-              />
+              <>
+                <MARCEditor
+                  book={result || {}}
+                  setBook={setResult}
+                  isManual={isManual}
+                  isSaving={isSaving}
+                  copies={copies}
+                  onCommit={handleCommit}
+                  onPreview={() => handlePrintRequest([result as BookType])}
+                  onCancel={() => { setCopies(1); setResult(null); setIsbn(''); setView('LIST'); }}
+                  onImageUpload={(e) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));
+                    if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
+                  }}
+                />
+                {result && result.id && (
+                  <button
+                    onClick={handleReclassify}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all"
+                    disabled={isSaving}
+                  >
+                    Reclassify (Fetch Dewey)
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

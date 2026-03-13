@@ -291,3 +291,7 @@ export const importSystemData = async (jsonString: string): Promise<boolean> => 
 export const performFactoryReset = async (): Promise<void> => {
     await request('POST', '/system-config/factory_reset/');
 };
+
+export const reclassifyBook = async (id: string): Promise<Book> => {
+    return await request<Book>('POST', `/catalog/${id}/reclassify/`);
+};

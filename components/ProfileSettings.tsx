@@ -84,7 +84,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
                                                 value={formData.email || ''}
                                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                                 className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-5 py-4 font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner"
-                                                placeholder="email@stthomas.edu"
+                                                placeholder="email@thomian-lib.com"
                                             />
                                         </div>
                                     </div>

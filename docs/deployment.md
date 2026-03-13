@@ -116,9 +116,9 @@ That's it. The backend auto-runs `migrate` and `collectstatic` on every startup.
 |---|---|---|---|
 | `DJANGO_SECRET_KEY` | ✅ | `abc123...` | Generate with the command below |
 | `DEBUG` | ✅ | `False` | Must be `False` in production |
-| `ALLOWED_HOSTS` | ✅ | `library.stthomas.edu,localhost` | Comma-separated |
-| `CSRF_TRUSTED_ORIGINS` | ✅ | `https://library.stthomas.edu` | Full HTTPS URL |
-| `CORS_ALLOWED_ORIGINS` | ✅ | `https://library.stthomas.edu` | Full HTTPS URL |
+| `ALLOWED_HOSTS` | ✅ | `thomian-lib.com,localhost` | Comma-separated |
+| `CSRF_TRUSTED_ORIGINS` | ✅ | `https://thomian-lib.com` | Full HTTPS URL |
+| `CORS_ALLOWED_ORIGINS` | ✅ | `https://thomian-lib.com` | Full HTTPS URL |
 | `DB_NAME` | ✅ | `thomian_db` | PostgreSQL database name |
 | `DB_USER` | ✅ | `postgres` | PostgreSQL user |
 | `DB_PASSWORD` | ✅ | `str0ngP@ss!` | Must not be `changeme` |
@@ -362,7 +362,7 @@ If you manage your own domain DNS on Windows Server or a VM:
 # Install Nginx for Windows (or use the container approach below)
 # Then obtain a certificate with win-acme:
 winget install win-acme.win-acme
-wacs --target manual --host library.stthomas.edu --installation nginx
+wacs --target manual --host thomian-lib.com --installation nginx
 ```
 
 Add HTTPS to `nginx.conf` and mount it into the `thomian-frontend` container, or run a separate `certbot/certbot` container in `docker-compose.yml`.
@@ -614,17 +614,17 @@ Save as `/etc/nginx/sites-available/thomian` and symlink to `sites-enabled`:
 ```nginx
 server {
     listen 80;
-    server_name library.stthomas.edu;
+    server_name thomian-lib.com;
     return 301 https://$host$request_uri; # Force HTTPS
 }
 
 server {
     listen 443 ssl;
-    server_name library.stthomas.edu; # Your Cloudflare Domain
+    server_name thomian-lib.com; # Your Cloudflare Domain
 
     # SSL (managed by Cloudflare or Certbot)
-    ssl_certificate     /etc/letsencrypt/live/library.stthomas.edu/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/library.stthomas.edu/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/thomian-lib.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/thomian-lib.com/privkey.pem;
 
     # FRONTEND: Serve React Static Files
     location / {
@@ -709,8 +709,8 @@ See `docs/.env.example` for the full template. Key variables:
 # Django Core
 DJANGO_SECRET_KEY=<generated_key>  # REQUIRED — never use the default
 DEBUG=False                         # REQUIRED — must be False in production
-ALLOWED_HOSTS=library.stthomas.edu,localhost
-CSRF_TRUSTED_ORIGINS=https://library.stthomas.edu
+ALLOWED_HOSTS=thomian-lib.com,localhost
+CSRF_TRUSTED_ORIGINS=https://thomian-lib.com
 
 # Database
 DB_NAME=thomian_db

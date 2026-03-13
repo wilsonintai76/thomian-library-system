@@ -98,3 +98,5 @@ export const performFactoryReset = async () => {
 
 // ── AI ────────────────────────────────────────────────────────────────────────
 export const aiAnalyzeBlueprint = (i: string, l: string) => real.aiAnalyzeBlueprint(i, l);
+
+export const reclassifyBook = (id: string) => real.reclassifyBook(id);

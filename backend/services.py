@@ -47,6 +47,74 @@ class CirculationRPC:
 # ─── Cataloging helpers ───────────────────────────────────────────────────────
 
 class CatalogingService:
+    @staticmethod
+    def _from_worldcat(isbn):
+        """
+        Query WorldCat Search API for bibliographic data.
+        Requires OCLC API key set as WORLDCAT_API_KEY in Django settings.
+        """
+        from django.conf import settings as _settings
+        api_key = getattr(_settings, 'WORLDCAT_API_KEY', '').strip()
+        if not api_key:
+            return None
+        url = f"https://www.worldcat.org/webservices/catalog/search/worldcat/opensearch?q=bn:{isbn}&wskey={api_key}"
+        headers = {"Accept": "application/json"}
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code != 200:
+                return None
+            data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else None
+            if not data or not data.get('entries'):
+                return None
+            entry = data['entries'][0]
+            title = entry.get('title', '')
+            author = entry.get('author', '')
+            publisher = entry.get('publisher', '')
+            pub_year = entry.get('published', '')[:4]
+            # WorldCat does not always provide Dewey; fallback to Classify API for DDC
+            return {
+                'isbn': isbn,
+                'source': 'WorldCat',
+                'title': title,
+                'author': author,
+                'cover_url': None,
+                'ddc_code': None,  # To be filled by classify
+                'publisher': publisher,
+                'pub_year': pub_year,
+                'pages': None,
+            }
+        except Exception as e:
+            print(f"[CatalogingService] _from_worldcat failed: {e}")
+            return None
+
+    @staticmethod
+    def _from_classify(isbn):
+        """
+        Query OCLC Classify API for Dewey Decimal Classification.
+        Returns Dewey code as string, or None if not found.
+        """
+        url = f"https://classify.oclc.org/classify2/Classify?isbn={isbn}&summary=true"
+        try:
+            resp = requests.get(url, timeout=8)
+            if resp.status_code != 200:
+                return None
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(resp.content)
+            ddc = None
+            for mostPopular in root.findall("mostPopular"):
+                if mostPopular.attrib.get('nsfa') == 'DDC':
+                    ddc = mostPopular.attrib.get('sfa')
+                    break
+            # Fallback: try recommendations
+            if not ddc:
+                for rec in root.findall("recommendations/ddc/mostPopular"):
+                    ddc = rec.attrib.get('nsfa')
+                    if ddc:
+                        break
+            return ddc
+        except Exception as e:
+            print(f"[CatalogingService] _from_classify failed: {e}")
+            return None
 
     @staticmethod
     def _from_malcat_sru(isbn):
@@ -195,27 +263,37 @@ class CatalogingService:
     @staticmethod
     def fetch_book_metadata(isbn):
         """
-        Waterfall: Open Library → Google Books → stub (ISBN prefilled, fields blank).
-        Malaysian books (978-967-*) rarely appear on Open Library but Google Books
-        covers DBP, PTS, Utusan and other local publishers reasonably well.
+        Waterfall: MALCat → WorldCat → Open Library → Google Books → stub.
+        Dewey code is fetched from OCLC Classify if not present.
         """
-        for fetcher in (CatalogingService._from_malcat_sru, CatalogingService._from_openlibrary, CatalogingService._from_google_books):
+        for fetcher in (
+            CatalogingService._from_malcat_sru,
+            CatalogingService._from_worldcat,
+            CatalogingService._from_openlibrary,
+            CatalogingService._from_google_books,
+        ):
             try:
                 result = fetcher(isbn)
                 if result:
+                    # If ddc_code is missing or '000', try Classify API
+                    if not result.get('ddc_code') or result.get('ddc_code') == '000':
+                        ddc = CatalogingService._from_classify(isbn)
+                        if ddc:
+                            result['ddc_code'] = ddc
                     return result
             except Exception as e:
                 print(f"[CatalogingService] {fetcher.__name__} failed: {e}")
 
         # All APIs missed — return a pre-filled stub so the librarian can still
         # create the record manually without re-typing the ISBN.
+        ddc = CatalogingService._from_classify(isbn)
         return {
             'isbn': isbn,
             'source': 'MANUAL',
             'title': '',
             'author': '',
             'cover_url': None,
-            'ddc_code': '000',
+            'ddc_code': ddc if ddc else '000',
             'publisher': '',
             'pub_year': '',
             'pages': None,

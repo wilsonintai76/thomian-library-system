@@ -24,7 +24,7 @@ if not _debug_mode and SECRET_KEY == _DEFAULT_SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-# ALLOWED_HOSTS: Add your custom domain here (e.g., 'library.stthomas.edu')
+# ALLOWED_HOSTS: Add your custom domain here (e.g., 'thomian-lib.com')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 # Application definition

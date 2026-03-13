@@ -33,7 +33,7 @@ def create_user_and_patron(username, password, full_name, role, student_id):
             user = User.objects.create_superuser(
                 username=username,
                 password=password,
-                email=f"{username}@thomianlib.com",
+                email=f"{username}@thomian-lib.com",
                 first_name=full_name.split()[0],
                 last_name=" ".join(full_name.split()[1:]) if len(full_name.split()) > 1 else ""
             )
@@ -41,7 +41,7 @@ def create_user_and_patron(username, password, full_name, role, student_id):
             user = User.objects.create_user(
                 username=username,
                 password=password,
-                email=f"{username}@thomianlib.com",
+                email=f"{username}@thomian-lib.com",
                 first_name=full_name.split()[0],
                 last_name=" ".join(full_name.split()[1:]) if len(full_name.split()) > 1 else ""
             )
@@ -58,7 +58,7 @@ def create_user_and_patron(username, password, full_name, role, student_id):
         defaults={
             'full_name': full_name,
             'patron_group': role,
-            'email': f"{username}@thomianlib.com",
+            'email': f"{username}@thomian-lib.com",
             'pin': '0000'
         }
     )
