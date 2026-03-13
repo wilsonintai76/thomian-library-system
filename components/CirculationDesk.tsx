@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeftRight, User, BookOpen, CheckCircle, AlertTriangle, XCircle, Search, Calendar, DollarSign, ScanLine, ArrowRight, Camera, Zap, Smartphone, Monitor, Loader2, History, ChevronUp, ChevronDown, X, Trash2, UserCheck, ShieldCheck, CreditCard, Lock, RefreshCw } from 'lucide-react';
+import { ArrowLeftRight, User, BookOpen, CheckCircle, AlertTriangle, XCircle, Search, Calendar, ScanLine, ArrowRight, Camera, Zap, Smartphone, Monitor, Loader2, History, ChevronUp, ChevronDown, X, Trash2, UserCheck, ShieldCheck, CreditCard, Lock, RefreshCw } from 'lucide-react';
 import { mockGetPatronById, mockGetBookByBarcode, mockProcessReturn, mockCheckoutBooks, mockGetMapConfig, mockRenewBook } from '../services/api';
 import { Patron, Book, CheckInResult, MapConfig } from '../types';
 import MobileScanner from './MobileScanner';

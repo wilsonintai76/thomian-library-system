@@ -94,6 +94,7 @@ export interface MapConfig {
     circulationLocked?: boolean;
     theme?: SystemTheme;
     cardTemplate?: PatronCardTemplate;
+    idleTimeout?: number; // In minutes
 }
 
 export interface MapLevel {

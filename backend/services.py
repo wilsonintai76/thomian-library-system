@@ -48,149 +48,51 @@ class CirculationRPC:
 
 class CatalogingService:
     @staticmethod
-    def _from_worldcat(isbn):
-        """
-        Query WorldCat Search API for bibliographic data.
-        Requires OCLC API key set as WORLDCAT_API_KEY in Django settings.
-        """
-        from django.conf import settings as _settings
-        api_key = getattr(_settings, 'WORLDCAT_API_KEY', '').strip()
-        if not api_key:
-            return None
-        url = f"https://www.worldcat.org/webservices/catalog/search/worldcat/opensearch?q=bn:{isbn}&wskey={api_key}"
-        headers = {"Accept": "application/json"}
-        try:
-            resp = requests.get(url, headers=headers, timeout=10)
-            if resp.status_code != 200:
-                return None
-            data = resp.json() if resp.headers.get('content-type','').startswith('application/json') else None
-            if not data or not data.get('entries'):
-                return None
-            entry = data['entries'][0]
-            title = entry.get('title', '')
-            author = entry.get('author', '')
-            publisher = entry.get('publisher', '')
-            pub_year = entry.get('published', '')[:4]
-            # WorldCat does not always provide Dewey; fallback to Classify API for DDC
-            return {
-                'isbn': isbn,
-                'source': 'WorldCat',
-                'title': title,
-                'author': author,
-                'cover_url': None,
-                'ddc_code': None,  # To be filled by classify
-                'publisher': publisher,
-                'pub_year': pub_year,
-                'pages': None,
-            }
-        except Exception as e:
-            print(f"[CatalogingService] _from_worldcat failed: {e}")
-            return None
-
-    @staticmethod
     def _from_classify(isbn):
         """
         Query OCLC Classify API for Dewey Decimal Classification.
         Returns Dewey code as string, or None if not found.
         """
-        url = f"https://classify.oclc.org/classify2/Classify?isbn={isbn}&summary=true"
+        # Ensure alphanumeric only (remove hyphens, spaces, etc.)
+        clean_isbn = "".join(filter(str.isalnum, isbn))
+        url = f"https://classify.oclc.org/classify2/Classify?isbn={clean_isbn}&summary=true"
         try:
             resp = requests.get(url, timeout=8)
             if resp.status_code != 200:
                 return None
+            
             import xml.etree.ElementTree as ET
-            root = ET.fromstring(resp.content)
+            from xml.etree.ElementTree import ParseError
+            
+            try:
+                root = ET.fromstring(resp.content)
+            except ParseError:
+                return None
+
             ddc = None
-            for mostPopular in root.findall("mostPopular"):
+            
+            # 1. Look for mostPopular DDC anywhere in the tree
+            for mostPopular in root.findall(".//mostPopular"):
                 if mostPopular.attrib.get('nsfa') == 'DDC':
                     ddc = mostPopular.attrib.get('sfa')
-                    break
-            # Fallback: try recommendations
+                    if ddc: break
+
+            # 2. Look for ddc attribute on any work element (common in multiple-hit responses)
             if not ddc:
-                for rec in root.findall("recommendations/ddc/mostPopular"):
-                    ddc = rec.attrib.get('nsfa')
-                    if ddc:
-                        break
+                for work in root.findall(".//work"):
+                    ddc = work.attrib.get('ddc')
+                    if ddc: break
+
+            # 3. Last ditch: check recommendations specifically
+            if not ddc:
+                recs_ddc = root.find(".//recommendations/ddc/mostPopular")
+                if recs_ddc is not None:
+                    ddc = recs_ddc.attrib.get('sfa')
+
             return ddc
         except Exception as e:
             print(f"[CatalogingService] _from_classify failed: {e}")
             return None
-
-    @staticmethod
-    def _from_malcat_sru(isbn):
-        """
-        Query Malaysian Union Catalogue (MALCat / PNM) via SRU (Z39.50 over HTTP).
-        Skipped silently when MALCAT_SRU_URL is not set in settings.
-        Parses MARCXML using stdlib xml.etree.ElementTree — no extra dependencies.
-        """
-        import xml.etree.ElementTree as ET
-        import re as _re
-        from django.conf import settings as _settings
-        base_url = getattr(_settings, 'MALCAT_SRU_URL', '').strip()
-        if not base_url:
-            return None
-
-        params = {
-            'operation': 'searchRetrieve',
-            'version': '1.1',
-            'query': f'dc.identifier={isbn}',
-            'maximumRecords': '1',
-            'recordSchema': 'marcxml',
-        }
-        resp = requests.get(base_url, params=params, timeout=10)
-        if resp.status_code != 200:
-            return None
-
-        SRW  = 'http://www.loc.gov/zing/srw/'
-        MARC = 'http://www.loc.gov/MARC21/slim'
-        ns   = {'srw': SRW, 'marc': MARC}
-
-        root = ET.fromstring(resp.content)
-        num  = root.find('srw:numberOfRecords', ns)
-        if num is None or (num.text or '0').strip() == '0':
-            return None
-
-        record_data = root.find('.//srw:recordData', ns)
-        if record_data is None:
-            return None
-        marc = record_data.find('marc:record', ns)
-        if marc is None:
-            return None
-
-        def sf(tag, code):
-            df = marc.find(f"marc:datafield[@tag='{tag}']", ns)
-            if df is None:
-                return ''
-            node = df.find(f"marc:subfield[@code='{code}']", ns)
-            return (node.text or '').strip() if node is not None else ''
-
-        title     = sf('245', 'a').rstrip(' /:')
-        author    = sf('100', 'a').rstrip(' ,.') or sf('700', 'a').rstrip(' ,.')
-        publisher = (sf('260', 'b') or sf('264', 'b')).strip(' ,.')
-        pub_raw   = sf('260', 'c') or sf('264', 'c')
-        pub_year  = ''.join(c for c in pub_raw if c.isdigit())[:4]
-        ddc       = sf('082', 'a')
-        pages_str = sf('300', 'a')
-        pages     = None
-        if pages_str:
-            m = _re.search(r'(\d+)', pages_str)
-            if m:
-                pages = int(m.group(1))
-
-        if not title:
-            return None
-
-        return {
-            'isbn':      isbn,
-            'source':    'MALCat',
-            'title':     title,
-            'author':    author,
-            'cover_url': None,     # MARC records carry no cover images
-            'ddc_code':  ddc if ddc else '000',
-            'publisher': publisher,
-            'pub_year':  pub_year,
-            'pages':     pages,
-        }
 
     @staticmethod
     def _from_openlibrary(isbn):
@@ -244,7 +146,6 @@ class CatalogingService:
             cover_url = cover_url.replace('http://', 'https://').replace('&zoom=1', '&zoom=2')
         pub_date = info.get('publishedDate', '')
         pub_year = pub_date[:4] if pub_date else ''
-        categories = info.get('categories', [])
         # Google doesn't give DDC; leave as '000' so librarian can fill it in
         return {
             'isbn': isbn,
@@ -263,17 +164,18 @@ class CatalogingService:
     @staticmethod
     def fetch_book_metadata(isbn):
         """
-        Waterfall: MALCat → WorldCat → Open Library → Google Books → stub.
+        Waterfall: Open Library → Google Books → stub.
         Dewey code is fetched from OCLC Classify if not present.
         """
+        # 1. Normalize ISBN (strip hyphens/spaces)
+        clean_isbn = "".join(filter(str.isalnum, isbn))
+        
         for fetcher in (
-            CatalogingService._from_malcat_sru,
-            CatalogingService._from_worldcat,
             CatalogingService._from_openlibrary,
             CatalogingService._from_google_books,
         ):
             try:
-                result = fetcher(isbn)
+                result = fetcher(clean_isbn)
                 if result:
                     # If ddc_code is missing or '000', try Classify API
                     if not result.get('ddc_code') or result.get('ddc_code') == '000':
@@ -290,6 +192,7 @@ class CatalogingService:
         return {
             'isbn': isbn,
             'source': 'MANUAL',
+            'status': 'STUB',
             'title': '',
             'author': '',
             'cover_url': None,

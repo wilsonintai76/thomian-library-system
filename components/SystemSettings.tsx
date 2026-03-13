@@ -296,6 +296,42 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
 
             <section className="space-y-6">
                 <div className="flex items-center gap-3">
+                    <ShieldAlert className="h-6 w-6 text-rose-600" />
+                    <h3 className="text-xl font-bold">Security & Lifecycle</h3>
+                </div>
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Auto-Logout (Admin Inactivity)</label>
+                            <div className="flex items-center gap-4">
+                                <select 
+                                    value={config?.idleTimeout || 60} 
+                                    onChange={async (e) => {
+                                        if (!config) return;
+                                        const val = parseInt(e.target.value);
+                                        const updated = { ...config, idleTimeout: val };
+                                        setConfig(updated);
+                                        await mockSaveMapConfig(updated);
+                                        onRefreshConfig?.();
+                                    }}
+                                    className="flex-1 px-4 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm focus:border-rose-500 outline-none"
+                                >
+                                    <option value={5}>5 Minutes</option>
+                                    <option value={15}>15 Minutes</option>
+                                    <option value={30}>30 Minutes</option>
+                                    <option value={60}>1 Hour</option>
+                                    <option value={120}>2 Hours</option>
+                                    <option value={480}>8 Hours</option>
+                                </select>
+                            </div>
+                            <p className="mt-3 text-[10px] text-slate-400 font-bold uppercase leading-tight">Redirects to Kiosk after period of inactivity.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="space-y-6">
+                <div className="flex items-center gap-3">
                     <CalendarRange className="h-6 w-6 text-indigo-600" />
                     <h3 className="text-xl font-bold">End-of-Year Processing</h3>
                 </div>

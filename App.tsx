@@ -163,6 +163,33 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [mode]);
 
+  // ─── Auto-Logout for Inactivity ──────────────────────────────────────────────
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const threshold = (mapConfig?.idleTimeout || 60) * 60 * 1000; // Default 60 mins
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (mode === 'ADMIN' && currentUser) {
+        timeoutId = setTimeout(() => {
+          handleLogout();
+          console.warn('[AutoLogout] Session invalidated due to inactivity.');
+        }, threshold);
+      }
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    if (mode === 'ADMIN' && currentUser) {
+      events.forEach(e => window.addEventListener(e, resetTimer));
+      resetTimer();
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+    };
+  }, [mode, currentUser, mapConfig?.idleTimeout]);
+
   const handleResolveAlert = (id: string) => {
     mockResolveAlert(id);
     setAlerts(prev => prev.filter(a => a.id !== id));

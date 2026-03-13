@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Building, MapPin, DollarSign, Edit3, Printer, Trash2, ShieldCheck, Loader2, Download, Filter, ChevronDown, Globe } from 'lucide-react';
+import { BookOpen, Building, MapPin, Edit3, Printer, Trash2, ShieldCheck, Loader2, Download, Filter, ChevronDown, Globe } from 'lucide-react';
 import { Book } from '../../types';
 import { exportToCSV, DEWEY_CATEGORIES } from '../../utils';
 
@@ -30,10 +30,10 @@ const InventoryList: React.FC<InventoryListProps> = ({
     const filteredInventory = useMemo(() => {
         return inventory.filter(book => {
             const matchesSearch = 
-                book.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                book.isbn.includes(searchQuery) ||
-                book.barcode_id.includes(searchQuery);
+                String(book.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                String(book.author || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                String(book.isbn || '').includes(searchQuery) ||
+                String(book.barcode_id || '').includes(searchQuery);
             
             const matchesCategory = selectedCategory === 'ALL' || book.classification === selectedCategory;
             
@@ -178,8 +178,8 @@ const InventoryList: React.FC<InventoryListProps> = ({
                                             )}
                                         </div>
                                         <div className="flex flex-col gap-0.5 min-w-0">
-                                            <p className="text-sm font-black text-slate-800 leading-tight uppercase truncate">{book.title}</p>
-                                            <p className="text-xs font-bold text-sky-600 truncate">{book.author}</p>
+                                            <p className="text-sm font-black text-slate-800 leading-tight uppercase truncate">{String(book.title || 'Untitled')}</p>
+                                            <p className="text-xs font-bold text-sky-600 truncate">{String(book.author || 'Unknown')}</p>
                                             <div className="flex items-center gap-2 mt-1 opacity-60">
                                                 <Building className="h-3 w-3 text-slate-400" />
                                                 <span className="text-[10px] font-black uppercase tracking-tighter truncate">
@@ -215,7 +215,7 @@ const InventoryList: React.FC<InventoryListProps> = ({
                                             {book.format || 'PBK'}
                                         </span>
                                         <div className="flex items-center gap-1 text-emerald-600 font-mono font-black text-sm">
-                                            <DollarSign className="h-3 w-3" />
+                                            <span className="text-[10px] font-black mr-1">RM</span>
                                             {(book.value || 0).toFixed(2)}
                                         </div>
                                     </div>

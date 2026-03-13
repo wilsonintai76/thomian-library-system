@@ -132,42 +132,41 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
         if (res.status === 'FOUND') {
             if (res.source === 'LOCAL') {
                 onUpdate('LOCAL', 'FOUND');
-            } else if (res.source === 'MALCat') {
-                onUpdate('LOCAL', 'NOT_FOUND');
-                onUpdate('MALCAT', 'FOUND');
-                onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
-                onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
             } else if (res.source === 'Open Library') {
                 onUpdate('LOCAL', 'NOT_FOUND');
-                onUpdate('MALCAT', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');
                 onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
             } else if (res.source === 'Google Books') {
                 onUpdate('LOCAL', 'NOT_FOUND');
-                onUpdate('MALCAT', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
                 onUpdate('GOOGLE_BOOKS', 'FOUND');
-            } else {
-                onUpdate('LOCAL', 'NOT_FOUND');
-                onUpdate('MALCAT', 'NOT_FOUND');
-                onUpdate('OPEN_LIBRARY', 'FOUND');
-                onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
             }
+
+            // If a Dewey code was returned (either from the source or Classify enhancement)
+            if (res.data.ddc_code && res.data.ddc_code !== '000') {
+                onUpdate('CLASSIFY', 'FOUND');
+            }
+
             return res.data;
         }
         if (res.status === 'STUB') {
-            // All APIs missed — return stub so librarian can fill manually
             onUpdate('LOCAL', 'NOT_FOUND');
-            onUpdate('MALCAT', 'NOT_FOUND');
             onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
             onUpdate('GOOGLE_BOOKS', 'STUB');
+            
+            // Check if Classify found a Dewey for the manual stub
+            if (res.data.ddc_code && res.data.ddc_code !== '000') {
+                onUpdate('CLASSIFY', 'FOUND');
+            } else {
+                onUpdate('CLASSIFY', 'NOT_FOUND');
+            }
             return res.data;
         }
     } catch { /* fall through */ }
     onUpdate('LOCAL', 'NOT_FOUND');
-    onUpdate('MALCAT', 'NOT_FOUND');
     onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
     onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
+    onUpdate('CLASSIFY', 'NOT_FOUND');
     return null;
 };
 

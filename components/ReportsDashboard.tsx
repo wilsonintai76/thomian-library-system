@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertCircle, DollarSign, BookOpen, Printer, Download, Mail, LayoutTemplate, Library, RefreshCw, CheckCircle, Wallet, History, UserCheck, ShieldCheck, Zap, BarChart3, PieChart, Users, ChevronRight } from 'lucide-react';
+import { TrendingUp, AlertCircle, BookOpen, Printer, Download, Mail, LayoutTemplate, Library, RefreshCw, CheckCircle, Wallet, History, UserCheck, ShieldCheck, Zap, BarChart3, PieChart, Users, ChevronRight } from 'lucide-react';
 import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions } from '../services/api';
 import { SystemStats, OverdueReportItem, Transaction } from '../types';
 import StatCard from './reports/StatCard';
@@ -74,7 +74,7 @@ const ReportsDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <StatCard label="Circulation Load" value={stats.activeLoans} subtext="Active Outbound Loans" icon={TrendingUp} colorClass="text-sky-600 bg-sky-50 text-sky-600 border-sky-100" />
                         <StatCard label="Asset Retention" value={stats.totalItems - stats.activeLoans - stats.lostItems} subtext="On-Shelf Availability" icon={BookOpen} colorClass="text-emerald-600 bg-emerald-50 text-emerald-600 border-emerald-100" />
-                        <StatCard label="Collection Value" value={formatCurrency(stats.totalValue)} subtext="Core Holdings Appraisal" icon={DollarSign} colorClass="text-indigo-600 bg-indigo-50 text-indigo-600 border-indigo-100" />
+                        <StatCard label="Collection Value" value={formatCurrency(stats.totalValue)} subtext="Core Holdings Appraisal" icon={Wallet} colorClass="text-indigo-600 bg-indigo-50 text-indigo-600 border-indigo-100" />
                         <StatCard label="Overdue Risks" value={overdues.length} subtext="Pending Escalations" icon={AlertCircle} colorClass="text-rose-600 bg-rose-50 text-rose-600 border-rose-100" />
                     </div>
 

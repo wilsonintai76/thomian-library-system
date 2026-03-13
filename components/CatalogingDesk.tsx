@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, DollarSign, CheckCircle, Scissors } from 'lucide-react';
-import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook } from '../services/api';
+import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, CheckCircle, Scissors } from 'lucide-react';
+import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, reclassifyBook } from '../services/api';
 import { Book as BookType } from '../types';
 import { getClassificationFromDDC } from '../utils';
 import MobileScanner from './MobileScanner';
@@ -25,11 +25,9 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [isbn, setIsbn] = useState('');
   const [steps, setSteps] = useState<StepStatus[]>([
     { source: 'LOCAL', status: 'IDLE' },
-    { source: 'MALCAT', status: 'IDLE' },
-    { source: 'WORLDCAT', status: 'IDLE' },
-    { source: 'CLASSIFY', status: 'IDLE' },
     { source: 'OPEN_LIBRARY', status: 'IDLE' },
-    { source: 'GOOGLE_BOOKS', status: 'IDLE' }
+    { source: 'GOOGLE_BOOKS', status: 'IDLE' },
+    { source: 'CLASSIFY', status: 'IDLE' }
   ]);
   const [result, setResult] = useState<Partial<BookType> | null>(null);
   const [bulkPreviewBooks, setBulkPreviewBooks] = useState<Partial<BookType>[] | null>(null);
@@ -42,9 +40,17 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [undoAction, setUndoAction] = useState<{ book: BookType, timeout: NodeJS.Timeout } | null>(null);
+  const isbnInputRef = useRef<HTMLInputElement>(null);
 
   // Sheet Print Config
   const [printLayout, setPrintLayout] = useState<'SINGLE' | 'SHEET'>('SHEET');
+
+  useEffect(() => {
+    if (view === 'ADD') {
+      // Small timeout to ensure the DOM is ready after view switch
+      setTimeout(() => isbnInputRef.current?.focus(), 100);
+    }
+  }, [view]);
 
   useEffect(() => {
     loadInventory();
@@ -65,8 +71,8 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     await simulateCatalogWaterfall(isbn, (source, status) => {
       // Map backend sources to step keys
       let mappedSource = source;
-      if (source === 'WorldCat') mappedSource = 'WORLDCAT';
-      if (source === 'Classify') mappedSource = 'CLASSIFY';
+      if (source === 'Open Library') mappedSource = 'OPEN_LIBRARY';
+      if (source === 'Google Books') mappedSource = 'GOOGLE_BOOKS';
       setSteps(prev => prev.map(s => s.source === mappedSource ? { ...s, status: status as WaterfallStatus } : s));
     }).then((data) => {
       if (data) {
@@ -76,32 +82,52 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
           setResult(null);
           return;
         }
-        setExistingBook(null);
-        const ddc = data.ddc_code;
-        const authorShort = (data.author || '').slice(0, 3).toUpperCase();
-        setResult({
-          ...data,
-          id: undefined,
-          material_type: 'REGULAR',
-          status: 'AVAILABLE',
-          value: data.value || 25.00,
-          acquisition_date: new Date().toISOString().split('T')[0],
-          classification: getClassificationFromDDC(ddc),
-          call_number: ddc ? `${ddc} ${authorShort}` : '',
-          cutter_number: authorShort,
-          _source: data.source || '', // Track which API provided the data
-        });
-        // MANUAL stub = no API had data; open editor with ISBN pre-filled
-        setIsManual(!data.title);
-      } else {
-        setExistingBook(null);
-        setIsManual(true);
-        setResult({ isbn, status: 'AVAILABLE', material_type: 'REGULAR', value: 25.00, _source: '' });
-      }
-      // Optionally, display the source of cataloging data in the UI
-      // Example usage in your render:
-      // {result?._source && <div className="text-xs text-slate-500 mt-1">Source: {result._source}</div>}
+      setExistingBook(null);
+      const ddc = (data as any).ddc_code;
+      const authorShort = (data.author || '').slice(0, 3).toUpperCase();
+      setResult({
+        ...(data as any),
+        id: undefined,
+        material_type: 'REGULAR',
+        status: 'AVAILABLE',
+        value: data.value || 25.00,
+        acquisition_date: new Date().toISOString().split('T')[0],
+        classification: getClassificationFromDDC(ddc),
+        call_number: ddc ? `${ddc} ${authorShort}` : '',
+        cutter_number: authorShort,
+        _source: (data as any).source || '', // Track which API provided the data
+      } as any);
+      // MANUAL stub = no API had data; open editor with ISBN pre-filled
+      setIsManual(!data.title);
+    } else {
+      setExistingBook(null);
+      setIsManual(true);
+      setResult({ isbn, status: 'AVAILABLE', material_type: 'REGULAR', value: 25.00, _source: '' } as any);
+    }
+    // Optionally, display the source of cataloging data in the UI
+    // Example usage in your render:
+    // {result && (result as any)._source && <div className="text-xs text-slate-500 mt-1">Source: {(result as any)._source}</div>}
     });
+  };
+
+  const handleReclassify = async () => {
+    if (!result || !result.id) return;
+    setIsSaving(true);
+    try {
+      const data = await reclassifyBook(result.id);
+      // If server returned a success:false payload (metdata not found but endpoint exists)
+      if (data && (data as any).success === false) {
+        alert(`Reclassification failed: ${(data as any).error || 'Metadata could not be resolved.'}`);
+      } else if (data && data.title) {
+        // Successful fetch returns the full Book object. Merge or replace.
+        // Merging is safer in case some UI-only fields were edited.
+        setResult(prev => ({ ...prev, ...data }));
+      }
+    } catch (err: any) {
+      alert(`Reclassification failed: ${err?.message || 'Unknown error.'}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCommit = async () => {
@@ -359,6 +385,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
                     <input
                       type="text"
+                      ref={isbnInputRef}
                       value={isbn}
                       onChange={(e) => setIsbn(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleCatalogSearch()}
@@ -478,16 +505,8 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                     reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));
                     if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
                   }}
+                  onReclassify={handleReclassify}
                 />
-                {result && result.id && (
-                  <button
-                    onClick={handleReclassify}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all"
-                    disabled={isSaving}
-                  >
-                    Reclassify (Fetch Dewey)
-                  </button>
-                )}
               </>
             )}
           </div>

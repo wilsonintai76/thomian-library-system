@@ -487,6 +487,31 @@ class CatalogViewSet(viewsets.ModelViewSet):
             return Response({'source': source, 'status': 'FOUND', 'data': external_data})
         return Response({'source': 'ALL', 'status': 'NOT_FOUND'}, status=404)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsLibrarianOrAdmin])
+    def reclassify(self, request, pk=None):
+        """Fetch/Update classification (Dewey) based on ISBN."""
+        book = self.get_object()
+        if not book.isbn:
+            return Response({'error': 'Asset must have an ISBN for automated classification.'}, status=400)
+
+        meta = CatalogingService.fetch_book_metadata(book.isbn)
+        if meta and meta.get('ddc_code') and meta['ddc_code'] != '000':
+            book.ddc_code = meta['ddc_code']
+            if not book.summary and meta.get('description'):
+                book.summary = meta['description']
+            if not book.summary and meta.get('summary'):
+                book.summary = meta['summary']
+                
+            book.save()
+            return Response(BookSerializer(book).data)
+        
+        # Return 200 with error so the frontend knows the endpoint exists but the data doesn't.
+        # Logical "Not Found" vs technical "Route Not Found".
+        return Response({
+            'success': False,
+            'error': 'Could not resolve a Dewey code from international registries for this ISBN.'
+        }, status=200)
+
     @action(detail=False, methods=['get'])
     def stats(self, request):
         active_loans = Loan.objects.filter(returned_at__isnull=True)

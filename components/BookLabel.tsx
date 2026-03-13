@@ -20,8 +20,9 @@ const CODE39: Record<string, string> = {
     '$':'nwnwnwnnn','/':'nwnwnnnwn','+':'nwnnnwnwn','%':'nnnwnwnwn',
 };
 const WIDE = 3; const NARROW = 1; const GAP = 1;
-const Code39Barcode: React.FC<{ value: string; height?: number; dark?: boolean }> = ({ value, height = 28, dark = false }) => {
-    const text = ('*' + value.toUpperCase().replace(/[^0-9A-Z\-. $/+%]/g, '') + '*');
+const Code39Barcode: React.FC<{ value: string | number; height?: number; dark?: boolean }> = ({ value, height = 28, dark = false }) => {
+    const safeValue = String(value || '');
+    const text = ('*' + safeValue.toUpperCase().replace(/[^0-9A-Z\-. $/+%]/g, '') + '*');
     const bars: { x: number; w: number }[] = [];
     let x = 0;
     for (const ch of text) {
@@ -43,10 +44,10 @@ const Code39Barcode: React.FC<{ value: string; height?: number; dark?: boolean }
 };
 
 const BookLabel: React.FC<BookLabelProps> = ({ book, isSheetMode = false }) => {
-    const authorShort = (book.author || 'UNK').slice(0, 3).toUpperCase();
+    const authorShort = String(book.author || 'UNK').slice(0, 3).toUpperCase();
     
     // Logic to split DDC for narrow spines
-    const ddc = book.ddc_code || '000.00';
+    const ddc = String(book.ddc_code || '000.00');
     const isGenrePrefix = isNaN(parseFloat(ddc.charAt(0)));
     
     const [main, sub] = ddc.includes('.') ? ddc.split('.') : [ddc, ''];

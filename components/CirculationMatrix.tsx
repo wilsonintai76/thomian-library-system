@@ -234,7 +234,7 @@ const CirculationMatrix: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="relative w-24">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">$</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">RM</span>
                           <input
                             type="number" step="0.10"
                             className="w-full pl-6 pr-3 py-2 border-2 border-blue-200 rounded-xl text-sm font-black focus:border-blue-500 outline-none shadow-inner"
@@ -476,7 +476,7 @@ const CirculationMatrix: React.FC = () => {
                 <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
                   <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">Daily Fine</label>
                   <div className="flex items-center justify-center">
-                    <span className="text-xl font-black text-slate-400">$</span>
+                    <span className="text-xl font-black text-slate-400">RM</span>
                     <input
                       type="number" step="0.10"
                       className="w-2/3 bg-transparent text-2xl font-black text-center outline-none"
