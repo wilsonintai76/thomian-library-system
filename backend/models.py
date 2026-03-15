@@ -43,6 +43,62 @@ class Publisher(models.Model):
         return self.name
 
 
+class LTreeField(models.Field):
+    """
+    Minimal PostgreSQL ltree field for Django versions without built-in LTreeField.
+    """
+    description = "PostgreSQL ltree"
+
+    def db_type(self, connection):
+        return "ltree"
+
+
+# ── DDC Classification (3-level hierarchy using PostgreSQL ltree) ──────────────
+
+class DDCClassification(models.Model):
+    """
+    3-level Dewey hierarchy using PostgreSQL ltree.
+    Example paths:
+      '000'
+      '000.500'
+      '000.500.23'
+    """
+    path = LTreeField(unique=True)
+    code = models.CharField(max_length=20, unique=True, db_index=True)  # e.g. '000', '500', '500.23'
+    level = models.PositiveSmallIntegerField(db_index=True)             # 1, 2, 3 only
+    key = models.SlugField(max_length=100, unique=True, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "DDC classification"
+        verbose_name_plural = "DDC classifications"
+
+    def __str__(self):
+        return f"{self.code} ({self.path})"
+
+
+class DDCClassificationI18N(models.Model):
+    """
+    Multilingual labels for DDC nodes.
+    language_code: 'en' or 'ms'
+    """
+    ddc = models.ForeignKey(
+        DDCClassification,
+        related_name="translations",
+        on_delete=models.CASCADE,
+    )
+    language_code = models.CharField(max_length=5)  # 'en', 'ms'
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ("ddc", "language_code")
+        verbose_name = "DDC classification translation"
+        verbose_name_plural = "DDC classification translations"
+
+    def __str__(self):
+        return f"{self.ddc.code} [{self.language_code}]"
+
+
 # ── Book ──────────────────────────────────────────────────────────────────────
 
 class Book(models.Model):

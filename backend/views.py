@@ -14,12 +14,34 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
-from .models import Book, Patron, Loan, CirculationRule, LibraryEvent, Hold, SystemAlert, SystemConfiguration, LibraryClass, Transaction, Author, Publisher
+from .models import (
+    Book,
+    Patron,
+    Loan,
+    CirculationRule,
+    LibraryEvent,
+    Hold,
+    SystemAlert,
+    SystemConfiguration,
+    LibraryClass,
+    Transaction,
+    Author,
+    Publisher,
+    DDCClassification,
+)
 from .serializers import (
-    BookSerializer, PatronSerializer, CirculationRuleSerializer,
-    LibraryEventSerializer, SystemAlertSerializer, SystemConfigSerializer,
-    LibraryClassSerializer, TransactionSerializer, LoanSerializer, HoldSerializer,
+    BookSerializer,
+    PatronSerializer,
+    CirculationRuleSerializer,
+    LibraryEventSerializer,
+    SystemAlertSerializer,
+    SystemConfigSerializer,
+    LibraryClassSerializer,
+    TransactionSerializer,
+    LoanSerializer,
+    HoldSerializer,
     normalize_isbn,
+    DDCClassificationSerializer,
 )
 from .services import CatalogingService, CirculationRPC
 
@@ -103,6 +125,27 @@ class SystemConfigViewSet(viewsets.ViewSet):
         config.map_data = request.data.get('map_data', config.map_data)
         config.save()
         return Response({'success': True})
+
+
+# ─────────────────────────────────────────────
+# DDC CLASSIFICATIONS (READ-ONLY)
+# ─────────────────────────────────────────────
+
+
+class DDCClassificationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Exposes 3-level DDC tree with Malay/English labels for frontend pickers.
+    """
+    queryset = DDCClassification.objects.all().prefetch_related('translations').order_by('path')
+    serializer_class = DDCClassificationSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        qs = list(self.get_queryset())
+        for d in qs:
+            d.translations_cache = list(d.translations.all())
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], permission_classes=[IsLibrarianOrAdmin])
     def export_data(self, request):

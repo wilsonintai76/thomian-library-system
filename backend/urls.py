@@ -5,10 +5,19 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from .views import (
-    CatalogViewSet, CirculationViewSet, AuthViewSet, PatronViewSet,
-    CirculationRuleViewSet, LibraryEventViewSet, SystemAlertViewSet,
-    SystemConfigViewSet, LibraryClassViewSet, LoanViewSet, TransactionViewSet,
+    CatalogViewSet,
+    CirculationViewSet,
+    AuthViewSet,
+    PatronViewSet,
+    CirculationRuleViewSet,
+    LibraryEventViewSet,
+    SystemAlertViewSet,
+    SystemConfigViewSet,
+    LibraryClassViewSet,
+    LoanViewSet,
+    TransactionViewSet,
     GeminiProxyViewSet,
+    DDCClassificationViewSet,
 )
 
 router = DefaultRouter()
@@ -24,6 +33,7 @@ router.register(r'alerts', SystemAlertViewSet, basename='alerts')
 router.register(r'loans', LoanViewSet, basename='loans')
 router.register(r'transactions', TransactionViewSet, basename='transactions')
 router.register(r'ai', GeminiProxyViewSet, basename='ai')
+router.register(r'ddc', DDCClassificationViewSet, basename='ddc')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

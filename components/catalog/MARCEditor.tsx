@@ -1,9 +1,18 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe, Sparkles } from 'lucide-react';
 import { Book } from '../../types';
 import { getClassificationFromDDC, DEWEY_CATEGORIES, getStarterDdcForClassification } from '../../utils';
 import BookLabel from '../BookLabel';
+
+type DDCOption = {
+    id: number;
+    code: string;
+    path: string;
+    level: number;
+    title_en: string;
+    title_ms: string;
+};
 
 interface MARCEditorProps {
     book: Partial<Book>;
@@ -19,6 +28,15 @@ interface MARCEditorProps {
 
 const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSaving, copies = 1, onCommit, onPreview, onImageUpload, onCancel, onReclassify }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [ddcOptions, setDdcOptions] = useState<DDCOption[]>([]);
+  const [ddcLanguage, setDdcLanguage] = useState<'en' | 'ms'>('en');
+
+  useEffect(() => {
+      fetch('/api/ddc/')
+          .then(res => res.json())
+          .then((data: DDCOption[]) => setDdcOptions(data))
+          .catch(() => setDdcOptions([]));
+  }, []);
 
   // Auto-detect classification and suggest call number when DDC or Author changes
   useEffect(() => {
@@ -35,6 +53,24 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
           }
       }
   }, [book.ddc_code, book.author]);
+
+  const formatDdcLabel = (opt: DDCOption) => {
+      const title = ddcLanguage === 'en' ? opt.title_en : opt.title_ms;
+      const indent = opt.level === 2 ? '— ' : opt.level === 3 ? '—— ' : '';
+      return `${indent}${opt.code} • ${title}`;
+  };
+
+  const handleDdcSelect = (idStr: string) => {
+      const id = Number(idStr);
+      const opt = ddcOptions.find(o => o.id === id);
+      if (!opt) return;
+      const title = ddcLanguage === 'en' ? opt.title_en : opt.title_ms;
+      setBook({
+          ...book,
+          ddc_code: opt.code,
+          classification: title,
+      });
+  };
 
   const handleDdcChange = (val: string) => {
       const detected = getClassificationFromDDC(val);
@@ -163,9 +199,12 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                     <div className="space-y-6">
                         <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] flex items-center gap-2"><Tag className="h-4 w-4" /> 3. Holdings & Classification</h4>
                         
+                        {/* PRIMARY: Classification category → suggests a starter DDC */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Classification Category</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                    Classification Category
+                                </label>
                                 <div className="relative">
                                     <select 
                                         value={book.classification || ''} 
@@ -178,12 +217,55 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
                                 </div>
                             </div>
-                        </div>
 
+                            {/* SECONDARY: Optional DDC tree picker (only if data exists) */}
+                            {ddcOptions.length > 0 && (
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
+                                        <span>DDC Tree (Optional)</span>
+                                        <div className="flex items-center gap-1 text-[9px] font-black">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDdcLanguage('en')}
+                                                className={`px-2 py-0.5 rounded-full ${ddcLanguage === 'en' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}
+                                            >
+                                                EN
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDdcLanguage('ms')}
+                                                className={`px-2 py-0.5 rounded-full ${ddcLanguage === 'ms' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}
+                                            >
+                                                MS
+                                            </button>
+                                        </div>
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={book.ddc_code ? (ddcOptions.find(o => o.code === book.ddc_code)?.id ?? '') : ''}
+                                            onChange={(e) => handleDdcSelect(e.target.value)}
+                                            className="w-full rounded-xl border-2 border-slate-100 p-4 font-black text-slate-800 outline-none focus:border-emerald-500 bg-slate-50/30 appearance-none pr-10"
+                                        >
+                                            <option value="">Select DDC...</option>
+                                            {ddcOptions
+                                                .slice()
+                                                .sort((a, b) => a.path.localeCompare(b.path))
+                                                .map(opt => (
+                                                    <option key={opt.id} value={opt.id}>
+                                                        {formatDdcLabel(opt)}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+        
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                                    <span>DDC (Dewey)</span>
+                                    <span>DDC (Manual Override)</span>
                                     {book.id && book.isbn && onReclassify && (
                                         <button 
                                             onClick={onReclassify}

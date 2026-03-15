@@ -1,7 +1,21 @@
 
 import datetime
 from rest_framework import serializers
-from .models import Book, Patron, Loan, CirculationRule, LibraryEvent, SystemAlert, SystemConfiguration, LibraryClass, Hold, Transaction, Author, Publisher
+from .models import (
+    Book,
+    Patron,
+    Loan,
+    CirculationRule,
+    LibraryEvent,
+    SystemAlert,
+    SystemConfiguration,
+    LibraryClass,
+    Hold,
+    Transaction,
+    Author,
+    Publisher,
+    DDCClassification,
+)
 
 
 def normalize_isbn(raw: str) -> str:
@@ -19,6 +33,30 @@ class LibraryClassSerializer(serializers.ModelSerializer):
     class Meta:
         model = LibraryClass
         fields = '__all__'
+
+
+class DDCClassificationSerializer(serializers.ModelSerializer):
+    title_en = serializers.SerializerMethodField()
+    title_ms = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DDCClassification
+        fields = ['id', 'code', 'path', 'level', 'title_en', 'title_ms']
+
+    def _get_title(self, obj, lang: str) -> str:
+        translations = getattr(obj, 'translations_cache', None)
+        if translations is None:
+            translations = list(obj.translations.all())
+        for tr in translations:
+            if tr.language_code == lang:
+                return tr.title
+        return ''
+
+    def get_title_en(self, obj) -> str:
+        return self._get_title(obj, 'en')
+
+    def get_title_ms(self, obj) -> str:
+        return self._get_title(obj, 'ms')
 
 
 class AuthorSerializer(serializers.ModelSerializer):
