@@ -1,0 +1,13 @@
+[Unit]
+Description=Next.js Kiosk for Thomian Library
+After=network.target
+
+[Service]
+User=sysadmin
+Group=www-data
+WorkingDirectory=/home/sysadmin/Projects/thomian-library-system/kiosk
+ExecStart=/usr/bin/npm start
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

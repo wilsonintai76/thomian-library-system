@@ -1,8 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, ShieldCheck, User, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert } from 'lucide-react';
-import { ViewMode, AdminTab, SystemAlert, AuthUser, MapConfig } from './types';
-import KioskHome from './components/KioskHome';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert } from 'lucide-react';
+import { AdminTab, SystemAlert, AuthUser, MapConfig } from './types';
 import CatalogingDesk from './components/CatalogingDesk';
 import CirculationMatrix from './components/CirculationMatrix';
 import PatronDashboard from './components/PatronDashboard';
@@ -35,7 +34,6 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-in-up">
-        {/* Header */}
         <div className="bg-slate-900 p-8 relative">
           <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors">
             <X className="h-5 w-5" />
@@ -50,9 +48,7 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
             </div>
           </div>
         </div>
-
         <div className="p-8 space-y-6">
-          {/* User info row */}
           <div className="flex items-center gap-4 bg-slate-50 rounded-2xl p-4 border border-slate-100">
             <div className="h-10 w-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black text-lg">
               {user.full_name.charAt(0)}
@@ -66,8 +62,6 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
               <p className="text-sm font-mono font-bold text-slate-700">{user.username}</p>
             </div>
           </div>
-
-          {/* Auth token */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -85,19 +79,13 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
             <div className="bg-slate-950 rounded-2xl p-4 font-mono text-xs text-emerald-400 break-all select-all border border-slate-800 leading-relaxed">
               {token}
             </div>
-            <p className="text-[10px] text-slate-400 font-bold mt-2 flex items-center gap-1.5">
-              Use as: <span className="font-mono text-slate-600">Authorization: Token {token.slice(0, 8)}…</span>
-            </p>
           </div>
-
-          {/* Warning */}
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-2xl p-4">
             <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
             <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
               This token grants full API access as <span className="font-black">{user.role}</span>. Do not share it. Token is invalidated on logout.
             </p>
           </div>
-
           <button
             onClick={onClose}
             className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all"
@@ -112,7 +100,6 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
-  const [mode, setMode] = useState<ViewMode>('KIOSK');
   const [adminTab, setAdminTab] = useState<AdminTab>('DASHBOARD');
   const [circInitialMode, setCircInitialMode] = useState<'CHECK_OUT' | 'CHECK_IN' | 'RENEW'>('CHECK_IN');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -145,8 +132,9 @@ const App: React.FC = () => {
       await refreshConfig();
       if (user) {
         setCurrentUser(user);
-        setMode('ADMIN');
         if (window.innerWidth < 768) setAdminTab('CATALOG');
+      } else {
+        setIsLoginOpen(true);
       }
     };
     init();
@@ -154,41 +142,38 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (mode === 'ADMIN') {
+      if (currentUser) {
         mockGetActiveAlerts().then(currentAlerts => {
           setAlerts(currentAlerts);
         });
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [mode]);
+  }, [currentUser]);
 
-  // ─── Auto-Logout for Inactivity ──────────────────────────────────────────────
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    const threshold = (mapConfig?.idleTimeout || 60) * 60 * 1000; // Default 60 mins
+    const threshold = (mapConfig?.idleTimeout || 60) * 60 * 1000;
 
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);
-      if (mode === 'ADMIN' && currentUser) {
+      if (currentUser) {
         timeoutId = setTimeout(() => {
           handleLogout();
-          console.warn('[AutoLogout] Session invalidated due to inactivity.');
         }, threshold);
       }
     };
 
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    if (mode === 'ADMIN' && currentUser) {
+    if (currentUser) {
       events.forEach(e => window.addEventListener(e, resetTimer));
       resetTimer();
     }
-
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
       events.forEach(e => window.removeEventListener(e, resetTimer));
     };
-  }, [mode, currentUser, mapConfig?.idleTimeout]);
+  }, [currentUser, mapConfig?.idleTimeout]);
 
   const handleResolveAlert = (id: string) => {
     mockResolveAlert(id);
@@ -198,14 +183,13 @@ const App: React.FC = () => {
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     setIsLoginOpen(false);
-    setMode('ADMIN');
     setAdminTab(isMobile ? 'CATALOG' : 'DASHBOARD');
   };
 
   const handleLogout = () => {
     mockLogout();
     setCurrentUser(null);
-    setMode('KIOSK');
+    setIsLoginOpen(true);
   };
 
   const allTabs = [
@@ -226,8 +210,8 @@ const App: React.FC = () => {
   return (
     <div className={`min-h-screen ${styles.globalBg} ${styles.bodyText} flex flex-col font-sans transition-colors duration-500`}>
       <SystemNavbar
-        mode={mode}
-        setMode={setMode}
+        mode="ADMIN"
+        setMode={() => {}}
         currentUser={currentUser}
         mapConfig={mapConfig}
         alerts={alerts}
@@ -239,7 +223,7 @@ const App: React.FC = () => {
         onSelectTab={(tab) => setAdminTab(tab)}
       />
 
-      {!isMobile && mode === 'ADMIN' && currentUser && (
+      {!isMobile && currentUser && (
         <div className={`${styles.subnavBg} border-b ${styles.navBorder} z-40 sticky top-16 lg:top-20 print:hidden shadow-sm`}>
           <div className="max-w-[1800px] mx-auto px-6 flex justify-center h-14">
             {filteredTabs.map(tab => (
@@ -261,7 +245,6 @@ const App: React.FC = () => {
 
       {isLoginOpen && <LoginModal onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} />}
 
-      {/* Session Keys Modal */}
       {showCredentialsModal && currentUser && (() => {
         const token = localStorage.getItem('thomian_auth_token') || '—';
         return (
@@ -274,7 +257,7 @@ const App: React.FC = () => {
       })()}
 
       <main className="flex-1 overflow-hidden relative">
-        {mode === 'KIOSK' ? <KioskHome /> : (
+        {currentUser && (
           <div className={`h-full overflow-y-auto scrollbar-thin ${isMobile ? 'pb-24' : ''}`}>
             <div className={styles.headingText}>
               {adminTab === 'DASHBOARD' && <LibrarianDashboard onSelectTab={setAdminTab} onSelectCirculation={(mode) => { setCircInitialMode(mode); setAdminTab('CIRCULATION'); }} />}
@@ -287,17 +270,17 @@ const App: React.FC = () => {
               {adminTab === 'CALENDAR' && <EventCalendar />}
               {adminTab === 'SETTINGS' && <SystemSettings onRefreshConfig={refreshConfig} />}
               {adminTab === 'HELP' && <HelpGuide />}
-              {adminTab === 'PROFILE' && currentUser && <ProfileSettings user={currentUser} onUpdate={setCurrentUser} />}
+              {adminTab === 'PROFILE' && <ProfileSettings user={currentUser} onUpdate={setCurrentUser} />}
             </div>
           </div>
         )}
       </main>
 
-      {isMobile && mode === 'ADMIN' && currentUser && (
+      {isMobile && currentUser && (
         <MobileTaskBar activeTab={adminTab} setActiveTab={setAdminTab} onLogout={handleLogout} />
       )}
 
-      {mode === 'ADMIN' && !isMobile && (
+      {!isMobile && (
         <div className="flex bg-white border-t border-slate-200 px-8 py-4 text-[9px] text-slate-500 justify-between items-center font-black uppercase tracking-[0.25em] shrink-0 print:hidden shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-8">
             <span className="flex items-center gap-2.5"><div className="h-2 w-2 rounded-full bg-emerald-500 shadow-lg shadow-emerald-200"></div>Core Status: <span className="text-slate-800">Synchronized</span></span>
