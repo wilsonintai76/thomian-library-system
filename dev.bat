@@ -21,8 +21,8 @@ start "Django Backend" cmd /k "call venv\Scripts\activate && python manage.py ru
 
 timeout /t 3 /nobreak > NUL
 
-echo [2/2] Starting Vite frontend on http://localhost:3000 ...
-start "Vite Frontend" cmd /k "npm run dev"
+echo [2/2] Starting Vite frontend Admin...
+start "Vite Admin Frontend" cmd /k "cd admin && npm run dev"
 
 echo.
 echo Both servers are running. Open http://localhost:3000 in your browser.
