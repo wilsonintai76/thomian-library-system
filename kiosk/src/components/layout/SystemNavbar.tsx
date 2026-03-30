@@ -154,7 +154,7 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
                                     </button>
                                 </div>
                                 <div className="pb-3 pt-1 text-center">
-                                    <p className="text-[8px] font-mono text-slate-300 tracking-widest">v{__APP_VERSION__}</p>
+                                    <p className="text-[8px] font-mono text-slate-300 tracking-widest">v3.0.0</p>
                                 </div>
                             </div>
                         )}

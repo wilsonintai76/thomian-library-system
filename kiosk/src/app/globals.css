@@ -1,5 +1,5 @@
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+
 @import "@fontsource-variable/geist";
 
 @tailwind base;
@@ -119,9 +119,6 @@
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
   body {
     @apply bg-background text-foreground;
   }

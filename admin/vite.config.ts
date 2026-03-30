@@ -2,6 +2,7 @@ import path from 'path';
 import { readFileSync } from 'fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
@@ -13,21 +14,14 @@ export default defineConfig(() => {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      proxy: {
-        '/api': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-        '/media': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-      },
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      tailwindcss(),
+    ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
       }
     }
   };

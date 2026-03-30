@@ -126,7 +126,7 @@ const KioskHome: React.FC = () => {
 
         try {
             const result = await mockPlaceHold(selectedBook.id, studentId);
-            const newStatus = result.queued ? 'ON_HOLD' as const : 'HELD' as const;
+            const newStatus = 'HELD' as const;
             const updatedBook = { ...selectedBook, status: newStatus };
             setHoldConfirmationId(selectedBook.id);
             setSelectedBook(updatedBook);
