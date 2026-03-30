@@ -1,7 +1,7 @@
 {
   "name": "thomian-library-system",
   "private": true,
-  "version": "3.0.5",
+  "version": "3.0.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -36,6 +36,6 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "wrangler": "^3.114.17"
+    "wrangler": "^4.78.0"
   }
 }
