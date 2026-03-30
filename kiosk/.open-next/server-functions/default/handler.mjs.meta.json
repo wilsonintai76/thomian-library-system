@@ -3070,7 +3070,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/node_modules/next/dist/server/load-manifest.js": {
-      "bytes": 13940,
+      "bytes": 13939,
       "imports": [
         {
           "path": "fs",
@@ -3288,12 +3288,12 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/403.js": {
-      "bytes": 263320,
+      "bytes": 263322,
       "imports": [],
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/627.js": {
-      "bytes": 67076,
+      "bytes": 67073,
       "imports": [
         {
           "path": "@builder.io/partytown/integration",
@@ -4501,18 +4501,12 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/open-next.config.mjs": {
-      "bytes": 11663,
-      "imports": [
-        {
-          "path": "node:crypto",
-          "kind": "import-statement",
-          "external": true
-        }
-      ],
+      "bytes": 6876,
+      "imports": [],
       "format": "esm"
     },
     ".open-next/server-functions/default/index.mjs": {
-      "bytes": 81606,
+      "bytes": 81605,
       "imports": [
         {
           "path": "node:module",
@@ -4844,11 +4838,6 @@
         {
           "path": "crypto",
           "kind": "require-call",
-          "external": true
-        },
-        {
-          "path": "node:crypto",
-          "kind": "import-statement",
           "external": true
         },
         {
@@ -5550,10 +5539,10 @@
           "bytesInOutput": 66620
         },
         ".open-next/server-functions/default/.next/server/chunks/403.js": {
-          "bytesInOutput": 273637
+          "bytesInOutput": 273639
         },
         ".open-next/server-functions/default/.next/server/chunks/627.js": {
-          "bytesInOutput": 69785
+          "bytesInOutput": 69782
         },
         ".open-next/server-functions/default/.next/server/webpack-runtime.js": {
           "bytesInOutput": 1741
@@ -5691,13 +5680,13 @@
           "bytesInOutput": 24850
         },
         ".open-next/server-functions/default/open-next.config.mjs": {
-          "bytesInOutput": 8791
+          "bytesInOutput": 5061
         },
         ".open-next/server-functions/default/index.mjs": {
-          "bytesInOutput": 54980
+          "bytesInOutput": 54929
         }
       },
-      "bytes": 1905608
+      "bytes": 1901826
     }
   }
 }
