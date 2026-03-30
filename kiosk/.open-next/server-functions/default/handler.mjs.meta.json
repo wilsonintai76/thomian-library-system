@@ -3288,12 +3288,12 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/403.js": {
-      "bytes": 263322,
+      "bytes": 263320,
       "imports": [],
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/627.js": {
-      "bytes": 67073,
+      "bytes": 67076,
       "imports": [
         {
           "path": "@builder.io/partytown/integration",
@@ -5539,10 +5539,10 @@
           "bytesInOutput": 66620
         },
         ".open-next/server-functions/default/.next/server/chunks/403.js": {
-          "bytesInOutput": 273639
+          "bytesInOutput": 273637
         },
         ".open-next/server-functions/default/.next/server/chunks/627.js": {
-          "bytesInOutput": 69782
+          "bytesInOutput": 69785
         },
         ".open-next/server-functions/default/.next/server/webpack-runtime.js": {
           "bytesInOutput": 1741
@@ -5686,7 +5686,7 @@
           "bytesInOutput": 54929
         }
       },
-      "bytes": 1901826
+      "bytes": 1901827
     }
   }
 }
