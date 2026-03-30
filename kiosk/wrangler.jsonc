@@ -1,7 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "thomian-kiosk",
-  "pages_build_output_dir": ".open-next/assets",
   "compatibility_date": "2025-01-27",
   "compatibility_flags": [
     "nodejs_compat"
