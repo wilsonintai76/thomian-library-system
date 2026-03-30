@@ -4,6 +4,11 @@
   "private": true,
   "scripts": {
     "dev:admin": "cd admin && npm run dev",
-    "dev:kiosk": "cd kiosk && npm run dev"
+    "dev:kiosk": "cd kiosk && npm run dev",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.78.0"
   }
 }
