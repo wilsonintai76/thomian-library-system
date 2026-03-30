@@ -1,13 +1,14 @@
 {
   "name": "thomian-kiosk",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "opennextjs-cloudflare",
+    "deploy": "cp .open-next/worker.js .open-next/assets/_worker.js && wrangler pages deploy .open-next/assets",
+    "pages:deploy": "cp .open-next/worker.js .open-next/assets/_worker.js && wrangler pages deploy .open-next/assets",
     "preview": "opennextjs-cloudflare dev"
   },
   "dependencies": {
