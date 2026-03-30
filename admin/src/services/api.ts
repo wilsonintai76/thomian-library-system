@@ -10,6 +10,7 @@ export const mockLogin = (u: any, p: any) => real.mockLogin(u, p);
 export const mockCheckSession = () => real.mockCheckSession();
 export const mockLogout = () => real.mockLogout();
 export const mockUpdateAuthUser = (u: any) => real.mockUpdateAuthUser(u);
+export const uploadToR2 = (f: File) => real.uploadToR2(f);
 
 // ── Books ─────────────────────────────────────────────────────────────────────
 export const mockGetBooks = () => real.mockGetBooks();

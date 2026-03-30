@@ -65,7 +65,7 @@ const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () =>
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Key className="h-3.5 w-3.5" /> Auth Token (DRF)
+                <Key className="h-3.5 w-3.5" /> Auth Token (JWT)
               </p>
               <button
                 onClick={handleCopy}
@@ -246,7 +246,7 @@ const App: React.FC = () => {
       {isLoginOpen && <LoginModal onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} />}
 
       {showCredentialsModal && currentUser && (() => {
-        const token = localStorage.getItem('thomian_auth_token') || '—';
+        const token = localStorage.getItem('thomian_session_token') || '—';
         return (
           <SessionKeysModal
             user={currentUser}

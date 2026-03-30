@@ -4,6 +4,7 @@ import { Settings, Download, Upload, Trash2, AlertTriangle, CheckCircle, ShieldA
 import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, getLanUrl, setLanUrl, initializeNetwork, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
+import { supabase } from '../lib/supabase';
 import PatronCard from './PatronCard';
 
 interface SystemSettingsProps {
@@ -26,21 +27,29 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [logoSaving, setLogoSaving] = useState(false);
 
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !config) return;
         if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2 MB.'); return; }
-        const reader = new FileReader();
-        reader.onload = async () => {
-            const base64 = reader.result as string;
-            setLogoSaving(true);
-            const updated = { ...config, logo: base64 };
-            setConfig(updated);
-            await mockSaveMapConfig(updated);
+        setLogoSaving(true);
+        
+        const fileExt = file.name.split('.').pop();
+        const fileName = `logo-${Date.now()}.${fileExt}`;
+        
+        const { error } = await supabase.storage.from('logos').upload(fileName, file);
+        if (error) {
+            alert('Failed to upload logo: ' + error.message);
             setLogoSaving(false);
-            onRefreshConfig?.();
-        };
-        reader.readAsDataURL(file);
+            return;
+        }
+
+        const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
+        
+        const updated = { ...config, logo: publicUrl };
+        setConfig(updated);
+        await mockSaveMapConfig(updated);
+        setLogoSaving(false);
+        onRefreshConfig?.();
         e.target.value = '';
     };
 

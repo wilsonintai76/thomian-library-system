@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { X, UserPlus, Save, GraduationCap, Phone, Mail, ShieldCheck, User, RefreshCw, Camera, Upload, Trash2, Aperture, AlertCircle, Key, Dices, Eye, EyeOff } from 'lucide-react';
 import { Patron, PatronGroup, LibraryClass } from '../../types';
-import { mockGetClasses } from '../../services/api';
+import { mockGetClasses, uploadToR2 } from '../../services/api';
 
 interface PatronFormModalProps {
     isOpen: boolean;
@@ -29,6 +29,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
 
     const [classes, setClasses] = useState<LibraryClass[]>([]);
     const [isCameraActive, setIsCameraActive] = useState(false);
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
     const [showPin, setShowPin] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -133,12 +134,24 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     };
 
     // Capture Photo — center-cropped to card portrait ratio
-    const capturePhoto = () => {
+    const capturePhoto = async () => {
         if (videoRef.current && canvasRef.current) {
             const vid = videoRef.current;
             const dataUrl = resizeToCardRatio(vid, vid.videoWidth, vid.videoHeight);
-            setFormData({ ...formData, photo_url: dataUrl });
             stopCamera();
+            
+            setIsUploadingPhoto(true);
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            
+            const publicUrl = await uploadToR2(file);
+            setIsUploadingPhoto(false);
+            
+            if (publicUrl) {
+                setFormData({ ...formData, photo_url: publicUrl });
+            } else {
+                alert("Cloudflare R2 Upload Failed.");
+            }
         }
     };
 
@@ -148,9 +161,21 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             const reader = new FileReader();
             reader.onloadend = () => {
                 const img = new Image();
-                img.onload = () => {
+                img.onload = async () => {
                     const dataUrl = resizeToCardRatio(img, img.naturalWidth, img.naturalHeight);
-                    setFormData(prev => ({ ...prev, photo_url: dataUrl }));
+                    
+                    setIsUploadingPhoto(true);
+                    const blob = await (await fetch(dataUrl)).blob();
+                    const f = new File([blob], `upload-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    
+                    const publicUrl = await uploadToR2(f);
+                    setIsUploadingPhoto(false);
+                    
+                    if (publicUrl) {
+                        setFormData(prev => ({ ...prev, photo_url: publicUrl }));
+                    } else {
+                        alert("Cloudflare R2 Upload Failed.");
+                    }
                 };
                 img.src = reader.result as string;
             };
@@ -193,6 +218,11 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                 playsInline
                                 className="w-full h-full object-cover scale-x-[-1]"
                             />
+                        ) : isUploadingPhoto ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-blue-600">
+                                <RefreshCw className="h-8 w-8 animate-spin mb-2" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Uploading...</span>
+                            </div>
                         ) : formData.photo_url ? (
                             <img src={formData.photo_url} alt="" className="w-full h-full object-cover" />
                         ) : (

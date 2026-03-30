@@ -4,6 +4,7 @@ import { Save, RefreshCw, Layers, Edit3, Move, Trash2, Plus, Info, Upload, Image
 import { MapConfig, ShelfDefinition, MapLevel } from '../types';
 import { mockGetMapConfig, mockSaveMapConfig, aiAnalyzeBlueprint } from '../services/api';
 import { SYSTEM_THEME_CONFIG } from '../utils';
+import { supabase } from '../lib/supabase';
 import WayfinderMap from './WayfinderMap';
 
 interface MapCreatorProps {
@@ -100,14 +101,20 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
         }
     };
 
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file && config) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setConfig({ ...config, logo: reader.result as string });
-            };
-            reader.readAsDataURL(file);
+            const fileExt = file.name.split('.').pop();
+            const fileName = `logo-${Date.now()}.${fileExt}`;
+            
+            const { error } = await supabase.storage.from('logos').upload(fileName, file);
+            if (error) {
+                alert('Failed to upload logo: ' + error.message);
+                return;
+            }
+
+            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
+            setConfig({ ...config, logo: publicUrl });
         }
     };
 

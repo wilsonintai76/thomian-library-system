@@ -1,6 +1,7 @@
 /**
  * services/realApi.ts
- * Real HTTP client for the Thomian Library Django REST API.
+ * Auth: Supabase Auth (signInWithPassword / getSession / signOut)
+ * Data: Django REST API backend (/api/...)
  */
 
 import type {
@@ -8,19 +9,20 @@ import type {
     SystemStats, OverdueReportItem, SystemAlert, CirculationRule,
     CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition,
 } from '../types';
+import { supabase } from '../lib/supabase';
 
 const API_BASE = '/api';
-const TOKEN_KEY = 'thomian_auth_token';
+const SESSION_TOKEN_KEY = 'thomian_session_token';
 
 function getToken(): string | null {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(SESSION_TOKEN_KEY);
 }
 
 function authHeaders(): HeadersInit {
     const token = getToken();
     return {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Token ${token}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 }
 
@@ -62,40 +64,89 @@ async function list<T>(path: string, params?: Record<string, string>, isPublic =
     return (data as { results: T[] }).results;
 }
 
-export const mockLogin = async (username: string, password: string): Promise<AuthUser | null> => {
+// ── Supabase Auth ─────────────────────────────────────────────────────────────
+
+async function fetchProfile(userId: string): Promise<AuthUser | null> {
+    const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, staff_id')
+        .eq('id', userId)
+        .single();
+    if (error || !profile) return null;
+    return {
+        id: profile.id,
+        username: profile.staff_id || profile.email || '',
+        full_name: profile.full_name || profile.email || '',
+        role: profile.role as 'LIBRARIAN' | 'ADMINISTRATOR',
+        email: profile.email,
+    };
+}
+
+export const mockLogin = async (email: string, password: string): Promise<AuthUser | null> => {
     try {
-        const data = await request<{ success: boolean; token: string; user: AuthUser }>(
-            'POST', '/auth/login/', { staff_id: username, password }, true,
-        );
-        if (data.success) {
-            localStorage.setItem(TOKEN_KEY, data.token);
-            localStorage.setItem('thomian_user_profile', JSON.stringify(data.user));
-            return data.user;
-        }
-    } catch { /* fall through */ }
-    return null;
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error || !data.user || !data.session) return null;
+        localStorage.setItem(SESSION_TOKEN_KEY, data.session.access_token);
+        return await fetchProfile(data.user.id);
+    } catch {
+        return null;
+    }
 };
 
 export const mockCheckSession = async (): Promise<AuthUser | null> => {
-    const token = getToken();
-    if (!token) return null;
     try {
-        const data = await request<{ success: boolean; user: AuthUser }>('GET', '/auth/me/');
-        return data.success ? data.user : null;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return null;
+        localStorage.setItem(SESSION_TOKEN_KEY, session.access_token);
+        return await fetchProfile(session.user.id);
     } catch {
-        localStorage.removeItem(TOKEN_KEY);
         return null;
     }
 };
 
 export const mockLogout = async (): Promise<void> => {
-    try { await request('POST', '/auth/logout/'); } catch {/* ignore */ }
-    localStorage.removeItem(TOKEN_KEY);
+    await supabase.auth.signOut();
+    localStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem('thomian_user_profile');
+};
+
+export const uploadToR2 = async (file: File): Promise<string | null> => {
+    // 1. Get Presigned URL from Edge Function
+    const { data: presignData, error } = await supabase.functions.invoke('get-r2-upload-url', {
+        body: { fileName: file.name, contentType: file.type }
+    });
+
+    if (error || !presignData || !presignData.presignedUrl) {
+        console.error("Failed to get R2 presigned URL:", error || presignData?.error);
+        return null;
+    }
+
+    // 2. Upload file directly to Cloudflare R2
+    const uploadReq = await fetch(presignData.presignedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+            'Content-Type': file.type,
+        }
+    });
+
+    if (!uploadReq.ok) {
+        console.error("R2 Upload failed:", uploadReq.statusText);
+        return null;
+    }
+
+    // 3. Return the final public Cloudflare URL
+    return presignData.publicUrl;
 };
 
 export const mockUpdateAuthUser = async (user: AuthUser): Promise<void> => {
     localStorage.setItem('thomian_user_profile', JSON.stringify(user));
+    if (user.id) {
+        await supabase
+            .from('profiles')
+            .update({ full_name: user.full_name, email: user.email })
+            .eq('id', user.id);
+    }
 };
 
 export const mockGetBooks = async (): Promise<Book[]> => list<Book>('/catalog/', undefined, true);

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, CheckCircle, Scissors } from 'lucide-react';
-import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, reclassifyBook } from '../services/api';
+import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, reclassifyBook, uploadToR2 } from '../services/api';
 import { Book as BookType } from '../types';
 import { getClassificationFromDDC } from '../utils';
 import MobileScanner from './MobileScanner';
@@ -500,10 +500,18 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                   onCommit={handleCommit}
                   onPreview={() => handlePrintRequest([result as BookType])}
                   onCancel={() => { setCopies(1); setResult(null); setIsbn(''); setView('LIST'); }}
-                  onImageUpload={(e) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => setResult(prev => ({ ...prev, cover_url: reader.result as string }));
-                    if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
+                  onImageUpload={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setIsSaving(true);
+                      const publicUrl = await uploadToR2(file);
+                      if (publicUrl) {
+                        setResult(prev => ({ ...prev, cover_url: publicUrl }));
+                      } else {
+                        alert('Cloudflare R2 Upload Failed.');
+                      }
+                      setIsSaving(false);
+                    }
                   }}
                   onReclassify={handleReclassify}
                 />
