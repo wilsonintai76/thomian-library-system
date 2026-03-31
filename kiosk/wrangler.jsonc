@@ -1,15 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "thomian-kiosk",
-  "main": ".open-next/worker.js",
   "compatibility_date": "2025-01-27",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
+  "pages_build_output_dir": "dist",
   "observability": {
     "enabled": true
   }
