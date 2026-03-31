@@ -1,4 +1,4 @@
-// Deployment v3.2.6 - Vite Stable
+// Deployment v3.2.7 - Kiosk Stable
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import KioskHome from './components/KioskHome'
