@@ -48,3 +48,20 @@ This project will build the `admin` subfolder (which is a Vite/React application
 Because of this "Monorepo" setup, whenever you push an update to GitHub to the `main` branch, Cloudflare will automatically detect the changes.
 - If you edit a file inside the `kiosk` folder, only the Kiosk website will re-build.
 - If you edit a file inside the `admin` folder, only the Admin website will re-build.
+ 
+---
+ 
+## ⚠️ Troubleshooting Builds
+ 
+### Error: "Failed: root directory not found"
+This usually means Cloudflare Pages is searching for a folder that doesn't exactly match your repository structure.
+ 
+1. **Case-Sensitivity**: Cloudflare's **Root directory (/)** setting is case-sensitive. Ensure it is set to **`kiosk`** or **`admin`** in all lowercase.
+2. **Project Name**: If you renamed your Page project in Cloudflare, ensure the **Production branch** is still set to **`main`**.
+3. **CLI Escape Valve**: If the GitHub automated build continues to fail, you can deploy directly from your terminal using:
+   ```bash
+   cd kiosk
+   npm run build
+   npx wrangler pages deploy .next --project-name=thomian-kiosk
+   ```
+   This will bypass the GitHub directory mapping and upload your local build directly.
