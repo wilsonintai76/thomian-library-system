@@ -1,0 +1,22 @@
+{
+  "name": "thomian-backend",
+  "version": "3.2.0",
+  "description": "Thomian Library System Hono/Typescript Backend for Cloudflare Workers",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.100.1",
+    "hono": "^4.7.0",
+    "jspdf": "^2.5.2",
+    "marcjs": "^1.1.20"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250124.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^4.78.0"
+  }
+}
