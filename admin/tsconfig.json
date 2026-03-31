@@ -26,5 +26,9 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "../backend/src/**/*.ts"
+  ]
 }

@@ -4,7 +4,7 @@ import { Settings, Download, Upload, Trash2, AlertTriangle, CheckCircle, ShieldA
 import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, getLanUrl, setLanUrl, initializeNetwork, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
-import { supabase } from '../lib/supabase';
+// import { supabase } from '../lib/supabase';
 import { DEFAULT_LOGO_URL } from '../constants';
 import PatronCard from './PatronCard';
 
@@ -37,6 +37,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
         const fileExt = file.name.split('.').pop();
         const fileName = `logo-${Date.now()}.${fileExt}`;
         
+        /*
         const { error } = await supabase.storage.from('logos').upload(fileName, file);
         if (error) {
             alert('Failed to upload logo: ' + error.message);
@@ -45,6 +46,8 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
         }
 
         const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
+        */
+        const publicUrl = ""; // Placeholder for R2/D1 logic
         
         const updated = { ...config, logo: publicUrl };
         setConfig(updated);

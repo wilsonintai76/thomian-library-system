@@ -1,16 +1,37 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "thomian-backend",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-01-27",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "observability": {
-    "enabled": true
-  },
-  "vars": {
-    "SUPABASE_URL": "https://gihlokkekganbokekury.supabase.co",
-    "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpaGxva2tla2dhbmJva2VrdXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzcxMjksImV4cCI6MjA5MDQ1MzEyOX0.EmhAr8IdIrCOISsztmzimIUdR3XHc_cEY2g-2LDk7aw"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "thomian-backend",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-01-27",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"SUPABASE_URL": "https://gihlokkekganbokekury.supabase.co",
+		"SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpaGxva2tla2dhbmJva2VrdXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzcxMjksImV4cCI6MjA5MDQ1MzEyOX0.EmhAr8IdIrCOISsztmzimIUdR3XHc_cEY2g-2LDk7aw",
+		"JWT_SECRET": "replace-with-a-secure-secret-key"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "thomian-db",
+			"database_id": "b08f60fb-6bb7-48d7-a762-c65ff9c54b3e",
+			"migrations_dir": "drizzle/migrations"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "a42d4228aaf143c49f49b7c3a9ab8563"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "R2",
+			"bucket_name": "thomian-assets"
+		}
+	]
 }

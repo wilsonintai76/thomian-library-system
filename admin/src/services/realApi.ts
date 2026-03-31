@@ -1,7 +1,7 @@
 /**
  * services/realApi.ts
- * Auth: Supabase Auth (signInWithPassword / getSession / signOut)
- * Data: Django REST API backend (/api/...)
+ * Auth: Custom JWT Auth
+ * Data: Cloudflare D1 via Hono RPC
  */
 
 import type {
@@ -9,7 +9,8 @@ import type {
     SystemStats, OverdueReportItem, SystemAlert, CirculationRule,
     CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition,
 } from '../types';
-import { supabase } from '../lib/supabase';
+import { hc } from 'hono/client';
+import { type AppType } from '../../../backend/src/index';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const SESSION_TOKEN_KEY = 'thomian_session_token';
@@ -18,269 +19,149 @@ function getToken(): string | null {
     return localStorage.getItem(SESSION_TOKEN_KEY);
 }
 
-function authHeaders(): HeadersInit {
-    const token = getToken();
-    return {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-}
-
-async function request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    isPublic = false,
-): Promise<T> {
-    const headers: HeadersInit = isPublic
-        ? { 'Content-Type': 'application/json' }
-        : authHeaders();
-
-    const res = await fetch(`${API_BASE}${path}`, {
-        method,
-        headers,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-
-    if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-            const err = await res.json();
-            msg = err.message || err.detail || JSON.stringify(err);
-        } catch {/* ignore */ }
-        throw new Error(msg);
+export const apiClient = hc<AppType>(API_BASE, {
+    headers() {
+        const token = getToken();
+        return token ? { Authorization: `Bearer ${token}` } : {};
     }
+}) as any; // Cast to any to bypass path-related type inference issues outside src
 
-    if (res.status === 204) return undefined as unknown as T;
-    return res.json() as Promise<T>;
-}
-
-async function list<T>(path: string, params?: Record<string, string>, isPublic = false): Promise<T[]> {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    const data = await request<T[] | { results: T[]; count: number }>(
-        'GET', `${path}${qs}`, undefined, isPublic,
-    );
-    if (Array.isArray(data)) return data;
-    return (data as { results: T[] }).results;
-}
-
-// ── Supabase Auth ─────────────────────────────────────────────────────────────
-
-async function fetchProfile(userId: string): Promise<AuthUser | null> {
-    const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role, staff_id')
-        .eq('id', userId)
-        .single();
-    if (error || !profile) return null;
-    return {
-        id: profile.id,
-        username: profile.staff_id || profile.email || '',
-        full_name: profile.full_name || profile.email || '',
-        role: profile.role as 'LIBRARIAN' | 'ADMINISTRATOR',
-        email: profile.email,
-    };
-}
+// ── Auth ─────────────────────────────────────────────────────────────
 
 export const mockLogin = async (email: string, password: string): Promise<AuthUser | null> => {
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-            console.error('Supabase Auth Error:', error.message);
-            return null;
+        const res = await apiClient.auth.login.$post({ json: { identifier: email, password } });
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        if (data.success) {
+            localStorage.setItem(SESSION_TOKEN_KEY, data.token);
+            return data.user as AuthUser;
         }
-        if (!data.user || !data.session) return null;
-        
-        localStorage.setItem(SESSION_TOKEN_KEY, data.session.access_token);
-        const profile = await fetchProfile(data.user.id);
-        if (!profile) {
-            console.error('Profile not found in "public.profiles" for UID:', data.user.id);
-            return null;
-        }
-        return profile;
     } catch (err) {
-        console.error('Unexpected Login Error:', err);
-        return null;
+        console.error('Auth Error:', err);
     }
+    return null;
 };
 
-export const mockResetPassword = async (email: string): Promise<boolean> => {
-    try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) {
-            console.error('Supabase Reset Error:', error.message);
-            return false;
-        }
-        return true;
-    } catch (err) {
-        console.error('Unexpected Reset Error:', err);
-        return false;
-    }
+export const mockResetPassword = async (_email: string): Promise<boolean> => {
+    // Custom implementation needed or placeholder
+    return false;
 };
 
-export const mockUpdatePassword = async (password: string): Promise<{ success: boolean; code?: string }> => {
-    try {
-        console.log('Attempting to update password...');
-        const { data, error } = await supabase.auth.updateUser({ password });
-        if (error) {
-            console.error('Supabase Update Error (FULL):', JSON.stringify(error, null, 2));
-            return { success: false, code: (error as any).code };
-        }
-        console.log('Password update successful for user:', data.user?.id);
-        return { success: true };
-    } catch (err) {
-        console.error('Unexpected Update Error:', err);
-        return { success: false };
-    }
+export const mockUpdatePassword = async (_password: string): Promise<{ success: boolean; code?: string }> => {
+    return { success: false };
 };
 
 export const mockCheckSession = async (): Promise<AuthUser | null> => {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return null;
-        localStorage.setItem(SESSION_TOKEN_KEY, session.access_token);
-        return await fetchProfile(session.user.id);
+        const res = await apiClient.auth.me.$get();
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        return data.success ? data.user : null;
     } catch {
         return null;
     }
 };
 
 export const mockLogout = async (): Promise<void> => {
-    await supabase.auth.signOut();
     localStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem('thomian_user_profile');
 };
 
-export const uploadToR2 = async (file: File): Promise<string | null> => {
-    // 1. Get Presigned URL from Edge Function
-    const { data: presignData, error } = await supabase.functions.invoke('get-r2-upload-url', {
-        body: { fileName: file.name, contentType: file.type }
-    });
-
-    if (error || !presignData || !presignData.presignedUrl) {
-        console.error("Failed to get R2 presigned URL:", error || presignData?.error);
-        return null;
-    }
-
-    // 2. Upload file directly to Cloudflare R2
-    const uploadReq = await fetch(presignData.presignedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-            'Content-Type': file.type,
-        }
-    });
-
-    if (!uploadReq.ok) {
-        console.error("R2 Upload failed:", uploadReq.statusText);
-        return null;
-    }
-
-    // 3. Return the final public Cloudflare URL
-    return presignData.publicUrl;
+export const uploadToR2 = async (_file: File): Promise<string | null> => {
+    // Placeholder for R2 upload logic (requires backend implementation for presigned URLs)
+    return null;
 };
 
 export const mockUpdateAuthUser = async (user: AuthUser): Promise<void> => {
     localStorage.setItem('thomian_user_profile', JSON.stringify(user));
-    if (user.id) {
-        await supabase
-            .from('profiles')
-            .update({ full_name: user.full_name, email: user.email })
-            .eq('id', user.id);
-    }
 };
 
+// ── Catalog ─────────────────────────────────────────────────────────
+
 export const mockGetBooks = async (): Promise<Book[]> => {
-    const { data, error } = await supabase.from('books').select('*').order('title', { ascending: true });
-    if (error) throw new Error(error.message);
-    return data || [];
+    const res = await apiClient.catalog.$get({ query: {} });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<Book[]>;
 };
 export const mockAddBook = async (book: Partial<Book>): Promise<Book> => {
-    const { data, error } = await supabase.from('books').insert(book).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+    const res = await apiClient.catalog.$post({ json: book as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Book>;
 };
 export const mockUpdateBook = async (book: Book): Promise<Book> => {
-    const { data, error } = await supabase.from('books').update(book).eq('id', book.id).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+    if (!book.id) throw new Error("Missing ID");
+    const res = await apiClient.catalog[':id'].$patch({ param: { id: book.id.toString() }, json: book as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Book>;
 };
 export const mockDeleteBook = async (id: string): Promise<void> => {
-    const { error } = await supabase.from('books').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    const res = await apiClient.catalog[':id'].$delete({ param: { id } });
+    if (!res.ok) throw new Error(await res.text());
 };
 export const mockRestoreBook = async (book: Book): Promise<void> => {
-    await supabase.from('books').insert(book);
+    await mockAddBook(book);
 };
 export const mockSearchBooks = async (query: string): Promise<Book[]> => {
-    const { data, error } = await supabase.from('books').select('*')
-        .or(`title.ilike.%${query}%,author.ilike.%${query}%,isbn.ilike.%${query}%,barcode_id.ilike.%${query}%`);
-    if (error) throw new Error(error.message);
-    return data || [];
+    const res = await apiClient.catalog.$get({ query: { search: query } });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<Book[]>;
 };
 export const mockGetBookByBarcode = async (barcode: string): Promise<Book | null> => {
-    const { data, error } = await supabase.from('books').select('*').eq('barcode_id', barcode.trim()).single();
-    if (error) return null;
-    return data;
+    const res = await apiClient.catalog.barcode[':barcode'].$get({ param: { barcode: barcode.trim() } });
+    if (!res.ok) return null;
+    return res.json() as unknown as Promise<Book>;
 };
 export const mockGetBooksByShelf = async (shelf: string): Promise<Book[]> => {
-    const { data, error } = await supabase.from('books').select('*').eq('shelf_location', shelf);
-    if (error) return [];
-    return data || [];
+    const res = await apiClient.catalog.by_shelf[':shelf'].$get({ param: { shelf } });
+    if (!res.ok) return [];
+    return res.json() as Promise<Book[]>;
 };
 export const mockGetNewArrivals = async (): Promise<Book[]> => {
-    const { data, error } = await supabase.from('books').select('*').order('created_at', { ascending: false }).limit(4);
-    return data || [];
+    const res = await apiClient.catalog.new_arrivals.$get();
+    if (!res.ok) return [];
+    return res.json() as Promise<Book[]>;
 };
 export const mockGetTrendingBooks = async (): Promise<Book[]> => {
-    const { data, error } = await supabase.from('books').select('*').order('loan_count', { ascending: false }).limit(4);
-    return data || [];
+    const res = await apiClient.catalog.trending.$get();
+    if (!res.ok) return [];
+    return res.json() as Promise<Book[]>;
 };
 export const mockPlaceHold = async (bookId: string, patronId: string): Promise<{ queued: boolean }> => {
-    const res = await request<{ success: boolean; queued: boolean; message?: string }>(
-        'POST', '/circulation/place_hold/', { book_id: bookId, patron_id: patronId }
-    );
-    if (!res.success) throw new Error(res.message || 'Hold failed');
-    return { queued: res.queued };
+    const res = await apiClient.circulation.place_hold.$post({ json: { book_id: bookId, patron_id: patronId } });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json() as any;
+    return { queued: data.queued };
 };
 export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: string, st: string) => void): Promise<Partial<Book> | null> => {
     onUpdate('LOCAL', 'PENDING');
     try {
-        const res = await request<{ source: string; status: string; data: Partial<Book> }>('GET', `/catalog/waterfall_search/?isbn=${encodeURIComponent(isbn)}`, undefined, true);
-        if (res.status === 'FOUND') {
-            if (res.source === 'LOCAL') {
+        const res = await apiClient.catalog.waterfall_search.$get({ query: { isbn: encodeURIComponent(isbn) } });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json() as any;
+        
+        if (data.status === 'FOUND') {
+            if (data.source === 'LOCAL') {
                 onUpdate('LOCAL', 'FOUND');
-            } else if (res.source === 'Open Library') {
+            } else if (data.source === 'Open Library') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');
                 onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
-            } else if (res.source === 'Google Books') {
+            } else if (data.source === 'Google Books') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
                 onUpdate('GOOGLE_BOOKS', 'FOUND');
             }
-
-            // If a Dewey code was returned (either from the source or Classify enhancement)
-            if (res.data.ddc_code && res.data.ddc_code !== '000') {
-                onUpdate('CLASSIFY', 'FOUND');
-            }
-
-            return res.data;
+            if (data.data.ddc_code && data.data.ddc_code !== '000') onUpdate('CLASSIFY', 'FOUND');
+            return data.data;
         }
-        if (res.status === 'STUB') {
+        if (data.status === 'STUB') {
             onUpdate('LOCAL', 'NOT_FOUND');
             onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
             onUpdate('GOOGLE_BOOKS', 'STUB');
-            
-            // Check if Classify found a Dewey for the manual stub
-            if (res.data.ddc_code && res.data.ddc_code !== '000') {
-                onUpdate('CLASSIFY', 'FOUND');
-            } else {
-                onUpdate('CLASSIFY', 'NOT_FOUND');
-            }
-            return res.data;
+            if (data.data.ddc_code && data.data.ddc_code !== '000') onUpdate('CLASSIFY', 'FOUND');
+            else onUpdate('CLASSIFY', 'NOT_FOUND');
+            return data.data;
         }
     } catch { /* fall through */ }
     onUpdate('LOCAL', 'NOT_FOUND');
@@ -290,200 +171,228 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
     return null;
 };
 
+// ── Patrons ─────────────────────────────────────────────────────────
+
 export const mockGetPatrons = async (): Promise<Patron[]> => {
-    const { data, error } = await supabase.from('patrons').select('*').limit(100);
-    if (error) throw new Error(error.message);
-    return data || [];
+    const res = await apiClient.patrons.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<Patron[]>;
 };
 export const mockGetPatronById = async (id: string): Promise<Patron | null> => {
-    const { data, error } = await supabase.from('patrons').select('*').eq('student_id', id).single();
-    if (error) return null;
-    return data;
+    const res = await apiClient.patrons[':id'].$get({ param: { id } });
+    if (!res.ok) return null;
+    return res.json() as unknown as Promise<Patron>;
 };
-export const mockAddPatron = async (p: Patron): Promise<Patron> => {
-    const { data, error } = await supabase.from('patrons').insert(p).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+export const mockAddPatron = async (p: Partial<Patron>): Promise<Patron> => {
+    const res = await apiClient.patrons.$post({ json: p as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Patron>;
 };
-export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
-    // Note: p.student_id is the unique reference in our URL path
-    const { data, error } = await supabase.from('patrons').update(p).eq('student_id', p.student_id).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+export const mockUpdatePatron = async (p: Partial<Patron>): Promise<Patron> => {
+    if (!p.id) throw new Error("Missing ID");
+    const res = await apiClient.patrons[':id'].$patch({ param: { id: p.id }, json: p as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Patron>;
 };
 export const mockDeletePatron = async (id: string): Promise<void> => {
-    const { error } = await supabase.from('patrons').delete().eq('student_id', id);
-    if (error) throw new Error(error.message);
+    const res = await apiClient.patrons[':id'].$delete({ param: { id } });
+    if (!res.ok) throw new Error(await res.text());
 };
-export const mockRestorePatron = async (p: Patron): Promise<void> => {
-    await supabase.from('patrons').insert(p);
-};
+
 export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron | null> => {
     try {
-        const d = await request<{ success: boolean; patron: Patron }>('POST', '/patrons/verify_pin/', { student_id: id, pin }, true);
-        return d.success ? d.patron : null;
+        const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        return data.success ? data.patron : null;
     } catch { return null; }
 };
 
+// ── System ──────────────────────────────────────────────────────────
+
 export const mockGetClasses = async (): Promise<LibraryClass[]> => {
-    const { data, error } = await supabase.from('library_classes').select('*').order('name', { ascending: true });
-    if (error) throw new Error(error.message);
-    return data || [];
+    const res = await apiClient.system.classes.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<LibraryClass[]>;
 };
-export const mockAddClass = async (c: Omit<LibraryClass, 'id'>): Promise<LibraryClass> => {
-    const { data, error } = await supabase.from('library_classes').insert(c).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+export const mockAddClass = async (c: LibraryClass): Promise<LibraryClass> => {
+    const res = await apiClient.system.classes.$post({ json: c as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<LibraryClass>;
 };
 export const mockDeleteClass = async (id: string): Promise<void> => {
-    const { error } = await supabase.from('library_classes').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    const res = await apiClient.system.classes[':id'].$delete({ param: { id } });
+    if (!res.ok) throw new Error(await res.text());
 };
 
-export const mockRecordTransaction = async (t: Omit<Transaction, 'id' | 'timestamp'>): Promise<Transaction> => {
-    // Backend expects student_id link (handled by Supabase UUID natively if we use patron_id)
-    const { data, error } = await supabase.from('transactions').insert(t).select().single();
-    if (error) throw new Error(error.message);
-    return data;
+export const mockRecordTransaction = async (t: Transaction): Promise<Transaction> => {
+    const res = await apiClient.transactions.$post({ json: t as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Transaction>;
 };
 export const mockGetTransactions = async (): Promise<Transaction[]> => {
-    const { data, error } = await supabase.from('transactions')
-        .select('*, patrons(full_name), books(title)')
-        .order('timestamp', { ascending: false });
-    if (error) throw new Error(error.message);
-    return data || [];
+    const res = await apiClient.transactions.$get({ query: {} });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<Transaction[]>;
 };
 export const mockGetTransactionsByPatron = async (id: string): Promise<Transaction[]> => {
-    const { data, error } = await supabase.from('transactions')
-        .select('*, patrons(full_name), books(title)')
-        .eq('patron_id', id)
-        .order('timestamp', { ascending: false });
-    if (error) throw new Error(error.message);
-    return data || [];
+    const res = await apiClient.transactions.$get({ query: { patron_id: id } });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<Transaction[]>;
 };
-export const mockGetFinancialSummary = async () => request<any>('GET', '/transactions/summary/', undefined, true);
+export const mockGetFinancialSummary = async (): Promise<{ total_revenue: number; outstanding_fines: number; transaction_count: number }> => {
+    const res = await apiClient.transactions.summary.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+
+// ── Circulation ─────────────────────────────────────────────────────
+
+export const mockCheckoutBooks = async (patronId: string, bookIds: string[]): Promise<CheckoutResult> => {
+    const res = await apiClient.circulation.checkout.$post({ json: { patron_id: patronId, book_ids: bookIds } });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<CheckoutResult>;
+};
+export const mockProcessReturn = async (barcode: string): Promise<CheckInResult> => {
+    const res = await apiClient.circulation.return_book.$post({ json: { barcode } });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<CheckInResult>;
+};
+export const mockRenewBook = async (barcode: string, patronId: string): Promise<{ success: boolean; due_date?: string; error?: string }> => {
+    const res = await apiClient.circulation.renew.$post({ json: { barcode, patron_id: patronId } });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockGetActiveLoans = async (): Promise<Loan[]> => {
+    const res = await apiClient.circulation.active_loans.$get();
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json() as any[];
+    return (data || []).map(l => ({ ...l, book_title: l.book?.title, patron_name: l.patron?.full_name }));
+};
+export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => {
+    const res = await apiClient.circulation.active_loans.$get();
+    if (!res.ok) return [];
+    const data = await res.json() as any[];
+    return (data || []).filter(l => l.patron?.student_id === studentId).map(l => ({ ...l, book_title: l.book?.title, patron_name: l.patron?.full_name }));
+};
+export const mockGetOverdueLoans = async (): Promise<Loan[]> => {
+    const res = await apiClient.circulation.overdue.$get();
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json() as any[];
+    return (data || []).map(l => ({ ...l, book_title: l.book?.title, patron_name: l.patron?.full_name }));
+};
+
+// ── Events & Alerts ────────────────────────────────────────────────
+
+export const mockGetEvents = async (): Promise<LibraryEvent[]> => {
+    const res = await apiClient.system.events.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<LibraryEvent[]>;
+};
+export const mockAddEvent = async (e: any): Promise<LibraryEvent> => {
+    const res = await apiClient.system.events.$post({ json: e });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<LibraryEvent>;
+};
+export const mockDeleteEvent = async (id: string): Promise<void> => {
+    const res = await apiClient.system.events[':id'].$delete({ param: { id } });
+    if (!res.ok) throw new Error(await res.text());
+};
+export const mockUpdateEvent = async (e: any): Promise<LibraryEvent> => {
+    const res = await apiClient.system.events[':id'].$patch({ param: { id: e.id }, json: e });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<LibraryEvent>;
+};
+
+export const mockGetActiveAlerts = async (): Promise<SystemAlert[]> => {
+    const res = await apiClient.system.alerts.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<SystemAlert[]>;
+};
+export const mockResolveAlert = async (id: string): Promise<void> => {
+    const res = await apiClient.system.alerts[':id'].resolve.$post({ param: { id } });
+    if (!res.ok) throw new Error(await res.text());
+};
+export const mockTriggerHelpAlert = async (location: string): Promise<void> => {
+    await apiClient.system.alerts.trigger_help.$post({ json: { location } });
+};
+
+// ── Rules & Config ──────────────────────────────────────────────────
+
+export const mockGetCirculationRules = async (): Promise<CirculationRule[]> => {
+    const res = await apiClient.system.rules.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockUpdateCirculationRule = async (r: any): Promise<CirculationRule> => {
+    const res = await apiClient.system.rules[':id'].$patch({ param: { id: r.id }, json: r });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockAddCirculationRule = async (r: any): Promise<CirculationRule> => {
+    const res = await apiClient.system.rules.$post({ json: r });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockDeleteCirculationRule = async (id: string): Promise<void> => {
+    const res = await apiClient.system.rules[':id'].$delete({ param: { id } });
+    if (!res.ok) throw new Error(await res.text());
+};
+
+export const mockGetMapConfig = async (): Promise<MapConfig> => {
+    const res = await apiClient.system['system-config'].$get();
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json() as any;
+    return data.map_data;
+};
+export const mockSaveMapConfig = async (config: MapConfig): Promise<void> => {
+    const res = await apiClient.system['system-config'].update_config.$post({ json: { map_data: config } });
+    if (!res.ok) throw new Error(await res.text());
+};
+
+export const mockGetSystemStats = async (): Promise<SystemStats> => {
+    const res = await apiClient.catalog.stats.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockGetOverdueItems = async (): Promise<OverdueReportItem[]> => {
+    const res = await apiClient.circulation.overdue.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockGetRecentActivity = async (): Promise<any[]> => {
+    const res = await apiClient.catalog.recent_activity.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+
+// ── Misc ───────────────────────────────────────────────────────────
 
 export const initializeNetwork = async (): Promise<string> => 'Network Synchronized';
 export const getNetworkStatus = () => ({ mode: 'CLOUD', url: '', isLan: false });
 
-export const mockCheckoutBooks = async (pid: string, b: string[]): Promise<CheckoutResult> => request<CheckoutResult>('POST', '/circulation/checkout/', { patron_id: pid, book_ids: b });
-export const mockProcessReturn = async (b: string): Promise<CheckInResult> => {
-    const d = await request<any>('POST', '/circulation/return_book/', { barcode: b });
-    return { book: d.book, patron: d.patron, fine_amount: d.fine_amount ?? 0, days_overdue: 0, next_patron: d.next_patron };
-};
-export const mockRenewBook = async (b: string, pid: string): Promise<any> => request('POST', '/circulation/renew/', { barcode: b, patron_id: pid });
-export const mockGetActiveLoans = async (): Promise<Loan[]> => {
-    const { data, error } = await supabase.from('loans')
-        .select('*, books(*), patrons(*)')
-        .is('returned_at', null)
-        .order('issued_at', { ascending: false });
-    if (error) throw new Error(error.message);
-    return (data || []).map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
-};
-export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => {
-   // First find patron PK
-   const { data: patron } = await supabase.from('patrons').select('id').eq('student_id', studentId).single();
-   if (!patron) return [];
-   const { data, error } = await supabase.from('loans')
-       .select('*, books(*), patrons(*)')
-       .eq('patron_id', patron.id)
-       .order('issued_at', { ascending: false });
-   if (error) throw new Error(error.message);
-   return (data || []).map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
-};
-export const mockGetOverdueLoans = async (): Promise<Loan[]> => {
-    const now = new Date().toISOString();
-    const { data, error } = await supabase.from('loans')
-        .select('*, books(*), patrons(*)')
-        .is('returned_at', null)
-        .lt('due_date', now)
-        .order('due_date', { ascending: true });
-    if (error) throw new Error(error.message);
-    return (data || []).map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
-};
-
-export const mockGetEvents = async (): Promise<LibraryEvent[]> => list<LibraryEvent>('/events/', undefined, true);
-export const mockAddEvent = async (e: any): Promise<LibraryEvent> => request<LibraryEvent>('POST', '/events/', e);
-export const mockDeleteEvent = async (id: string): Promise<void> => request<void>('DELETE', `/events/${id}/`);
-export const mockUpdateEvent = async (e: any): Promise<LibraryEvent> => request<LibraryEvent>('PATCH', `/events/${e.id}/`, e);
-
-export const mockGetActiveAlerts = async (): Promise<SystemAlert[]> => list<SystemAlert>('/alerts/', undefined, true);
-export const mockResolveAlert = async (id: string): Promise<void> => {
-    try { await request('POST', `/alerts/${id}/resolve/`); } catch { await request('PATCH', `/alerts/${id}/`, { is_resolved: true }); }
-};
-export const mockTriggerHelpAlert = async (loc: string): Promise<void> => {
-    await request('POST', '/alerts/', { message: 'Assistance Requested at Kiosk', location: loc }, true);
-};
-
-export const mockGetCirculationRules = async (): Promise<CirculationRule[]> => list<CirculationRule>('/rules/');
-export const mockUpdateCirculationRule = async (r: any): Promise<CirculationRule> => request<CirculationRule>('PATCH', `/rules/${r.id}/`, r);
-export const mockAddCirculationRule = async (r: any): Promise<CirculationRule> => request<CirculationRule>('POST', '/rules/', r);
-export const mockDeleteCirculationRule = async (id: string): Promise<void> => request<void>('DELETE', `/rules/${id}/`);
-
-export const mockGetMapConfig = async (): Promise<MapConfig> => {
-    const d = await request<any>('GET', '/system-config/', undefined, true);
-    const mapData = d.map_data || {};
-    return {
-        levels: [],
-        shelves: [],
-        theme: 'EMERALD',
-        cardTemplate: 'TRADITIONAL',
-        ...mapData,
-        logo: d.logo,
-        lastUpdated: new Date().toISOString()
-    } as MapConfig;
-};
-export const mockSaveMapConfig = async (c: MapConfig): Promise<void> => {
-    await request('POST', '/system-config/update_config/', { map_data: c, logo: c.logo ?? null });
-};
-
-export const mockGetSystemStats = async (): Promise<SystemStats> => request<SystemStats>('GET', '/catalog/stats/', undefined, true);
-export const mockGetOverdueItems = async (): Promise<OverdueReportItem[]> => request<OverdueReportItem[]>('GET', '/circulation/overdue/', undefined, true);
-export const mockGetRecentActivity = async () => request<any[]>('GET', '/catalog/recent_activity/');
-
-export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
-    const res = await fetch('/api/ai/analyze-blueprint/', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ imageBase64, levelId }),
-    });
-    if (res.status === 429) throw new Error('QUOTA_EXHAUSTED');
-    if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try { const e = await res.json(); msg = e.error || msg; } catch { /* ignore */ }
-        throw new Error(msg);
-    }
-    return res.json();
-};
-
-// ── LAN URL (user preference — stored locally) ───────────────────────────────
-
-const LAN_URL_KEY = 'thomian_lan_url';
-export const getLanUrl = (): string => localStorage.getItem(LAN_URL_KEY) || 'http://localhost:8000';
-export const setLanUrl = (url: string): void => { localStorage.setItem(LAN_URL_KEY, url); };
-
-// ── Data Export / Import / Factory Reset ─────────────────────────────────────
+export const getLanUrl = (): string => localStorage.getItem('thomian_lan_url') || 'http://localhost:8000';
+export const setLanUrl = (url: string): void => { localStorage.setItem('thomian_lan_url', url); };
 
 export const exportSystemData = async (): Promise<string> => {
-    const data = await request<object>('GET', '/system-config/export/');
-    return JSON.stringify(data, null, 2);
+    const res = await apiClient.system['system-config'].$get();
+    if (!res.ok) throw new Error("Export failed");
+    return JSON.stringify(await res.json(), null, 2);
 };
 
 export const importSystemData = async (jsonString: string): Promise<boolean> => {
     try {
         const data = JSON.parse(jsonString);
-        await request('POST', '/system-config/import/', data);
+        await apiClient.system['system-config'].update_config.$post({ json: data });
         return true;
-    } catch (e) {
-        console.error('Import failed:', e);
-        return false;
-    }
+    } catch { return false; }
 };
 
 export const performFactoryReset = async (): Promise<void> => {
-    await request('POST', '/system-config/factory_reset/');
+    // Implement on system router if needed
 };
 
 export const reclassifyBook = async (id: string): Promise<Book> => {
-    return await request<Book>('POST', `/catalog/${id}/reclassify/`);
+     // Reclassify logic usually lives in waterfall_search or specialized route
+     throw new Error("Not implemented in D1 yet");
 };

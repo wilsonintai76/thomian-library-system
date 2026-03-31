@@ -20,7 +20,7 @@ import MobileTaskBar from './components/layout/MobileTaskBar';
 import { mockGetActiveAlerts, mockResolveAlert, initializeNetwork, getNetworkStatus, mockCheckSession, mockLogout, mockGetMapConfig } from './services/api';
 import { SYSTEM_THEME_CONFIG } from './utils';
 import ResetPasswordModal from './components/ResetPasswordModal';
-import { supabase } from './lib/supabase';
+// import { supabase } from './lib/supabase';
 
 // ─── Session Keys Modal ───────────────────────────────────────────────────────
 const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () => void }> = ({ user, token, onClose }) => {
@@ -150,6 +150,7 @@ const App: React.FC = () => {
     };
     init();
 
+    /*
     // -- Supabase Auth State Listener for Password Recovery --
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Supabase Auth Event:', event);
@@ -159,6 +160,7 @@ const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
+    */
   }, []);
 
   useEffect(() => {

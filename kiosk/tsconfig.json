@@ -16,14 +16,15 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src",
-    "vite.config.ts"
+    "vite.config.ts",
+    "../backend/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",

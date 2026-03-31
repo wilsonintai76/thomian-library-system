@@ -9,12 +9,22 @@ import type {
     CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition,
 } from '../types';
 
+import { hc } from 'hono/client';
+import type { AppType } from '../../../backend/src/index';
+
 const API_BASE = '/api';
 const TOKEN_KEY = 'thomian_auth_token';
 
 function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
 }
+
+export const apiClient = hc<AppType>(API_BASE, {
+    headers() {
+        const token = getToken();
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+});
 
 function authHeaders(): HeadersInit {
     const token = getToken();
@@ -64,13 +74,13 @@ async function list<T>(path: string, params?: Record<string, string>, isPublic =
 
 export const mockLogin = async (username: string, password: string): Promise<AuthUser | null> => {
     try {
-        const data = await request<{ success: boolean; token: string; user: AuthUser }>(
-            'POST', '/auth/login/', { staff_id: username, password }, true,
-        );
+        const res = await apiClient.auth.login.$post({ json: { staff_id: username, password } });
+        if (!res.ok) return null;
+        const data = await res.json() as any;
         if (data.success) {
             localStorage.setItem(TOKEN_KEY, data.token);
             localStorage.setItem('thomian_user_profile', JSON.stringify(data.user));
-            return data.user;
+            return data.user as AuthUser;
         }
     } catch { /* fall through */ }
     return null;
@@ -80,8 +90,13 @@ export const mockCheckSession = async (): Promise<AuthUser | null> => {
     const token = getToken();
     if (!token) return null;
     try {
-        const data = await request<{ success: boolean; user: AuthUser }>('GET', '/auth/me/');
-        return data.success ? data.user : null;
+        const res = await apiClient.auth.me.$get();
+        if (!res.ok) {
+            localStorage.removeItem(TOKEN_KEY);
+            return null;
+        }
+        const data = await res.json() as any;
+        return data.success ? (data.user as AuthUser) : null;
     } catch {
         localStorage.removeItem(TOKEN_KEY);
         return null;
@@ -89,7 +104,7 @@ export const mockCheckSession = async (): Promise<AuthUser | null> => {
 };
 
 export const mockLogout = async (): Promise<void> => {
-    try { await request('POST', '/auth/logout/'); } catch {/* ignore */ }
+    try { await apiClient.auth.logout.$post(); } catch {/* ignore */ }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem('thomian_user_profile');
 };
@@ -98,26 +113,43 @@ export const mockUpdateAuthUser = async (user: AuthUser): Promise<void> => {
     localStorage.setItem('thomian_user_profile', JSON.stringify(user));
 };
 
-export const mockGetBooks = async (): Promise<Book[]> => list<Book>('/catalog/', undefined, true);
-export const mockAddBook = async (book: Partial<Book>): Promise<Book> => request<Book>('POST', '/catalog/', book);
-export const mockUpdateBook = async (book: Book): Promise<Book> => request<Book>('PATCH', `/catalog/${book.id}/`, book);
-export const mockDeleteBook = async (id: string): Promise<void> => request<void>('DELETE', `/catalog/${id}/`);
-export const mockRestoreBook = async (book: Book): Promise<void> => { await request<Book>('POST', '/catalog/', book); };
-export const mockSearchBooks = async (query: string): Promise<Book[]> => list<Book>('/catalog/', { search: query }, true);
+export const mockGetBooks = async (): Promise<Book[]> => {
+    const res = await apiClient.catalog.$get({ query: {} });
+    return res.ok ? (res.json() as Promise<Book[]>) : [];
+};
+export const mockAddBook = async (book: Partial<Book>): Promise<Book> => {
+    const res = await apiClient.catalog.$post({ json: book as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Book>;
+};
+export const mockUpdateBook = async (book: Book): Promise<Book> => {
+    const res = await apiClient.catalog[':id'].$patch({ param: { id: book.id.toString() }, json: book as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Book>;
+};
+export const mockDeleteBook = async (id: string): Promise<void> => {
+    await apiClient.catalog[':id'].$delete({ param: { id } });
+};
+export const mockSearchBooks = async (query: string): Promise<Book[]> => {
+    const res = await apiClient.catalog.$get({ query: { search: query } });
+    return res.ok ? (res.json() as Promise<Book[]>) : [];
+};
 export const mockGetBookByBarcode = async (barcode: string): Promise<Book | null> => {
-    try {
-        const res = await request<{ found: boolean; book: Book }>(
-            'GET', `/catalog/by_barcode/?q=${encodeURIComponent(barcode.trim())}`, undefined, true,
-        );
-        return res.found ? res.book : null;
-    } catch { return null; }
+    const res = await apiClient.catalog.barcode[':barcode'].$get({ param: { barcode: barcode.trim() } });
+    return res.ok ? (res.json() as unknown as Promise<Book>) : null;
 };
 export const mockGetBooksByShelf = async (shelf: string): Promise<Book[]> => {
-    const data = await list<Book>('/catalog/', undefined, true);
-    return data.filter(b => b.shelf_location === shelf);
+    const res = await apiClient.catalog.by_shelf[':shelf'].$get({ param: { shelf } });
+    return res.ok ? (res.json() as Promise<Book[]>) : [];
 };
-export const mockGetNewArrivals = async (): Promise<Book[]> => list<Book>('/catalog/', { ordering: '-created_at', page_size: '4' }, true);
-export const mockGetTrendingBooks = async (): Promise<Book[]> => list<Book>('/catalog/', { ordering: '-loan_count', page_size: '4' }, true);
+export const mockGetNewArrivals = async (): Promise<Book[]> => {
+    const res = await apiClient.catalog.new_arrivals.$get();
+    return res.ok ? (res.json() as Promise<Book[]>) : [];
+};
+export const mockGetTrendingBooks = async (): Promise<Book[]> => {
+    const res = await apiClient.catalog.trending.$get();
+    return res.ok ? (res.json() as Promise<Book[]>) : [];
+};
 export const mockPlaceHold = async (bookId: string, patronId: string): Promise<{ queued: boolean }> => {
     const res = await request<{ success: boolean; queued: boolean; message?: string }>(
         'POST', '/circulation/place_hold/', { book_id: bookId, patron_id: patronId }
@@ -170,65 +202,130 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
     return null;
 };
 
-export const mockGetPatrons = async (): Promise<Patron[]> => list<Patron>('/patrons/');
-export const mockGetPatronById = async (id: string): Promise<Patron | null> => {
-    try { return await request<Patron>('GET', `/patrons/${encodeURIComponent(id)}/`); } catch { return null; }
+export const mockGetPatrons = async (): Promise<Patron[]> => {
+    const res = await apiClient.patrons.$get();
+    return res.ok ? (res.json() as Promise<Patron[]>) : [];
 };
-export const mockAddPatron = async (p: Patron): Promise<Patron> => request<Patron>('POST', '/patrons/', p);
-export const mockUpdatePatron = async (p: Patron): Promise<Patron> => request<Patron>('PATCH', `/patrons/${encodeURIComponent(p.student_id)}/`, p);
-export const mockDeletePatron = async (id: string): Promise<void> => request<void>('DELETE', `/patrons/${encodeURIComponent(id)}/`);
-export const mockRestorePatron = async (p: Patron): Promise<void> => { await request<Patron>('POST', '/patrons/', p); };
+export const mockGetPatronById = async (id: string): Promise<Patron | null> => {
+    const res = await apiClient.patrons[':id'].$get({ param: { id } });
+    return res.ok ? (res.json() as unknown as Promise<Patron>) : null;
+};
+export const mockAddPatron = async (p: Patron): Promise<Patron> => {
+    const res = await apiClient.patrons.$post({ json: p as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Patron>;
+};
+export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
+    const res = await apiClient.patrons[':id'].$patch({ param: { id: p.student_id }, json: p as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Patron>;
+};
+export const mockDeletePatron = async (id: string): Promise<void> => {
+    await apiClient.patrons[':id'].$delete({ param: { id } });
+};
 export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron | null> => {
     try {
-        const d = await request<{ success: boolean; patron: Patron }>('POST', '/patrons/verify_pin/', { student_id: id, pin }, true);
-        return d.success ? d.patron : null;
+        const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
+        if (!res.ok) return null;
+        const data = await res.json() as any;
+        return data.success ? (data.patron as Patron) : null;
     } catch { return null; }
 };
 
-export const mockGetClasses = async (): Promise<LibraryClass[]> => list<LibraryClass>('/classes/');
-export const mockAddClass = async (c: Omit<LibraryClass, 'id'>): Promise<LibraryClass> => request<LibraryClass>('POST', '/classes/', c);
-export const mockDeleteClass = async (id: string): Promise<void> => request<void>('DELETE', `/classes/${id}/`);
-
-export const mockRecordTransaction = async (t: Omit<Transaction, 'id' | 'timestamp'>): Promise<Transaction> => {
-    // Backend TransactionSerializer accepts patron as student_id string (patron_id field)
-    return request<Transaction>('POST', '/transactions/', { ...t, patron: t.patron_id });
+export const mockGetClasses = async (): Promise<LibraryClass[]> => {
+    const res = await apiClient.system.classes.$get();
+    return res.ok ? (res.json() as Promise<LibraryClass[]>) : [];
 };
-export const mockGetTransactions = async (): Promise<Transaction[]> => list<Transaction>('/transactions/');
-export const mockGetTransactionsByPatron = async (id: string): Promise<Transaction[]> => list<Transaction>('/transactions/', { patron_id: id });
-export const mockGetFinancialSummary = async () => request<any>('GET', '/transactions/summary/');
+export const mockAddClass = async (c: LibraryClass): Promise<LibraryClass> => {
+    const res = await apiClient.system.classes.$post({ json: c as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<LibraryClass>;
+};
+export const mockDeleteClass = async (id: string): Promise<void> => {
+    await apiClient.system.classes[':id'].$delete({ param: { id } });
+};
+
+export const mockRecordTransaction = async (t: Transaction): Promise<Transaction> => {
+    const res = await apiClient.transactions.$post({ json: t as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<Transaction>;
+};
+export const mockGetTransactions = async (): Promise<Transaction[]> => {
+    const res = await apiClient.transactions.$get({ query: {} });
+    return res.ok ? (res.json() as Promise<Transaction[]>) : [];
+};
+export const mockGetFinancialSummary = async () => {
+    const res = await apiClient.transactions.summary.$get();
+    return res.ok ? res.json() : { total_revenue: 0, outstanding_fines: 0, transaction_count: 0 };
+};
 
 export const initializeNetwork = async (): Promise<string> => 'Network Synchronized';
 export const getNetworkStatus = () => ({ mode: 'CLOUD', url: '', isLan: false });
 
-export const mockCheckoutBooks = async (pid: string, b: string[]): Promise<CheckoutResult> => request<CheckoutResult>('POST', '/circulation/checkout/', { patron_id: pid, book_ids: b });
-export const mockProcessReturn = async (b: string): Promise<CheckInResult> => {
-    const d = await request<any>('POST', '/circulation/return_book/', { barcode: b });
-    return { book: d.book, patron: d.patron, fine_amount: d.fine_amount ?? 0, days_overdue: 0, next_patron: d.next_patron };
+export const mockCheckoutBooks = async (pid: string, b: string[]): Promise<CheckoutResult> => {
+    const res = await apiClient.circulation.checkout.$post({ json: { patron_id: pid, book_ids: b } });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as unknown as Promise<CheckoutResult>;
 };
-export const mockRenewBook = async (b: string, pid: string): Promise<any> => request('POST', '/circulation/renew/', { barcode: b, patron_id: pid });
-export const mockGetActiveLoans = async (): Promise<Loan[]> => list<Loan>('/circulation/active_loans/');
-export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => list<Loan>(`/patrons/${studentId}/loans/`);
+export const mockProcessReturn = async (b: string): Promise<CheckInResult> => {
+    const res = await apiClient.circulation.return_book.$post({ json: { barcode: b } });
+    if (!res.ok) throw new Error(await res.text());
+    return await res.json() as unknown as Promise<CheckInResult>;
+};
+export const mockRenewBook = async (b: string, pid: string): Promise<any> => {
+    const res = await apiClient.circulation.renew.$post({ json: { barcode: b, patron_id: pid } });
+    return await res.json();
+};
+export const mockGetActiveLoans = async (): Promise<Loan[]> => {
+    const res = await apiClient.circulation.active_loans.$get();
+    const data = res.ok ? (await res.json() as any[]) : [];
+    return data.map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
+};
+export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => {
+    const res = await apiClient.circulation.active_loans.$get();
+    const data = res.ok ? (await res.json() as any[]) : [];
+    return data.filter(l => l.patrons?.student_id === studentId).map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
+};
 
-export const mockGetEvents = async (): Promise<LibraryEvent[]> => list<LibraryEvent>('/events/', undefined, true);
-export const mockAddEvent = async (e: any): Promise<LibraryEvent> => request<LibraryEvent>('POST', '/events/', e);
-export const mockDeleteEvent = async (id: string): Promise<void> => request<void>('DELETE', `/events/${id}/`);
-export const mockUpdateEvent = async (e: any): Promise<LibraryEvent> => request<LibraryEvent>('PATCH', `/events/${e.id}/`, e);
+export const mockGetEvents = async (): Promise<LibraryEvent[]> => {
+    const res = await apiClient.system.events.$get();
+    return res.ok ? (res.json() as Promise<LibraryEvent[]>) : [];
+};
+export const mockAddEvent = async (e: any): Promise<LibraryEvent> => {
+    const res = await apiClient.system.events.$post({ json: e });
+    return res.json() as any;
+};
 
-export const mockGetActiveAlerts = async (): Promise<SystemAlert[]> => list<SystemAlert>('/alerts/', undefined, true);
+export const mockGetActiveAlerts = async (): Promise<SystemAlert[]> => {
+    const res = await apiClient.system.alerts.$get();
+    return res.ok ? (res.json() as Promise<SystemAlert[]>) : [];
+};
 export const mockResolveAlert = async (id: string): Promise<void> => {
-    try { await request('POST', `/alerts/${id}/resolve/`); } catch { await request('PATCH', `/alerts/${id}/`, { is_resolved: true }); }
+    await apiClient.system.alerts[':id'].resolve.$post({ param: { id } });
 };
 export const mockTriggerHelpAlert = async (loc: string): Promise<void> => {
-    await request('POST', '/alerts/', { message: 'Assistance Requested at Kiosk', location: loc }, true);
+    await apiClient.system.alerts.trigger_help.$post({ json: { location: loc } });
 };
 
-export const mockGetCirculationRules = async (): Promise<CirculationRule[]> => list<CirculationRule>('/rules/');
-export const mockUpdateCirculationRule = async (r: any): Promise<CirculationRule> => request<CirculationRule>('PATCH', `/rules/${r.id}/`, r);
-export const mockAddCirculationRule = async (r: any): Promise<CirculationRule> => request<CirculationRule>('POST', '/rules/', r);
-export const mockDeleteCirculationRule = async (id: string): Promise<void> => request<void>('DELETE', `/rules/${id}/`);
+export const mockGetCirculationRules = async (): Promise<CirculationRule[]> => {
+    const res = await apiClient.system.rules.$get();
+    return res.ok ? (res.json() as Promise<CirculationRule[]>) : [];
+};
+export const mockUpdateCirculationRule = async (r: any): Promise<CirculationRule> => {
+    const res = await apiClient.system.rules[':id'].$patch({ param: { id: r.id }, json: r });
+    return res.json() as unknown as Promise<CirculationRule>;
+};
+export const mockAddCirculationRule = async (r: any): Promise<CirculationRule> => {
+    const res = await apiClient.system.rules.$post({ json: r });
+    return res.json() as unknown as Promise<CirculationRule>;
+};
+export const mockDeleteCirculationRule = async (id: string): Promise<void> => {
+    await apiClient.system.rules[':id'].$delete({ param: { id } });
+};
 
 export const mockGetMapConfig = async (): Promise<MapConfig> => {
-    const d = await request<any>('GET', '/system-config/', undefined, true);
+    const res = await apiClient.system['system-config'].$get();
+    const d = res.ok ? (await res.json() as any) : {};
     const mapData = d.map_data || {};
     return {
         levels: [],
@@ -241,12 +338,21 @@ export const mockGetMapConfig = async (): Promise<MapConfig> => {
     } as MapConfig;
 };
 export const mockSaveMapConfig = async (c: MapConfig): Promise<void> => {
-    await request('POST', '/system-config/update_config/', { map_data: c, logo: c.logo ?? null });
+    await apiClient.system['update-config'].$post({ json: { map_data: c, logo: c.logo ?? null } as any });
 };
 
-export const mockGetSystemStats = async (): Promise<SystemStats> => request<SystemStats>('GET', '/catalog/stats/', undefined, true);
-export const mockGetOverdueItems = async (): Promise<OverdueReportItem[]> => request<OverdueReportItem[]>('GET', '/circulation/overdue/', undefined, true);
-export const mockGetRecentActivity = async () => request<any[]>('GET', '/catalog/recent_activity/');
+export const mockGetSystemStats = async (): Promise<SystemStats> => {
+    const res = await apiClient.catalog.stats.$get();
+    return res.json() as unknown as Promise<SystemStats>;
+};
+export const mockGetOverdueItems = async (): Promise<OverdueReportItem[]> => {
+    const res = await apiClient.circulation.overdue.$get();
+    return res.ok ? (res.json() as Promise<OverdueReportItem[]>) : [];
+};
+export const mockGetRecentActivity = async () => {
+    const res = await apiClient.catalog.recent_activity.$get();
+    return res.ok ? res.json() : [];
+};
 
 export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
     const res = await fetch('/api/ai/analyze-blueprint/', {
@@ -292,5 +398,6 @@ export const performFactoryReset = async (): Promise<void> => {
 };
 
 export const reclassifyBook = async (id: string): Promise<Book> => {
-    return await request<Book>('POST', `/catalog/${id}/reclassify/`);
+    const res = await apiClient.catalog[':id'].reclassify.$post({ param: { id } });
+    return res.json() as unknown as Promise<Book>;
 };

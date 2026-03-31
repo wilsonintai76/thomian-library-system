@@ -433,7 +433,14 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                                         </td>
                                         <td className="px-8 py-4">
                                             <div className="flex flex-col gap-1.5">
-                                                <span className="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 w-fit uppercase">{patron.patron_group}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 w-fit uppercase">{patron.patron_group}</span>
+                                                    {patron.is_staff && (
+                                                        <span className="text-[9px] font-black bg-slate-900 text-white px-2 py-0.5 rounded border border-slate-800 w-fit uppercase flex items-center gap-1">
+                                                            <ShieldCheck className="h-2.5 w-2.5 text-blue-400" /> Staff Portal
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1 uppercase"><GraduationCap className="h-2 w-2" /> {patron.class_name || 'N/A'}</span>
                                             </div>
                                         </td>

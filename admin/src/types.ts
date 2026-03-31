@@ -86,6 +86,13 @@ export interface Patron {
   phone?: string;
   photo_url?: string; 
   pin: string; // Secure 4-digit PIN for Kiosk access
+  // Staff Unified Logic
+  is_staff_active?: boolean;
+  role?: 'LIBRARIAN' | 'ADMINISTRATOR';
+  password?: string;
+  is_staff?: string; // Returned from backend leftJoin (profile id)
+  staff_role?: string;
+  staff_email?: string;
 }
 
 export interface MapConfig {

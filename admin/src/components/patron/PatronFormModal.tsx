@@ -25,7 +25,10 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         fines: 0,
         photo_url: '',
         pin: '1234',
-        library_class_id: ''
+        library_class_id: '',
+        is_staff_active: false,
+        role: 'LIBRARIAN',
+        password: ''
     });
 
     const [classes, setClasses] = useState<LibraryClass[]>([]);
@@ -45,8 +48,12 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     useEffect(() => {
         if (!isOpen) return;
         if (initialData) {
-            // PIN is now returned by the API as plain text — load it directly
-            setFormData({ ...initialData });
+            setFormData({ 
+                ...initialData,
+                is_staff_active: !!initialData.is_staff,
+                role: initialData.role || 'LIBRARIAN',
+                password: ''
+            });
         } else {
             setFormData({
                 student_id: generatePatronId(),
@@ -60,7 +67,10 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                 fines: 0,
                 photo_url: '',
                 pin: generateRandomPin(),
-                library_class_id: ''
+                library_class_id: '',
+                is_staff_active: false,
+                role: 'LIBRARIAN',
+                password: ''
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,27 +91,22 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         setShowPin(true);
     };
 
-    // Card photo dimensions: 5:6 portrait (matches ID card placeholder w-20 h-24)
     const CARD_W = 400;
     const CARD_H = 480;
 
-    // Resize (fit-and-letterbox) to card portrait ratio — whole photo preserved, no cropping
     const resizeToCardRatio = (source: HTMLVideoElement | HTMLImageElement, naturalW: number, naturalH: number): string => {
         const canvas = canvasRef.current!;
         canvas.width = CARD_W;
         canvas.height = CARD_H;
         const ctx = canvas.getContext('2d')!;
-        // Fill background with light grey (neutral for any skin tone)
         ctx.fillStyle = '#f1f5f9';
         ctx.fillRect(0, 0, CARD_W, CARD_H);
-        // Scale to fit entirely inside the card box, preserving aspect ratio
         const scale = Math.min(CARD_W / naturalW, CARD_H / naturalH);
         const drawW = naturalW * scale;
         const drawH = naturalH * scale;
         const offsetX = (CARD_W - drawW) / 2;
         const offsetY = (CARD_H - drawH) / 2;
         ctx.save();
-        // Mirror horizontally for webcam (selfie view looks natural)
         if (source instanceof HTMLVideoElement) {
             ctx.translate(CARD_W, 0);
             ctx.scale(-1, 1);
@@ -111,7 +116,6 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         return canvas.toDataURL('image/jpeg', 0.92);
     };
 
-    // Start Camera
     const startCamera = async () => {
         setIsCameraActive(true);
         try {
@@ -126,7 +130,6 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         }
     };
 
-    // Stop Camera
     const stopCamera = () => {
         if (videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
@@ -135,7 +138,6 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         setIsCameraActive(false);
     };
 
-    // Capture Photo — center-cropped to card portrait ratio
     const capturePhoto = async () => {
         if (videoRef.current && canvasRef.current) {
             const vid = videoRef.current;
@@ -199,6 +201,10 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         }
         if (!formData.pin || formData.pin.length !== 4) {
             alert("Security PIN must be exactly 4 digits.");
+            return;
+        }
+        if (formData.is_staff_active && !formData.email) {
+            alert("Email is required for staff portal access.");
             return;
         }
         onSave(formData);
@@ -378,7 +384,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-800 outline-none focus:border-emerald-500 uppercase tracking-wide"
                                     placeholder={formData.full_name ? `e.g. ${formData.full_name.split(' ')[0]} ${formData.full_name.split(' ').slice(-1)[0]}` : 'Leave blank to auto-abbreviate'}
                                 />
-                                <p className="text-[9px] text-slate-400 mt-1 font-semibold">This is exactly what prints on the ID card. Max 26 characters. Leave blank to auto-abbreviate full name.</p>
+                                <p className="text-[9px] text-slate-400 mt-1 font-semibold">Max 26 characters. Leave blank to auto-abbreviate full name.</p>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Patron Group</label>
@@ -393,14 +399,61 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                     <option value="ADMINISTRATOR">Administrator</option>
                                 </select>
                                 {(formData.patron_group === 'LIBRARIAN' || formData.patron_group === 'ADMINISTRATOR') && (
-                                    <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 animate-pulse">
-                                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                                        <p className="text-[9px] font-bold text-amber-700 uppercase tracking-tight leading-normal">
-                                            Note: This only creates a Borrower Profile. Staff login access must be managed via Supabase Auth separately.
-                                        </p>
+                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
+                                        <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[9px] font-black text-blue-700 uppercase tracking-tight">Enable Admin Portal Access?</p>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={formData.is_staff_active} 
+                                                    onChange={(e) => setFormData({...formData, is_staff_active: e.target.checked})}
+                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                            <p className="text-[8px] text-blue-500 font-bold uppercase mt-1">Allows portal login using their email.</p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
+                            
+                            {formData.is_staff_active && (
+                                <div className="md:col-span-2 p-6 bg-slate-900 rounded-[1.5rem] border-2 border-blue-500/30 text-white space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Key className="h-4 w-4 text-blue-400" />
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Portal Credentials</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Access Role</label>
+                                            <select
+                                                value={formData.role}
+                                                onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 font-bold text-white outline-none focus:border-blue-500 text-xs"
+                                            >
+                                                <option value="LIBRARIAN">Librarian (Staff)</option>
+                                                <option value="ADMINISTRATOR">Administrator (Superuser)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                                {initialData?.is_staff ? 'Update Password' : 'Set Portal Password'}
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={formData.password || ''}
+                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 font-bold text-white outline-none focus:border-blue-500 text-xs"
+                                                placeholder={initialData?.is_staff ? "Leave blank to keep current" : "••••••••"}
+                                            />
+                                        </div>
+                                    </div>
+                                    {!formData.email && (
+                                        <p className="text-[9px] font-bold text-rose-400 uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="h-3 w-3" /> Email address is required for Portal access.</p>
+                                    )}
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                                     Class / Home Room {formData.patron_group === 'STUDENT' && <span className="text-rose-500">*</span>}
@@ -432,7 +485,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                     />
                                 </div>
                             </div>
-                            <div>
+                            <div className="md:col-span-2">
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Contact Phone</label>
                                 <div className="relative">
                                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
