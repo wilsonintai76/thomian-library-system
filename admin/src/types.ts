@@ -71,11 +71,13 @@ export interface Book {
 }
 
 export interface Patron {
+  id?: string;
   student_id: string;
   full_name: string;
   card_name?: string; // Preferred name on ID card (patron-controlled, like a credit card)
   patron_group: PatronGroup;
   class_name?: string;
+  library_class_id?: string; // Foreign key to library_classes
   is_blocked: boolean;
   is_archived?: boolean;
   fines: number;

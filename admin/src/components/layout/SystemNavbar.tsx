@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Library, Bell, Check, UserCircle, IdCard, Key, LogOut, ChevronDown, Monitor, Settings } from 'lucide-react';
 import { AuthUser, SystemAlert, MapConfig, ViewMode } from '../../types';
+import { DEFAULT_LOGO_URL } from '../../constants';
 import { SYSTEM_THEME_CONFIG } from '../../utils';
 
 interface SystemNavbarProps {
@@ -50,18 +51,12 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
             title={mode === 'KIOSK' && currentUser ? 'Back to Admin' : 'Go to Kiosk'}
           >
             <div className="h-10 w-10 lg:h-12 lg:w-12 flex items-center justify-center shrink-0">
-              {mapConfig?.logo && !logoError ? (
-                <img 
-                  src={mapConfig.logo} 
-                  alt="Logo" 
-                  className="h-full w-full object-contain group-hover:scale-105 transition-transform"
-                  onError={() => setLogoError(true)} 
-                />
-              ) : (
-                <div className={`${styles.navAccent.replace('text-', 'bg-')} p-2 rounded-xl shadow-lg`}>
-                  <Library className="h-6 w-6 text-white" />
-                </div>
-              )}
+              <img 
+                src={mapConfig?.logo || DEFAULT_LOGO_URL} 
+                alt="Logo" 
+                className="h-full w-full object-contain group-hover:scale-105 transition-transform"
+                onError={() => setLogoError(true)} 
+              />
             </div>
             <div className="hidden md:block">
               <span className={`font-black text-lg lg:text-xl tracking-tighter block leading-tight uppercase ${styles.navBrand}`}>Thomian</span>
@@ -112,7 +107,7 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
                     </div>
                 )}
 
-                {currentUser ? (
+                {currentUser && (
                     <div className="relative" ref={profileMenuRef}>
                         <button 
                             onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -159,10 +154,6 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
                             </div>
                         )}
                     </div>
-                ) : (
-                    <button onClick={onOpenLogin} className={`flex items-center gap-3 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${styles.navAccent.replace('text-', 'bg-')} hover:opacity-90 text-white transition-all shadow-xl active:scale-95`}>
-                        <Settings className="h-4 w-4" /> Management Login
-                    </button>
                 )}
           </div>
         </div>

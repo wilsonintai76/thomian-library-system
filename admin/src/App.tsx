@@ -14,10 +14,13 @@ import LoginModal from './components/LoginModal';
 import MapCreator from './components/MapCreator';
 import SystemSettings from './components/SystemSettings';
 import ProfileSettings from './components/ProfileSettings';
+import AdminLanding from './components/AdminLanding';
 import SystemNavbar from './components/layout/SystemNavbar';
 import MobileTaskBar from './components/layout/MobileTaskBar';
 import { mockGetActiveAlerts, mockResolveAlert, initializeNetwork, getNetworkStatus, mockCheckSession, mockLogout, mockGetMapConfig } from './services/api';
 import { SYSTEM_THEME_CONFIG } from './utils';
+import ResetPasswordModal from './components/ResetPasswordModal';
+import { supabase } from './lib/supabase';
 
 // ─── Session Keys Modal ───────────────────────────────────────────────────────
 const SessionKeysModal: React.FC<{ user: AuthUser; token: string; onClose: () => void }> = ({ user, token, onClose }) => {
@@ -109,6 +112,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const theme = mapConfig?.theme || 'EMERALD';
   const styles = SYSTEM_THEME_CONFIG[theme];
@@ -128,16 +132,33 @@ const App: React.FC = () => {
     const init = async () => {
       await initializeNetwork();
       setNetworkStatus(getNetworkStatus() as any);
+      
+      // -- Browser Closure Cache Clear --
+      window.onbeforeunload = () => {
+          localStorage.clear();
+          sessionStorage.clear();
+      };
+      
       const user = await mockCheckSession();
       await refreshConfig();
       if (user) {
         setCurrentUser(user);
         if (window.innerWidth < 768) setAdminTab('CATALOG');
       } else {
-        setIsLoginOpen(true);
+        setIsLoginOpen(false); // Don't pop it immediately, let them see the landing
       }
     };
     init();
+
+    // -- Supabase Auth State Listener for Password Recovery --
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Supabase Auth Event:', event);
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowResetModal(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -188,8 +209,10 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     mockLogout();
+    localStorage.clear();
+    sessionStorage.clear();
     setCurrentUser(null);
-    setIsLoginOpen(true);
+    setIsLoginOpen(false);
   };
 
   const allTabs = [
@@ -256,6 +279,8 @@ const App: React.FC = () => {
         );
       })()}
 
+      {showResetModal && <ResetPasswordModal onClose={() => setShowResetModal(false)} />}
+
       <main className="flex-1 overflow-hidden relative">
         {currentUser && (
           <div className={`h-full overflow-y-auto scrollbar-thin ${isMobile ? 'pb-24' : ''}`}>
@@ -273,6 +298,10 @@ const App: React.FC = () => {
               {adminTab === 'PROFILE' && <ProfileSettings user={currentUser} onUpdate={setCurrentUser} />}
             </div>
           </div>
+        )}
+        
+        {!currentUser && (
+          <AdminLanding onLoginRequest={() => setIsLoginOpen(true)} />
         )}
       </main>
 

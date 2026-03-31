@@ -10,6 +10,8 @@ export const mockLogin = (u: any, p: any) => real.mockLogin(u, p);
 export const mockCheckSession = () => real.mockCheckSession();
 export const mockLogout = () => real.mockLogout();
 export const mockUpdateAuthUser = (u: any) => real.mockUpdateAuthUser(u);
+export const mockResetPassword = (e: string) => real.mockResetPassword(e);
+export const mockUpdatePassword = (p: string) => real.mockUpdatePassword(p);
 export const uploadToR2 = (f: File) => real.uploadToR2(f);
 
 // ── Books ─────────────────────────────────────────────────────────────────────

@@ -24,7 +24,8 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
         is_blocked: false,
         fines: 0,
         photo_url: '',
-        pin: '1234'
+        pin: '1234',
+        library_class_id: ''
     });
 
     const [classes, setClasses] = useState<LibraryClass[]>([]);
@@ -58,7 +59,8 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                 is_blocked: false,
                 fines: 0,
                 photo_url: '',
-                pin: generateRandomPin()
+                pin: generateRandomPin(),
+                library_class_id: ''
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,7 +193,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             alert("ID and Name are mandatory.");
             return;
         }
-        if (formData.patron_group === 'STUDENT' && !formData.class_name) {
+        if (formData.patron_group === 'STUDENT' && !formData.library_class_id) {
             alert("Class selection is mandatory for Student patrons.");
             return;
         }
@@ -390,6 +392,14 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                     <option value="LIBRARIAN">Librarian</option>
                                     <option value="ADMINISTRATOR">Administrator</option>
                                 </select>
+                                {(formData.patron_group === 'LIBRARIAN' || formData.patron_group === 'ADMINISTRATOR') && (
+                                    <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex gap-3 animate-pulse">
+                                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <p className="text-[9px] font-bold text-amber-700 uppercase tracking-tight leading-normal">
+                                            Note: This only creates a Borrower Profile. Staff login access must be managed via Supabase Auth separately.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
@@ -398,13 +408,13 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                 <div className="relative">
                                     <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
                                     <select
-                                        value={formData.class_name}
-                                        onChange={(e) => setFormData({ ...formData, class_name: e.target.value })}
-                                        className={`w-full bg-slate-50 border-2 rounded-xl pl-10 pr-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500 appearance-none transition-all ${formData.patron_group === 'STUDENT' && !formData.class_name ? 'border-amber-200' : 'border-slate-100'}`}
+                                        value={formData.library_class_id}
+                                        onChange={(e) => setFormData({ ...formData, library_class_id: e.target.value })}
+                                        className={`w-full bg-slate-50 border-2 rounded-xl pl-10 pr-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500 appearance-none transition-all ${formData.patron_group === 'STUDENT' && !formData.library_class_id ? 'border-amber-200' : 'border-slate-100'}`}
                                     >
                                         <option value="">Select a Class...</option>
                                         {classes.map(cls => (
-                                            <option key={cls.id} value={cls.name}>{cls.name}</option>
+                                            <option key={cls.id} value={cls.id}>{cls.name}</option>
                                         ))}
                                     </select>
                                 </div>

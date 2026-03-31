@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, LogIn, RefreshCw, Sparkles, ImageOff, History, BookOpen, Bookmark, Clock, Calendar, Bell, Phone, Mail, Save, Loader2, FileText, Banknote, UserCheck, TrendingUp, CalendarOff, GraduationCap, Lightbulb, Users, Settings, LogOut, Key, ChevronRight, AlertCircle, ShieldCheck, CheckCircle2, Trophy } from 'lucide-react';
 import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron, mockGetPatronLoans } from '../services/api';
 import { Book, LibraryEvent, MapConfig, Patron, Loan, Transaction } from '../types';
+import { DEFAULT_LOGO_URL } from '../constants';
 import WayfinderMap from './WayfinderMap';
 import LibraryAssistant from './LibraryAssistant';
 import PatronPortal from './kiosk/PatronPortal';
@@ -47,6 +48,12 @@ const KioskHome: React.FC = () => {
     const reserveSectionRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        // -- Browser Closure Cache Clear --
+        window.onbeforeunload = () => {
+            localStorage.clear();
+            sessionStorage.clear();
+        };
+
         inputRef.current?.focus();
         mockGetEvents().then(setEvents);
         mockGetNewArrivals().then(setNewArrivals);
@@ -144,6 +151,12 @@ const KioskHome: React.FC = () => {
         } finally {
             setIsPlacingHold(false);
         }
+    };
+
+    const handleLogout = () => {
+        localStorage.clear();
+        sessionStorage.clear();
+        setActivePatron(null);
     };
 
     const handleLibrarianCall = async () => {
@@ -440,7 +453,15 @@ const KioskHome: React.FC = () => {
                 <div className="lg:col-span-3 space-y-6 md:space-y-8">
                     <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start gap-6">
                         <div className="flex-1">
-                            <h1 className="text-2xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight uppercase leading-none">Thomian Kiosk</h1>
+                            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6">
+                                <div className="h-16 w-16 md:h-20 md:w-20 shrink-0">
+                                    <img src={mapConfig?.logo || DEFAULT_LOGO_URL} alt="Logo" className="h-full w-full object-contain" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight uppercase leading-none">Thomian Kiosk</h1>
+                                    <p className="text-slate-500 font-bold uppercase text-[10px] md:text-xs tracking-[0.3em] opacity-70">Official Student Gateway</p>
+                                </div>
+                            </div>
                             <div className="relative group mt-4">
                                 <div className="absolute inset-y-0 left-0 pl-4 md:pl-6 flex items-center pointer-events-none"><Search className="h-5 w-5 md:h-8 md:w-8 text-slate-400" /></div>
                                 <input ref={inputRef} type="text" className="block w-full pl-12 pr-12 py-4 md:pl-16 md:pr-16 md:py-6 bg-slate-50 border-2 border-slate-300 rounded-2xl text-lg md:text-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all" placeholder="Find books, authors, or subjects..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} />
@@ -457,7 +478,7 @@ const KioskHome: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => setShowProfileEdit(true)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-lg"><Settings className="h-5 w-5" /></button>
-                                    <button onClick={() => setActivePatron(null)} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-lg"><LogOut className="h-5 w-5" /></button>
+                                    <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-lg"><LogOut className="h-5 w-5" /></button>
                                 </div>
                             </div>
                         )}

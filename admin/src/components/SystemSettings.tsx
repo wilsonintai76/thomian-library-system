@@ -5,6 +5,7 @@ import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, 
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
 import { supabase } from '../lib/supabase';
+import { DEFAULT_LOGO_URL } from '../constants';
 import PatronCard from './PatronCard';
 
 interface SystemSettingsProps {
@@ -207,9 +208,11 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">School Logo</p>
                             <div className="flex items-center gap-6">
                                 <div className="h-24 w-24 rounded-2xl border-2 border-slate-100 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
-                                    {config?.logo
-                                        ? <img src={config.logo} alt="Logo" className="h-full w-full object-contain p-1" />
-                                        : <Sparkles className="h-8 w-8 text-slate-300" />}
+                                    <img 
+                                        src={config?.logo || DEFAULT_LOGO_URL} 
+                                        alt="Logo" 
+                                        className="h-full w-full object-contain p-1" 
+                                    />
                                 </div>
                                 <div className="flex-1 space-y-3">
                                     <p className="text-xs text-slate-500 font-medium">Appears in the navbar, member cards, and book labels. PNG/SVG recommended, max 2 MB.</p>
