@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "opennextjs-cloudflare build",
+    "build": "next build && opennextjs-cloudflare build --skip-build",
     "start": "next start",
     "lint": "next lint",
     "deploy": "wrangler deploy --assets .open-next/assets",
