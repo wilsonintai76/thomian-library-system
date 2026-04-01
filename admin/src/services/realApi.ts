@@ -406,16 +406,28 @@ export const getLanUrl = (): string => localStorage.getItem('thomian_lan_url') |
 export const setLanUrl = (url: string): void => { localStorage.setItem('thomian_lan_url', url); };
 
 export const exportSystemData = async (): Promise<string> => {
-    const res = await apiClient.system['system-config'].$get();
-    if (!res.ok) throw new Error("Export failed");
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/system/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Export failed');
     return JSON.stringify(await res.json(), null, 2);
 };
 
 export const importSystemData = async (jsonString: string): Promise<boolean> => {
     try {
         const data = JSON.parse(jsonString);
-        await apiClient.system['system-config'].update_config.$post({ json: data });
-        return true;
+        if (!data?.tables) return false; // Not a full backup envelope
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/system/import`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(data),
+        });
+        return res.ok;
     } catch { return false; }
 };
 

@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { getDB, Bindings } from '../utils'
 import { libraryClassSchema, updateConfigSchema, circulationRuleSchema } from '../schema'
 import { z } from 'zod'
-import { libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents } from '../db/schema'
+import { books, patrons, loans, transactions, libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents } from '../db/schema'
 import { eq, asc, desc, sql } from 'drizzle-orm'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -178,6 +178,74 @@ app.patch('/events/:id', zValidator('json', z.any()), async (c) => {
 app.delete('/events/:id', async (c) => {
   const db = getDB(c)
   await db.delete(libraryEvents).where(eq(libraryEvents.id, c.req.param('id')))
+  return c.json({ success: true })
+})
+
+// ── Full Data Export ──────────────────────────────────────────────────────────
+// Returns a JSON envelope with all table data. Excludes profiles (auth-managed).
+app.get('/export', async (c) => {
+  const db = getDB(c)
+  const [allBooks, allPatrons, allLoans, allTxns, allClasses, allRules, allConfig, allEvents] = await Promise.all([
+    db.select().from(books),
+    db.select().from(patrons),
+    db.select().from(loans),
+    db.select().from(transactions),
+    db.select().from(libraryClasses),
+    db.select().from(circulationRules),
+    db.select().from(systemConfiguration),
+    db.select().from(libraryEvents),
+  ])
+  return c.json({
+    version: '3.4.0',
+    exported_at: new Date().toISOString(),
+    tables: {
+      books: allBooks,
+      patrons: allPatrons,
+      loans: allLoans,
+      transactions: allTxns,
+      library_classes: allClasses,
+      circulation_rules: allRules,
+      system_configuration: allConfig,
+      library_events: allEvents,
+    }
+  })
+})
+
+// ── Full Data Import (Restore) ────────────────────────────────────────────────
+// Wipes and restores all tables from a previously exported backup.
+app.post('/import', async (c) => {
+  const body = await c.req.json()
+  if (!body?.tables) return c.json({ error: 'Invalid backup format — missing tables key' }, 400)
+  const t = body.tables
+  const db = getDB(c)
+
+  // Helper: insert in chunks to stay within SQLite bound-variable limits
+  const insertChunked = async (table: any, rows: any[], chunkSize = 50) => {
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      await db.insert(table).values(rows.slice(i, i + chunkSize))
+    }
+  }
+
+  // Delete in reverse-dependency order
+  await db.delete(transactions)
+  await db.delete(loans)
+  await db.delete(patrons)
+  await db.delete(books)
+  await db.delete(libraryClasses)
+  await db.delete(circulationRules)
+  await db.delete(libraryEvents)
+  await db.delete(systemConfiguration)
+
+  // Reinsert in dependency order
+  if (t.system_configuration?.length) await insertChunked(systemConfiguration, t.system_configuration)
+  if (t.circulation_rules?.length)    await insertChunked(circulationRules, t.circulation_rules)
+  if (t.library_events?.length)       await insertChunked(libraryEvents, t.library_events)
+  if (t.library_classes?.length)      await insertChunked(libraryClasses, t.library_classes)
+  if (t.books?.length)                await insertChunked(books, t.books)
+  if (t.patrons?.length)              await insertChunked(patrons, t.patrons)
+  if (t.loans?.length)                await insertChunked(loans, t.loans)
+  if (t.transactions?.length)         await insertChunked(transactions, t.transactions)
+
   return c.json({ success: true })
 })
 

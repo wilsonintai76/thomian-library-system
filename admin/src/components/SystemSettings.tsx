@@ -120,8 +120,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                 if (success) {
                     if (onRefreshConfig) onRefreshConfig();
                     alert("Restore Complete.");
-                } else { alert("Invalid format."); }
-            } finally { setIsProcessing(false); }
+                } else { alert("Invalid backup file — could not import."); }
+            } catch { alert('Restore failed. Please check the file and try again.'); }
+            finally { setIsProcessing(false); }
         };
         reader.readAsText(file);
     };
@@ -346,19 +347,19 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
             <section className="space-y-6">
                 <div className="flex items-center gap-3">
                     <Database className="h-6 w-6 text-blue-600" />
-                    <h3 className="text-xl font-bold">Configuration Backup</h3>
+                    <h3 className="text-xl font-bold">Data Backup</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 flex flex-col">
                         <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-inner mb-8"><Download className="h-8 w-8" /></div>
-                        <h4 className="text-xl font-black uppercase tracking-tight mb-2">Export Configuration</h4>
-                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Download system configuration (themes, map layout, rules) as a portable JSON backup.</p>
-                        <button onClick={handleBackup} className="w-full py-5 rounded-2xl bg-blue-600 text-white font-black text-xs uppercase hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-blue-100">Export Config</button>
+                        <h4 className="text-xl font-black uppercase tracking-tight mb-2">Export All Data</h4>
+                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Download all books, patrons, loans, transactions and configuration as a portable JSON backup.</p>
+                        <button onClick={handleBackup} disabled={isProcessing} className="w-full py-5 rounded-2xl bg-blue-600 text-white font-black text-xs uppercase hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-blue-100">{isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export Backup</button>
                     </div>
                     <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 flex flex-col">
                         <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center shadow-inner mb-8"><Upload className="h-8 w-8" /></div>
                         <h4 className="text-xl font-black uppercase tracking-tight mb-2">Restore Backup</h4>
-                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Restore a previously exported configuration backup file.</p>
+                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Restore all data from a previously exported backup. <span className="text-rose-600 font-bold">This overwrites all current records.</span></p>
                         <input type="file" ref={fileInputRef} onChange={handleRestore} accept=".json" className="hidden" />
                         <button onClick={() => fileInputRef.current?.click()} className="w-full py-5 rounded-2xl bg-white border-2 border-slate-100 text-slate-600 font-black text-xs uppercase hover:bg-slate-50 transition-all flex items-center justify-center gap-3">Select File</button>
                     </div>
