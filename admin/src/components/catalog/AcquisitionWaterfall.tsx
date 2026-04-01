@@ -36,9 +36,10 @@ const AcquisitionWaterfall: React.FC<AcquisitionWaterfallProps> = ({ steps }) =>
                     step.status === 'STUB' ? 'text-amber-600' :
                     'text-slate-400'}`}>
                     {step.source === 'LOCAL' ? 'Thomian Core DB' :
-                     step.source === 'CLASSIFY' ? 'Dewey Decimal (DDC)' :
                      step.source === 'OPEN_LIBRARY' ? 'Open Library' :
                      step.source === 'GOOGLE_BOOKS' ? 'Google Books' :
+                     step.source === 'CLASSIFY' ? 'Dewey Decimal (DDC)' :
+                     step.source === 'WORKERS_AI' ? 'Workers AI (DDC Fallback)' :
                      step.source}
                 </p>
                 <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">

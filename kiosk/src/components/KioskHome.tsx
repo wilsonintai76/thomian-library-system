@@ -38,6 +38,8 @@ const KioskHome: React.FC = () => {
 
     const [showHoldModal, setShowHoldModal] = useState(false);
     const [holdStudentId, setHoldStudentId] = useState('');
+    const [holdPin, setHoldPin] = useState('');
+    const [holdError, setHoldError] = useState('');
     const [isPlacingHold, setIsPlacingHold] = useState(false);
     const [holdSuccess, setHoldSuccess] = useState(false);
     const [holdConfirmationId, setHoldConfirmationId] = useState<string | null>(null);
@@ -52,12 +54,6 @@ const KioskHome: React.FC = () => {
     const reserveSectionRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // -- Browser Closure Cache Clear --
-        window.onbeforeunload = () => {
-            localStorage.clear();
-            sessionStorage.clear();
-        };
-
         // -- Offline/Online Detection --
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
@@ -154,22 +150,37 @@ const KioskHome: React.FC = () => {
     };
 
     const initiateHold = () => {
-        if (activePatron) processHold(activePatron.student_id);
-        else {
+        if (activePatron) {
+            processHold(activePatron.student_id, null);
+        } else {
             setHoldSuccess(false);
+            setHoldError('');
+            setHoldStudentId('');
+            setHoldPin('');
             setShowHoldModal(true);
         }
     };
 
-    const processHold = async (studentId: string) => {
+    const processHold = async (studentId: string, pin: string | null) => {
         if (!selectedBook) return;
         if (!isOnline) {
             alert('No internet connection. Please reconnect and try again.');
             return;
         }
         setIsPlacingHold(true);
+        setHoldError('');
 
         try {
+            // Guest path: verify PIN first to obtain a JWT, then place hold, then clean up the temp token
+            if (pin !== null) {
+                const verified = await mockVerifyPatron(studentId, pin);
+                if (!verified) {
+                    setHoldError('Invalid Student ID or PIN. Please try again.');
+                    setIsPlacingHold(false);
+                    return;
+                }
+                // Token is now in localStorage — mockPlaceHold will pick it up via apiClient
+            }
             const result = await mockPlaceHold(selectedBook.id, studentId);
             const newStatus = 'HELD' as const;
             const updatedBook = { ...selectedBook, status: newStatus };
@@ -190,8 +201,10 @@ const KioskHome: React.FC = () => {
                 setTimeout(() => setHoldSuccess(false), 5000);
             }
         } catch (err: any) {
-            alert(err.message || 'Unable to place hold. Please try again.');
+            setHoldError(err.message || 'Unable to place hold. Please try again.');
         } finally {
+            // If this was a guest hold (pin provided), clear the temp patron JWT so we stay anonymous
+            if (pin !== null) localStorage.removeItem('thomian_session_token');
             setIsPlacingHold(false);
         }
     };
@@ -478,7 +491,7 @@ const KioskHome: React.FC = () => {
                                 </div>
                                 <div className="p-8 space-y-6">
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Student Identity ID</label>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Student ID</label>
                                         <div className="relative">
                                             <Users className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
                                             <input
@@ -493,6 +506,22 @@ const KioskHome: React.FC = () => {
                                             />
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">PIN</label>
+                                        <div className="relative">
+                                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+                                            <input
+                                                type="password"
+                                                inputMode="numeric"
+                                                maxLength={4}
+                                                value={holdPin}
+                                                onChange={(e) => { setHoldPin(e.target.value.replace(/\D/g, '')); setHoldError(''); }}
+                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 pl-12 font-mono font-bold text-slate-700 outline-none focus:border-blue-600 tracking-[0.5em]"
+                                                placeholder="••••"
+                                            />
+                                        </div>
+                                    </div>
+                                    {holdError && <p className="text-xs font-bold text-red-500 text-center">{holdError}</p>}
                                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Asset</p>
                                         <p className="font-bold text-slate-800 text-sm truncate">{selectedBook?.title}</p>
@@ -500,9 +529,9 @@ const KioskHome: React.FC = () => {
                                     <div className="flex gap-3">
                                         <button onClick={() => setShowHoldModal(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-xl font-black text-xs uppercase tracking-widest">Cancel</button>
                                         <button
-                                            onClick={() => processHold(holdStudentId)}
-                                            disabled={isPlacingHold || !holdStudentId}
-                                            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-2"
+                                            onClick={() => processHold(holdStudentId, holdPin)}
+                                            disabled={isPlacingHold || !holdStudentId || holdPin.length < 4}
+                                            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50"
                                         >
                                             {isPlacingHold ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Confirm Hold"}
                                         </button>

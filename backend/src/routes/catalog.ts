@@ -167,23 +167,61 @@ app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() }))
 
   const ol = await fetchOpenLibrary(isbn)
   if (ol && ol.status === 'FOUND') {
+      let ddc_source = 'OL'
       if (!ol.data.ddc_code || ol.data.ddc_code === '000') {
-          // Books API already tried inside fetchOpenLibrary; try GB categories as cross-check
+          // Step 1: try GB categories via inferDDC
           const gbMatch = await fetchGoogleBooks(isbn);
           if (gbMatch && gbMatch.data.ddc_code !== '000') {
               ol.data.ddc_code = gbMatch.data.ddc_code;
+              ddc_source = 'GB'
+          } else {
+              // Step 2: CLASSIFY — try inferDDC on the book's own title/author/publisher metadata
+              const classifyDDC = inferDDC([ol.data.title, ol.data.author, ol.data.publisher])
+              if (classifyDDC !== '000') {
+                  ol.data.ddc_code = classifyDDC
+                  ddc_source = 'CLASSIFY'
+              } else {
+                  // Step 3: Workers AI as final fallback
+                  const aiDDC = await fetchDDCFromWorkersAI(ol.data.title, ol.data.author, ol.data.publisher, c.env.AI)
+                  if (aiDDC !== '000') {
+                      ol.data.ddc_code = aiDDC
+                      ddc_source = 'WORKERS_AI'
+                  } else {
+                      ddc_source = 'NONE'
+                  }
+              }
           }
       }
-      return c.json(ol)
+      return c.json({ ...ol, ddc_source })
   }
   const gb = await fetchGoogleBooks(isbn)
   if (gb) {
-      // If GB categories didn't resolve DDC, try the OL Books API specifically for Dewey
+      let ddc_source = 'GB'
       if (!gb.data.ddc_code || gb.data.ddc_code === '000') {
+          // Step 1: try OL Books API for Dewey
           const olBooksDDC = await fetchDDCFromOLBooks(isbn);
-          if (olBooksDDC !== '000') gb.data.ddc_code = olBooksDDC;
+          if (olBooksDDC !== '000') {
+              gb.data.ddc_code = olBooksDDC
+              ddc_source = 'OL'
+          } else {
+              // Step 2: CLASSIFY — try inferDDC on the book's own title/author/publisher metadata
+              const classifyDDC = inferDDC([gb.data.title, gb.data.author, gb.data.publisher])
+              if (classifyDDC !== '000') {
+                  gb.data.ddc_code = classifyDDC
+                  ddc_source = 'CLASSIFY'
+              } else {
+                  // Step 3: Workers AI as final fallback
+                  const aiDDC = await fetchDDCFromWorkersAI(gb.data.title, gb.data.author, gb.data.publisher, c.env.AI)
+                  if (aiDDC !== '000') {
+                      gb.data.ddc_code = aiDDC
+                      ddc_source = 'WORKERS_AI'
+                  } else {
+                      ddc_source = 'NONE'
+                  }
+              }
+          }
       }
-      return c.json(gb)
+      return c.json({ ...gb, ddc_source })
   }
   return c.json({ status: 'NOT_FOUND', data: { isbn, title: '', author: '', ddc_code: '000', status: 'STUB' } })
 })
@@ -235,12 +273,37 @@ app.get('/barcode/:barcode', async (c) => {
     return c.json(book)
 })
 
+async function fetchDDCFromWorkersAI(title: string, author: string, publisher: string, ai: any): Promise<string> {
+    try {
+        const prompt = `You are a library cataloging assistant. Given the book information below, reply with ONLY a 3-digit Dewey Decimal Classification (DDC) number and nothing else. No explanation, no punctuation, just the 3 digits.\n\nTitle: "${title}"\nAuthor: "${author}"\nPublisher: "${publisher}"`
+        const response: any = await ai.run('@cf/meta/llama-3.1-8b-instruct', {
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 10
+        })
+        const text: string = response?.response?.trim() || ''
+        const match = text.match(/\b(\d{3})\b/)
+        return match ? match[1] : '000'
+    } catch { return '000' }
+}
+
+async function generateBarcode(db: any, year: number): Promise<string> {
+    const prefix = `BC-${year}-`
+    const [row] = await db.select({ id: books.barcode_id })
+        .from(books)
+        .where(like(books.barcode_id, `${prefix}%`))
+        .orderBy(desc(books.barcode_id))
+        .limit(1)
+    const lastNum = row?.id ? (parseInt(row.id.replace(prefix, '')) || 0) : 0
+    return `${prefix}${String(lastNum + 1).padStart(4, '0')}`
+}
+
 app.post('/', zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const bookData = c.req.valid('json') as any
     const id = crypto.randomUUID()
-    // Convert empty barcode_id to null so SQLite UNIQUE allows multiple unassigned copies
-    const sanitized = { ...bookData, barcode_id: bookData.barcode_id || null }
+    // Auto-generate barcode if not provided (e.g. BC-2026-0001). Null only kept for imports.
+    const barcode_id = bookData.barcode_id || await generateBarcode(db, new Date().getFullYear())
+    const sanitized = { ...bookData, barcode_id }
     try {
         await db.insert(books).values({ ...sanitized, id })
     } catch (err: any) {

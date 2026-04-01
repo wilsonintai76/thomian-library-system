@@ -112,5 +112,3 @@ export const performFactoryReset = async () => {
 // ── AI ────────────────────────────────────────────────────────────────────────
 export const aiAnalyzeBlueprint = (i: string, l: string) => { requireOnline('AI Analysis'); return real.aiAnalyzeBlueprint(i, l); };
 
-export const reclassifyBook = (id: string) => { requireOnline('Reclassify Book'); return real.reclassifyBook(id); };
-

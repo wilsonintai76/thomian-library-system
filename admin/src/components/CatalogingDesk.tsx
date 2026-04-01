@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, Sparkles, BookOpen, Keyboard, LayoutGrid, Settings2, Building, CheckCircle, Scissors } from 'lucide-react';
-import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, reclassifyBook, uploadToR2 } from '../services/api';
+import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, BookOpen, Keyboard, LayoutGrid, Settings2, Building, CheckCircle, Scissors } from 'lucide-react';
+import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, uploadToR2 } from '../services/api';
 import { Book as BookType } from '../types';
 import { getClassificationFromDDC } from '../utils';
 import MobileScanner from './MobileScanner';
@@ -27,7 +27,8 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     { source: 'LOCAL', status: 'IDLE' },
     { source: 'OPEN_LIBRARY', status: 'IDLE' },
     { source: 'GOOGLE_BOOKS', status: 'IDLE' },
-    { source: 'CLASSIFY', status: 'IDLE' }
+    { source: 'CLASSIFY', status: 'IDLE' },
+    { source: 'WORKERS_AI', status: 'IDLE' }
   ]);
   const [result, setResult] = useState<Partial<BookType> | null>(null);
   const [bulkPreviewBooks, setBulkPreviewBooks] = useState<Partial<BookType>[] | null>(null);
@@ -108,26 +109,6 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     // Example usage in your render:
     // {result && (result as any)._source && <div className="text-xs text-slate-500 mt-1">Source: {(result as any)._source}</div>}
     });
-  };
-
-  const handleReclassify = async () => {
-    if (!result || !result.id) return;
-    setIsSaving(true);
-    try {
-      const data = await reclassifyBook(result.id);
-      // If server returned a success:false payload (metdata not found but endpoint exists)
-      if (data && (data as any).success === false) {
-        alert(`Reclassification failed: ${(data as any).error || 'Metadata could not be resolved.'}`);
-      } else if (data && data.title) {
-        // Successful fetch returns the full Book object. Merge or replace.
-        // Merging is safer in case some UI-only fields were edited.
-        setResult(prev => ({ ...prev, ...data }));
-      }
-    } catch (err: any) {
-      alert(`Reclassification failed: ${err?.message || 'Unknown error.'}`);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleCommit = async () => {
@@ -514,7 +495,6 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                       setIsSaving(false);
                     }
                   }}
-                  onReclassify={handleReclassify}
                 />
               </>
             )}

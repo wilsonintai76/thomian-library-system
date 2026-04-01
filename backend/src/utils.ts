@@ -7,6 +7,7 @@ export type Bindings = {
   DB: any // D1Database
   KV: any // KVNamespace
   R2: any // R2Bucket
+  AI: any // Workers AI
 }
 
 // Helper for hashing (simple SHA-256 for demo, replace with PBKDF2 for production)

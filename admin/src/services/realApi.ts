@@ -171,17 +171,39 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
                 onUpdate('LOCAL', 'FOUND');
                 onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
                 onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
+                onUpdate('CLASSIFY', 'NOT_FOUND');
+                onUpdate('WORKERS_AI', 'NOT_FOUND');
             } else if (data.source === 'Open Library') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');
                 onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
+                // DDC resolution chain
+                if (data.ddc_source === 'CLASSIFY') {
+                    onUpdate('CLASSIFY', 'FOUND'); onUpdate('WORKERS_AI', 'NOT_FOUND');
+                } else if (data.ddc_source === 'WORKERS_AI') {
+                    onUpdate('CLASSIFY', 'NOT_FOUND'); onUpdate('WORKERS_AI', 'FOUND');
+                } else if (data.ddc_source === 'NONE') {
+                    onUpdate('CLASSIFY', 'NOT_FOUND'); onUpdate('WORKERS_AI', 'NOT_FOUND');
+                } else {
+                    onUpdate('CLASSIFY', data.data.ddc_code && data.data.ddc_code !== '000' ? 'FOUND' : 'NOT_FOUND');
+                    onUpdate('WORKERS_AI', 'NOT_FOUND');
+                }
             } else if (data.source === 'Google Books') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
                 onUpdate('GOOGLE_BOOKS', 'FOUND');
+                // DDC resolution chain
+                if (data.ddc_source === 'CLASSIFY') {
+                    onUpdate('CLASSIFY', 'FOUND'); onUpdate('WORKERS_AI', 'NOT_FOUND');
+                } else if (data.ddc_source === 'WORKERS_AI') {
+                    onUpdate('CLASSIFY', 'NOT_FOUND'); onUpdate('WORKERS_AI', 'FOUND');
+                } else if (data.ddc_source === 'NONE') {
+                    onUpdate('CLASSIFY', 'NOT_FOUND'); onUpdate('WORKERS_AI', 'NOT_FOUND');
+                } else {
+                    onUpdate('CLASSIFY', data.data.ddc_code && data.data.ddc_code !== '000' ? 'FOUND' : 'NOT_FOUND');
+                    onUpdate('WORKERS_AI', 'NOT_FOUND');
+                }
             }
-            if (data.data.ddc_code && data.data.ddc_code !== '000') onUpdate('CLASSIFY', 'FOUND');
-            else onUpdate('CLASSIFY', 'NOT_FOUND');
             return data.data;
         }
         // Backend returns { status:'NOT_FOUND', data:{ status:'STUB',...} } when all APIs miss
@@ -191,6 +213,7 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
             onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
             onUpdate('GOOGLE_BOOKS', 'STUB');
             onUpdate('CLASSIFY', 'NOT_FOUND');
+            onUpdate('WORKERS_AI', 'NOT_FOUND');
             return data.data || null;
         }
     } catch { /* fall through */ }
@@ -198,6 +221,7 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
     onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
     onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
     onUpdate('CLASSIFY', 'NOT_FOUND');
+    onUpdate('WORKERS_AI', 'NOT_FOUND');
     return null;
 };
 
@@ -437,11 +461,6 @@ export const importSystemData = async (jsonString: string): Promise<boolean> => 
 
 export const performFactoryReset = async (): Promise<void> => {
     // Implement on system router if needed
-};
-
-export const reclassifyBook = async (id: string): Promise<Book> => {
-     // Reclassify logic usually lives in waterfall_search or specialized route
-     throw new Error("Not implemented in D1 yet");
 };
 
 export const aiAnalyzeBlueprint = async (_imageBase64: string, _level: string): Promise<any> => {

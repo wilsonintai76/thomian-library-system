@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect } from 'react';
-import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe, Sparkles } from 'lucide-react';
+import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe } from 'lucide-react';
 import { Book } from '../../types';
 import { getClassificationFromDDC, DEWEY_CATEGORIES, getStarterDdcForClassification } from '../../utils';
 import BookLabel from '../BookLabel';
@@ -14,10 +14,9 @@ interface MARCEditorProps {
     onCommit: () => void;
     onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onCancel?: () => void;
-    onReclassify?: () => void;
 }
 
-const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSaving, copies = 1, onCommit, onPreview, onImageUpload, onCancel, onReclassify }) => {
+const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSaving, copies = 1, onCommit, onPreview, onImageUpload, onCancel }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-detect classification and suggest call number when DDC or Author changes
@@ -184,17 +183,6 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
                                     <span>DDC (Dewey)</span>
-                                    {book.id && book.isbn && onReclassify && (
-                                        <button 
-                                            onClick={onReclassify}
-                                            disabled={isSaving}
-                                            title="Re-fetch Dewey from international registries"
-                                            className="text-blue-600 hover:text-blue-700 font-black text-[9px] uppercase tracking-widest flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 disabled:opacity-50"
-                                        >
-                                            {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                                            Fetch Dewey
-                                        </button>
-                                    )}
                                 </label>
                                 <input type="text" value={book.ddc_code || ''} onChange={(e) => handleDdcChange(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 p-4 font-mono font-black text-emerald-600 outline-none focus:border-emerald-500 shadow-sm" placeholder="530" />
                             </div>
