@@ -6,15 +6,37 @@
 #   .\deploy.ps1 -Target kiosk    Deploy kiosk only
 #   .\deploy.ps1 -Target backend  Deploy backend only
 #   .\deploy.ps1 -NoBump          Deploy without bumping the version
+#   .\deploy.ps1 -Yes             Skip confirmation prompt
 
 param(
     [ValidateSet('admin', 'kiosk', 'backend', 'all')]
     [string]$Target = 'all',
-    [switch]$NoBump
+    [switch]$NoBump,
+    [switch]$Yes
 )
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
+
+# ── 0. Preview & confirm ─────────────────────────────────────────────────────
+$currentVer = (Get-Content package.json -Raw | ConvertFrom-Json).version
+$parts = $currentVer -split '\.'
+$nextVer = if ($NoBump) { $currentVer } else { "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)" }
+
+Write-Host ""
+Write-Host "  Thomian Library System — Deploy" -ForegroundColor White
+Write-Host "  ────────────────────────────────" -ForegroundColor DarkGray
+Write-Host "  Target  : $(if ($Target -eq 'all') { 'admin + kiosk + backend' } else { $Target })" -ForegroundColor Yellow
+Write-Host "  Version : v$currentVer$(if (-not $NoBump) { " → v$nextVer" })" -ForegroundColor Yellow
+Write-Host ""
+
+if (-not $Yes) {
+    $ans = Read-Host "  Proceed? [Y/n]"
+    if ($ans -and $ans -notmatch '^[Yy]') {
+        Write-Host "  Cancelled." -ForegroundColor DarkGray
+        exit 0
+    }
+}
 
 # ── 1. Bump version ──────────────────────────────────────────────────────────
 if (-not $NoBump) {
