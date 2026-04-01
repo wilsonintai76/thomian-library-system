@@ -38,6 +38,7 @@ node_modules/
 
 # Temporary cleanup candidates (logs/dumps)
 *.sql
+!backend/drizzle/migrations/*.sql
 deploy_output.txt
 d1_list.json
 d1_list_utf8.json

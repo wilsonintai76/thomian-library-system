@@ -82,7 +82,9 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
             setIsFormOpen(false);
             setEditingPatron(null);
         } catch (err) {
-            alert("Operation failed.");
+            const msg = err instanceof Error ? err.message : String(err);
+            alert(`Operation failed: ${msg}`);
+            console.error('Patron save error:', err);
         } finally {
             setIsSaving(false);
         }
@@ -123,52 +125,9 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
     };
 
 
-    const [isPrinting, setIsPrinting] = useState(false);
-
-    const handlePdfPrint = async () => {
+    const handlePdfPrint = () => {
         if (!bulkPreviewPatrons || bulkPreviewPatrons.length === 0) return;
-        setIsPrinting(true);
-        const patronIds = bulkPreviewPatrons.map(p => p.student_id);
-        const token = localStorage.getItem('thomian_auth_token');
-        // Pre-open preview tab to avoid popup blockers
-        const previewWin = window.open('', '_blank');
-        if (previewWin) {
-            previewWin.document.write('<!doctype html><html><body style="font-family:sans-serif;padding:16px">Generating patron cards...</body></html>');
-            previewWin.document.close();
-        }
-        try {
-            const resp = await fetch('/api/patrons/print_patron_cards/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Token ${token}` } : {}),
-                },
-                body: JSON.stringify({ patron_ids: patronIds }),
-            });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || `Server error ${resp.status}`);
-            }
-            const blob = await resp.blob();
-            if (!blob.size) {
-                throw new Error('Server returned an empty PDF file');
-            }
-            const url = URL.createObjectURL(blob);
-            if (previewWin) {
-                previewWin.location.href = url;
-            } else {
-                window.open(url, '_blank');
-            }
-            setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        } catch (err: unknown) {
-            if (previewWin && !previewWin.closed) {
-                previewWin.close();
-            }
-            const msg = err instanceof Error ? err.message : String(err);
-            alert(`Could not generate PDF: ${msg}`);
-        } finally {
-            setIsPrinting(false);
-        }
+        window.print();
     };
 
     const handlePrintRequest = (items: Patron[]) => {
@@ -271,8 +230,8 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                             ))}
                         </div>
                         <div className="flex flex-col gap-3 w-full max-w-sm print:hidden shrink-0">
-                            <button onClick={handlePdfPrint} disabled={isPrinting} className="w-full py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2 disabled:opacity-60">
-                                {isPrinting ? <><Loader2 className="h-4 w-4 animate-spin" /> Rendering…</> : <><Printer className="h-4 w-4" /> Print / Save as PDF</>}
+                            <button onClick={handlePdfPrint} className="w-full py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2">
+                                <Printer className="h-4 w-4" /> Print / Save as PDF
                             </button>
                             <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">Print on paper · Laminate · Done</p>
                             <button onClick={() => setBulkPreviewPatrons(null)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>

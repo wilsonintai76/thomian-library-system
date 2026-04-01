@@ -199,6 +199,11 @@ export const mockDeletePatron = async (id: string): Promise<void> => {
     if (!res.ok) throw new Error(await res.text());
 };
 
+export const mockRestorePatron = async (p: Patron): Promise<void> => {
+    // Re-insert the deleted patron (used for undo-delete)
+    await mockAddPatron(p);
+};
+
 export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron | null> => {
     try {
         const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
@@ -395,4 +400,9 @@ export const performFactoryReset = async (): Promise<void> => {
 export const reclassifyBook = async (id: string): Promise<Book> => {
      // Reclassify logic usually lives in waterfall_search or specialized route
      throw new Error("Not implemented in D1 yet");
+};
+
+export const aiAnalyzeBlueprint = async (_imageBase64: string, _level: string): Promise<any> => {
+    // AI blueprint analysis — not yet implemented for Cloudflare D1 backend
+    throw new Error("aiAnalyzeBlueprint not implemented");
 };
