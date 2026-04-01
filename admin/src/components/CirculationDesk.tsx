@@ -61,8 +61,8 @@ const CirculationDesk: React.FC<{ initialMode?: 'CHECK_OUT' | 'CHECK_IN' | 'RENE
                 setReturnResult(result);
                 setReturnHistory(prev => [result, ...prev]);
                 triggerFlash();
-            } catch (err) {
-                console.error(err);
+            } catch (err: any) {
+                alert(`Check-in error: ${err?.message || 'Please try again.'}`);
             }
         } else if (mode === 'RENEW') {
             try {
@@ -258,6 +258,9 @@ const CirculationDesk: React.FC<{ initialMode?: 'CHECK_OUT' | 'CHECK_IN' | 'RENE
                                                         <p className="font-black text-slate-800 truncate leading-none mb-1">{res.book.title}</p>
                                                         <p className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">Shelf: {res.book.shelf_location}</p>
                                                     </div>
+                                                    {res.already_checked_in && (
+                                                        <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0">Already Checked In</span>
+                                                    )}
                                                     {res.fine_amount > 0 && (
                                                         <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-black shrink-0">RM {res.fine_amount.toFixed(2)}</span>
                                                     )}

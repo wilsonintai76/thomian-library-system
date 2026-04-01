@@ -193,6 +193,8 @@ export interface CheckInResult {
   fine_amount: number;
   days_overdue: number;
   next_patron?: Patron;
+  already_checked_in?: boolean;
+  message?: string;
 }
 
 export interface CheckoutResult {

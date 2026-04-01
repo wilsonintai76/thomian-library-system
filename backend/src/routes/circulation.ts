@@ -132,7 +132,19 @@ app.post('/return_book', zValidator('json', returnBookSchema), async (c) => {
     .where(and(eq(loans.book_id, book.id), isNull(loans.returned_at)))
     .limit(1)
 
-    if (!loan) return c.json({ book, error: 'Book is not checked out' }, 400)
+    if (!loan) {
+        // Idempotent check-in: if the item is already available, return a non-error response
+        // so scanner workflows are not interrupted by repeated scans.
+        return c.json({
+            book,
+            patron: null,
+            fine_amount: 0,
+            days_overdue: 0,
+            next_patron: null,
+            already_checked_in: true,
+            message: 'Book is already checked in'
+        })
+    }
         
     await db.update(loans).set({ 
         returned_at: new Date().toISOString(),
@@ -150,7 +162,14 @@ app.post('/return_book', zValidator('json', returnBookSchema), async (c) => {
         timestamp: new Date().toISOString()
     })
     
-    return c.json({ book, patron: { full_name: loan.patron_name }, fine_amount: 0, next_patron: null })
+    return c.json({
+        book,
+        patron: { full_name: loan.patron_name },
+        fine_amount: 0,
+        days_overdue: 0,
+        next_patron: null,
+        already_checked_in: false
+    })
 })
 
 app.post('/renew', zValidator('json', renewBookSchema), async (c) => {

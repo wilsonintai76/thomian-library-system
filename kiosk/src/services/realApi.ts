@@ -19,6 +19,17 @@ function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
 }
 
+async function parseApiError(res: Response): Promise<string> {
+    try {
+        const raw = await res.text();
+        if (!raw) return `Request failed (${res.status})`;
+        const parsed = JSON.parse(raw) as { error?: string; message?: string };
+        return parsed.message || parsed.error || raw;
+    } catch {
+        return `Request failed (${res.status})`;
+    }
+}
+
 export const apiClient = hc<AppType>(API_BASE, {
     headers() {
         const token = getToken();
@@ -289,7 +300,13 @@ export const mockCheckoutBooks = async (pid: string, b: string[]): Promise<Check
 };
 export const mockProcessReturn = async (b: string): Promise<CheckInResult> => {
     const res = await apiClient.circulation.return_book.$post({ json: { barcode: b } });
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+        if (res.status === 401) {
+            localStorage.removeItem(TOKEN_KEY);
+            throw new Error('Session expired. Please authenticate again.');
+        }
+        throw new Error(await parseApiError(res));
+    }
     return await res.json() as unknown as Promise<CheckInResult>;
 };
 export const mockRenewBook = async (b: string, pid: string): Promise<any> => {
