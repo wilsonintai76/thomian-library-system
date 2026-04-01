@@ -88,8 +88,16 @@ app.post('/verify_pin', zValidator('json', z.object({
     patron: {
       id: patron.id,
       full_name: patron.full_name,
+      card_name: patron.card_name,
       student_id: patron.student_id,
-      patron_group: patron.patron_group
+      patron_group: patron.patron_group,
+      email: patron.email,
+      phone: patron.phone,
+      photo_url: patron.photo_url,
+      fines: patron.fines ?? 0,
+      total_paid: patron.total_paid ?? 0,
+      library_class_id: patron.library_class_id,
+      is_blocked: patron.is_blocked,
     }
   })
 })

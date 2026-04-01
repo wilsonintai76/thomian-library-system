@@ -288,9 +288,8 @@ export const mockGetActiveLoans = async (): Promise<Loan[]> => {
     return data.map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
 };
 export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => {
-    const res = await apiClient.circulation.active_loans.$get();
-    const data = res.ok ? (await res.json() as any[]) : [];
-    return data.filter(l => l.patrons?.student_id === studentId).map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
+    const res = await apiClient.circulation.patron_loans[':student_id'].$get({ param: { student_id: studentId } });
+    return res.ok ? (res.json() as Promise<Loan[]>) : [];
 };
 
 export const mockGetEvents = async (): Promise<LibraryEvent[]> => {

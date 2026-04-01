@@ -8,6 +8,25 @@ import { eq, isNull, lt, and, desc, sql } from 'drizzle-orm'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// Public endpoint — returns loans for a single patron by student_id (used by kiosk)
+app.get('/patron_loans/:student_id', async (c) => {
+  const db = getDB(c)
+  const student_id = c.req.param('student_id')
+  const [patron] = await db.select({ id: patrons.id }).from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
+  if (!patron) return c.json([])
+  const data = await db.select({
+    id: loans.id,
+    loaned_at: loans.loaned_at,
+    due_date: loans.due_date,
+    book: books,
+  })
+  .from(loans)
+  .leftJoin(books, eq(loans.book_id, books.id))
+  .where(and(isNull(loans.returned_at), eq(loans.patron_id, patron.id)))
+  .orderBy(desc(loans.loaned_at))
+  return c.json(data.map(l => ({ ...l, book_title: l.book?.title, book_barcode: l.book?.barcode_id })))
+})
+
 app.get('/active_loans', async (c) => {
   const db = getDB(c)
   const data = await db.select({
