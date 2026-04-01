@@ -1,137 +1,74 @@
 # Thomian Library System
 
-> Professional-grade Library Information System (ILS) with Wayfinding Kiosk for St. Thomas Secondary School.
+A professional-grade Library Information System for St. Thomas Secondary School, featuring a student kiosk with wayfinding and a librarian dashboard for cataloging and circulation.
 
-**Stack:** React 19 + TypeScript (Vite) · Django 5 + DRF · PostgreSQL · Nginx + Gunicorn · Google Gemini AI
+## 🏛️ Modern Architecture
 
----
+The system has been migrated from a legacy Django/SQLite stack to a modern, high-performance architecture:
 
-## Quick Start (Development)
+- **Frontend (Admin Portal)**: Built with React 19, Vite, and Shadcn UI. Deployed to Cloudflare Pages.
+- **Frontend (Patron Kiosk)**: Built with React 19, Vite, and Shadcn UI. Deployed to Cloudflare Pages.
+- **Backend**: Hono (TypeScript) running on Cloudflare Workers.
+- **Database**: Supabase (PostgreSQL) with Row Level Security (RLS) and RPC functions.
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL running locally
 
-### 1. Clone & set up environment
+- **Node.js**: Version 20 or higher.
+- **Supabase Account**: For database and authentication services.
+- **Cloudflare Account**: For deployment using Wrangler.
+
+### 1. Installation
+
+Install dependencies for all components:
+
 ```bash
-# Copy the environment template
-cp docs/.env.example .env
-```
-
-Edit `.env` and set at minimum:
-- `DJANGO_SECRET_KEY` — generate with the command in the file
-- `DB_PASSWORD` — your local PostgreSQL password
-- `DEBUG=True` — for development
-- `GEMINI_API_KEY` — from [Google AI Studio](https://aistudio.google.com/)
-
-### 2. Backend setup
-```bash
-# Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # Linux/macOS
-
-# Install dependencies
-pip install -r backend/requirements.txt
-
-# Apply database migrations
-python manage.py migrate
-
-# Create an admin user
-python manage.py createsuperuser
-```
-
-### 3. Frontend setup
-```bash
+# Install root dependencies
 npm install
+
+# Install sub-project dependencies
+cd admin && npm install
+cd ../kiosk && npm install
+cd ../backend && npm install
 ```
 
-### 4. Run both servers
+### 2. Local Development
 
-**Windows (recommended):**
-```
-Double-click dev.bat
-```
+Run the development servers:
 
-**Or manually:**
 ```bash
-# Terminal 1 — Backend
-python manage.py runserver 8000
+# Run Admin
+npm run dev:admin
 
-# Terminal 2 — Frontend
-npm run dev
+# Run Kiosk
+npm run dev:kiosk
+
+# Run Backend
+npm run dev:backend
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+### 3. Deployment
 
----
+Deploy to Cloudflare using Wrangler:
 
-## Production Deployment
-
-See [`docs/deployment.md`](docs/deployment.md) for the full guide including:
-- Nginx + Gunicorn + systemd setup
-- SSL/HTTPS with Cloudflare or Let's Encrypt
-- PostgreSQL backup strategy (`pg_dump` cron)
-- Hardware setup (Zebra printer, barcode scanners)
-
-**Quick deploy (Linux server):**
 ```bash
-chmod +x deploy.sh && ./deploy.sh
+# Deploy Admin
+npm run deploy:admin
+
+# Deploy Kiosk
+npm run deploy:kiosk
+
+# Deploy Backend
+npm run deploy:backend
 ```
 
----
+For more detailed information, see [cloudflare_deployment.md](./cloudflare_deployment.md).
 
-## Project Structure
+## 🛠️ Key Features
 
-```
-thomian-lib/
-├── manage.py               # Django management entry point
-├── deploy.sh               # Production deployment script (Linux)
-├── dev.bat                 # Development launcher (Windows)
-├── package.json            # Frontend dependencies
-├── vite.config.ts          # Vite build config
-├── App.tsx                 # React root component
-├── types.ts                # Shared TypeScript types
-├── backend/                # Django app (API, models, auth)
-│   ├── settings.py
-│   ├── urls.py
-│   ├── wsgi.py
-│   ├── models.py
-│   ├── views.py
-│   ├── serializers.py
-│   └── migrations/
-├── components/             # React UI components
-├── services/               # Frontend service modules
-├── docs/                   # Documentation
-│   ├── blueprint.md        # Architecture & schema reference
-│   ├── deployment.md       # Deployment guide
-│   └── .env.example        # Environment variable template
-└── public/                 # Static public assets
-```
-
----
-
-## Default Accounts (Demo)
-
-| Role | Username | PIN |
-|---|---|---|
-| Administrator | `admin` | `1234` |
-| Librarian | `librarian` | `5678` |
-
-> ⚠️ **Change these immediately** after first login via Django Admin (`/api/admin/`).
-
----
-
-## Key Features
-
-- 📚 MARC-Lite book cataloging with DDC/call number
-- 🔄 Full circulation (checkout, return, renewal, holds)
-- 👤 Patron management with photo IDs and PINs
-- 💰 Automated fine calculation and replacement assessment
-- 🖥️ Self-service Kiosk / Wayfinding interface
-- 📊 Librarian Command Dashboard with live KPIs
-- 🤖 Google Gemini AI (book summaries, shelf mapping)
-- 🏷️ Zebra ZPL printing (spine labels, patron cards, slips)
-- 📱 Barcode scanner integration (HID mode)
-- 🔒 Role-based access (Administrator / Librarian)
+- **Advanced Cataloging**: MARC-compatible book management.
+- **Student Kiosk**: Interactive wayfinding and search.
+- **Librarian Dashboard**: Real-time analytics and circulation management.
+- **Security**: Granular access control using Supabase RLS.
+- **Modern UI**: Dark-mode support, responsive design, and premium aesthetics.
