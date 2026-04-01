@@ -43,6 +43,7 @@ app.use('*', async (c, next) => {
     '/system/system-config',
     '/patrons/verify_pin',
     '/circulation/patron_loans',
+    '/system/alerts/trigger_help',
   ]
 
   if (method === 'OPTIONS' || PUBLIC_ROUTES.some(r => path.startsWith(r))) {
