@@ -291,7 +291,7 @@ app.post('/print_labels', zValidator('json', printLabelSchema), async (c) => {
       doc.setFontSize(6).text(String(book.author || '').slice(0, 3).toUpperCase(), 5, 25)
       doc.setFontSize(5).text(String(book.title || '').slice(0, 25), 5, 35)
       doc.rect(5, 45, 98, 20) 
-      doc.setFontSize(4).text(String(book.barcode_id || 'NO_BARCODE'), 54, 63, { align: 'center' })
+      doc.setFontSize(4).text(String(book.barcode_id || book.isbn || 'NO_BARCODE'), 54, 63, { align: 'center' })
     })
     return new Response(doc.output('arraybuffer'), { headers: { 'Content-Type': 'application/pdf' } })
 })
