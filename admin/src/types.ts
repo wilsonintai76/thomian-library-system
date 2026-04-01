@@ -188,10 +188,12 @@ export interface SystemAlert {
 export interface CirculationRule {
   id: string;
   patron_group: PatronGroup;
-  material_type: 'REGULAR' | 'REFERENCE';
-  loan_days: number;
+  item_type: 'REGULAR' | 'REFERENCE';
+  loan_period_days: number;
   max_items: number;
+  max_renewals: number;
   fine_per_day: number;
+  grace_period_days: number;
 }
 
 export interface CheckInResult {

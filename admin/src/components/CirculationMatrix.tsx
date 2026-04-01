@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Users, Book, Clock, AlertTriangle, Calculator, Calendar, CalendarOff, ArrowRight, Save, X, Edit, Loader2, CheckCircle2, Info, Plus } from 'lucide-react';
 import { CirculationRule, PatronGroup, LibraryEvent } from '../types';
-import { mockGetEvents, mockGetCirculationRules, mockUpdateCirculationRule } from '../services/api';
+import { mockGetEvents, mockGetCirculationRules, mockUpdateCirculationRule, mockAddCirculationRule } from '../services/api';
 
 const CirculationMatrix: React.FC = () => {
   // Rules State
@@ -15,10 +15,12 @@ const CirculationMatrix: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRuleForm, setNewRuleForm] = useState<Partial<CirculationRule>>({
     patron_group: 'STUDENT',
-    material_type: 'REGULAR',
-    loan_days: 14,
+    item_type: 'REGULAR',
+    loan_period_days: 14,
     max_items: 5,
-    fine_per_day: 0.50
+    max_renewals: 2,
+    fine_per_day: 0.50,
+    grace_period_days: 0,
   });
 
   // Simulator State
@@ -48,13 +50,13 @@ const CirculationMatrix: React.FC = () => {
 
   // 2. Calculation Logic
   useEffect(() => {
-    const rule = rules.find(r => r.patron_group === simPatron && r.material_type === simMaterial);
+    const rule = rules.find(r => r.patron_group === simPatron && r.item_type === simMaterial);
     setActiveRule(rule || null);
 
-    if (rule && rule.loan_days > 0) {
+    if (rule && rule.loan_period_days > 0) {
       const today = new Date();
       const rawDate = new Date(today);
-      rawDate.setDate(today.getDate() + rule.loan_days);
+      rawDate.setDate(today.getDate() + rule.loan_period_days);
       setBaseDueDate(rawDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
 
       let checkDate = new Date(rawDate);
@@ -118,28 +120,21 @@ const CirculationMatrix: React.FC = () => {
   const createRule = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/rules/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${localStorage.getItem('thomian_auth_token')}`
-        },
-        body: JSON.stringify(newRuleForm)
+      const created = await mockAddCirculationRule(newRuleForm);
+      setRules(prev => [...prev, created]);
+      setShowAddModal(false);
+      setNewRuleForm({
+        patron_group: 'STUDENT',
+        item_type: 'REGULAR',
+        loan_period_days: 14,
+        max_items: 5,
+        max_renewals: 2,
+        fine_per_day: 0.50,
+        grace_period_days: 0,
       });
-      if (response.ok) {
-        const created = await response.json();
-        setRules(prev => [...prev, created]);
-        setShowAddModal(false);
-        setNewRuleForm({
-          patron_group: 'STUDENT',
-          material_type: 'REGULAR',
-          loan_days: 14,
-          max_items: 5,
-          fine_per_day: 0.50
-        });
-      }
     } catch (err) {
-      console.error("Failed to create rule", err);
+      console.error('Failed to create rule', err);
+      alert('Failed to add policy. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -208,7 +203,7 @@ const CirculationMatrix: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{rule.material_type}</span>
+                    <span className="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{rule.item_type}</span>
                   </td>
 
                   {editingId === rule.id ? (
@@ -218,8 +213,8 @@ const CirculationMatrix: React.FC = () => {
                           <input
                             type="number"
                             className="w-full pl-3 pr-10 py-2 border-2 border-blue-200 rounded-xl text-sm font-black focus:border-blue-500 outline-none shadow-inner"
-                            value={editForm.loan_days}
-                            onChange={(e) => setEditForm({ ...editForm, loan_days: Math.max(0, parseInt(e.target.value)) })}
+                            value={editForm.loan_period_days}
+                            onChange={(e) => setEditForm({ ...editForm, loan_period_days: Math.max(0, parseInt(e.target.value)) })}
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">DAYS</span>
                         </div>
@@ -268,10 +263,10 @@ const CirculationMatrix: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-slate-300" />
-                          {rule.loan_days === 0 ? (
+                          {rule.loan_period_days === 0 ? (
                             <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 uppercase tracking-widest">No Loan</span>
                           ) : (
-                            <span className="text-sm font-black text-slate-700">{rule.loan_days} Days</span>
+                            <span className="text-sm font-black text-slate-700">{rule.loan_period_days} Days</span>
                           )}
                         </div>
                       </td>
@@ -353,7 +348,7 @@ const CirculationMatrix: React.FC = () => {
             <div className="flex flex-col md:flex-row items-start justify-between gap-6">
               <div className="flex-1">
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-4">Live Logic Result</p>
-                {activeRule?.loan_days === 0 ? (
+                {activeRule?.loan_period_days === 0 ? (
                   <div className="flex items-center gap-4 text-red-600 bg-red-50 p-6 rounded-2xl border border-red-100">
                     <AlertTriangle className="h-10 w-10 shrink-0" />
                     <div>
@@ -372,7 +367,7 @@ const CirculationMatrix: React.FC = () => {
                         <span className="text-3xl font-black text-slate-800 block tracking-tighter leading-none mt-1">{finalDueDate}</span>
                         <div className="mt-2 flex items-center gap-2">
                           <span className="bg-green-600 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase">Auto-Calculated</span>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase">Based on {activeRule?.loan_days || 0} Day Term</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase">Based on {activeRule?.loan_period_days || 0} Day Term</span>
                         </div>
                       </div>
                     </div>
@@ -439,8 +434,8 @@ const CirculationMatrix: React.FC = () => {
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Material Category</label>
                   <select
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-black text-sm outline-none focus:border-blue-500 transition-all"
-                    value={newRuleForm.material_type}
-                    onChange={(e) => setNewRuleForm({ ...newRuleForm, material_type: e.target.value as any })}
+                    value={newRuleForm.item_type}
+                    onChange={(e) => setNewRuleForm({ ...newRuleForm, item_type: e.target.value as any })}
                   >
                     <option value="REGULAR">REGULAR</option>
                     <option value="REFERENCE">REFERENCE</option>
@@ -455,8 +450,8 @@ const CirculationMatrix: React.FC = () => {
                     <input
                       type="number"
                       className="w-full bg-transparent text-2xl font-black text-center outline-none"
-                      value={newRuleForm.loan_days}
-                      onChange={(e) => setNewRuleForm({ ...newRuleForm, loan_days: parseInt(e.target.value) })}
+                      value={newRuleForm.loan_period_days}
+                      onChange={(e) => setNewRuleForm({ ...newRuleForm, loan_period_days: parseInt(e.target.value) })}
                     />
                   </div>
                   <p className="text-[8px] font-black text-center text-slate-300 uppercase mt-2">Days</p>
