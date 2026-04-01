@@ -169,6 +169,9 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
         if (data.status === 'FOUND') {
             if (data.source === 'LOCAL') {
                 onUpdate('LOCAL', 'FOUND');
+                onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
+                onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
+                onUpdate('CLASSIFY', 'NOT_FOUND');
             } else if (data.source === 'Open Library') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');

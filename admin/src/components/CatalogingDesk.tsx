@@ -242,7 +242,8 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const handlePrintAction = async () => {
     if (!bulkPreviewBooks || bulkPreviewBooks.length === 0) return;
     const bookIds = bulkPreviewBooks.map(b => b.id).filter(Boolean) as number[];
-    const token = localStorage.getItem('thomian_auth_token');
+    const token = localStorage.getItem('thomian_session_token');
+    const apiBase = import.meta.env.VITE_API_BASE || '/api';
     // Open preview tab immediately to avoid popup blockers after async fetch.
     const previewWin = window.open('', '_blank');
     if (previewWin) {
@@ -250,11 +251,11 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
       previewWin.document.close();
     }
     try {
-      const resp = await fetch('/api/catalog/print_labels/', {
+      const resp = await fetch(`${apiBase}/catalog/print_labels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Token ${token}` } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ book_ids: bookIds, layout: printLayout }),
       });

@@ -87,7 +87,15 @@ async function fetchGoogleBooks(isbn: string) {
 }
 
 app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() })), async (c) => {
+  const db = getDB(c)
   const { isbn } = c.req.valid('query')
+
+  // Step 0: Check local catalog first — by barcode_id, then by isbn
+  const [byBarcode] = await db.select().from(books).where(eq(books.barcode_id, isbn)).limit(1)
+  if (byBarcode) return c.json({ source: 'LOCAL', status: 'FOUND', data: byBarcode })
+  const [byIsbn] = await db.select().from(books).where(eq(books.isbn, isbn)).limit(1)
+  if (byIsbn) return c.json({ source: 'LOCAL', status: 'FOUND', data: byIsbn })
+
   const ol = await fetchOpenLibrary(isbn)
   if (ol && ol.status === 'FOUND') {
       if (!ol.data.ddc_code || ol.data.ddc_code === '000') {
@@ -152,7 +160,16 @@ app.post('/', zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const bookData = c.req.valid('json') as any
     const id = crypto.randomUUID()
-    await db.insert(books).values({ ...bookData, id })
+    // Convert empty barcode_id to null so SQLite UNIQUE allows multiple unassigned copies
+    const sanitized = { ...bookData, barcode_id: bookData.barcode_id || null }
+    try {
+        await db.insert(books).values({ ...sanitized, id })
+    } catch (err: any) {
+        if (err?.message?.includes('UNIQUE constraint failed: books.barcode_id')) {
+            return c.json({ error: 'Barcode ID already exists. Please assign a unique barcode sticker.' }, 409)
+        }
+        return c.json({ error: err?.message || 'Database error' }, 500)
+    }
     const [newBook] = await db.select().from(books).where(eq(books.id, id)).limit(1)
     return c.json(newBook)
 })
@@ -161,7 +178,15 @@ app.patch('/:id', zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const bookData = c.req.valid('json') as any
-    await db.update(books).set(bookData).where(eq(books.id, id))
+    const sanitized = { ...bookData, barcode_id: bookData.barcode_id || null }
+    try {
+        await db.update(books).set(sanitized).where(eq(books.id, id))
+    } catch (err: any) {
+        if (err?.message?.includes('UNIQUE constraint failed: books.barcode_id')) {
+            return c.json({ error: 'Barcode ID already exists. Please assign a unique barcode sticker.' }, 409)
+        }
+        return c.json({ error: err?.message || 'Database error' }, 500)
+    }
     const [updatedBook] = await db.select().from(books).where(eq(books.id, id)).limit(1)
     return c.json(updatedBook)
 })
