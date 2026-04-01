@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert, WifiOff, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert, WifiOff } from 'lucide-react';
 import { AdminTab, SystemAlert, AuthUser, MapConfig } from './types';
 import CatalogingDesk from './components/CatalogingDesk';
 import CirculationMatrix from './components/CirculationMatrix';
@@ -114,8 +114,6 @@ const App: React.FC = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
 
   const theme = mapConfig?.theme || 'EMERALD';
   const styles = SYSTEM_THEME_CONFIG[theme];
@@ -123,15 +121,6 @@ const App: React.FC = () => {
   const refreshConfig = async () => {
     const cfg = await mockGetMapConfig();
     setMapConfig(cfg);
-  };
-
-  const applyUpdate = () => {
-    if (swRegRef.current?.waiting) {
-      swRegRef.current.waiting.postMessage({ type: 'SKIP_WAITING' });
-      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
-    } else {
-      window.location.reload();
-    }
   };
 
   useEffect(() => {
@@ -149,15 +138,6 @@ const App: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
-
-  useEffect(() => {
-    const handleSwUpdate = (e: Event) => {
-      swRegRef.current = (e as CustomEvent<ServiceWorkerRegistration>).detail;
-      setUpdateAvailable(true);
-    };
-    window.addEventListener('swUpdateAvailable', handleSwUpdate);
-    return () => window.removeEventListener('swUpdateAvailable', handleSwUpdate);
   }, []);
 
   useEffect(() => {
@@ -308,20 +288,6 @@ const App: React.FC = () => {
       })()}
 
       {showResetModal && <ResetPasswordModal onClose={() => setShowResetModal(false)} />}
-
-      {/* Update Available Banner — fixed bottom-right toast so it's always visible */}
-      {updateAvailable && (
-        <div className="fixed bottom-6 right-6 z-[200] bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-900/30 px-5 py-4 flex items-center gap-4 text-[10px] font-black uppercase tracking-widest print:hidden animate-fade-in-up">
-          <RefreshCw className="h-4 w-4 shrink-0" style={{ animation: 'spin 3s linear infinite' }} />
-          <span>New version available</span>
-          <button onClick={applyUpdate} className="px-3 py-1.5 bg-white text-blue-700 rounded-xl font-black hover:bg-blue-50 transition-colors">
-            Update Now
-          </button>
-          <button onClick={() => setUpdateAvailable(false)} className="hover:opacity-70 transition-opacity" aria-label="Dismiss">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {/* Offline Banner */}
       {!isOnline && (

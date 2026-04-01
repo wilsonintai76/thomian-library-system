@@ -16,24 +16,17 @@ root.render(
   </React.StrictMode>
 );
 
-// PWA Service Worker Registration
+// PWA Service Worker Registration — auto-update via skipWaiting + controllerchange reload
 if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  // When the new SW takes control, reload so users get the latest assets
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((registration) => {
-      // A SW already waiting means a new version deployed while this tab was open
-      if (registration.waiting) {
-        window.dispatchEvent(new CustomEvent('swUpdateAvailable', { detail: registration }));
-      }
-      registration.addEventListener('updatefound', () => {
-        const newWorker = registration.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          // New SW installed + there's an active controller to replace = update ready
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            window.dispatchEvent(new CustomEvent('swUpdateAvailable', { detail: registration }));
-          }
-        });
-      });
-    }).catch(() => { /* non-critical */ });
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* non-critical */ });
   });
 }

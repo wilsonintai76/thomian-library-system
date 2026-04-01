@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'thomian-lib-v3.4.3';
+const CACHE_NAME = 'thomian-lib-v3.4.4';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -7,18 +7,13 @@ const PRECACHE_URLS = [
   '/school-logo.svg'
 ];
 
-// Install Event: Cache core assets immediately
+// Install Event: Cache core assets then activate immediately (auto-update)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
   );
-  // Do NOT call skipWaiting() here — the app will trigger it via postMessage.
-});
-
-// Allow the React app to trigger activation on demand
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  self.skipWaiting(); // Take over immediately — clients reload via controllerchange
 });
 
 // Activate Event: Clean up old caches

@@ -31,7 +31,7 @@ app.post('/login', zValidator('json', z.object({
   // 2. Issue JWT
   const payload = {
     id: user.id,
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 1 week
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30, // 30 days
   }
   const token = await sign(payload, c.env.JWT_SECRET, 'HS256')
 
