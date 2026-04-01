@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Deploy to Cloudflare
 
 on:
   push:
@@ -21,45 +21,33 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Admin Dependencies
-        run: |
-          cd admin
-          npm install
-
-      - name: Build Admin
-        run: |
-          cd admin
-          npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-      - name: Deploy Admin to Cloudflare Pages
+      - name: Deploy Backend (Worker)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy admin/dist --project-name=thomian-admin
+          workingDirectory: 'backend'
+          command: deploy
 
-      - name: Install Kiosk Dependencies
-        run: |
-          cd kiosk
-          npm install
-
-      - name: Build Kiosk
-        run: |
-          cd kiosk
-          npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Deploy Kiosk to Cloudflare Pages
+      - name: Build & Deploy Admin (Pages)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy kiosk/.next --project-name=thomian-kiosk
+          workingDirectory: 'admin'
+          command: pages deploy dist --project-name=thomian-admin
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+
+      - name: Build & Deploy Kiosk (Pages)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: 'kiosk'
+          command: pages deploy dist --project-name=thomian-kiosk
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
 
       - name: Bump Version and Tag
         run: |

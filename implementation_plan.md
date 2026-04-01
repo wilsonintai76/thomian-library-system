@@ -1,71 +1,83 @@
-# Architectural Re-Evaluation: Hono RPC vs. Hybrid SDK
+# Official System Architecture: "Cloudflare Native"
 
-You have brought up an excellent architectural question. While the **Hybrid SDK** model is fast and leverages PostgREST (Supabase's native API), transitioning to a **Hono RPC (Remote Procedure Call)** model offers massive benefits for maintainability, security, and developer experience.
+The **Thomian Library System** is built on a modern, high-performance, and fully type-safe "Cloudflare Native" stack. This document serves as the primary technical reference for the system's architecture.
 
-Here is an analysis of why this is a great idea, followed by an implementation plan.
+## 🏛️ Core Architecture
 
-## ⚖️ Tradeoff Analysis
-
-### Option A: The Current "Hybrid SDK" Model
-*(Frontend talks directly to Supabase JS for CRUD, and Hono for heavy stats).*
-- **Pros**: Zero backend boilerplate. The frontend can query `select('*, authors(*)')` directly. Real-time subscriptions are easy.
-- **Cons**: Security is entirely dependent on complex Row Level Security (RLS) policies. Business logic is split between frontend and backend. The frontend bundle includes the heavy `@supabase/supabase-js` SDK.
-
-### Option B: The Proposed "Hono RPC" Model
-*(Frontend ONLY uses Hono `hc` Client. Hono Worker talks to Supabase).*
-- **Pros**: 
-  - **End-to-End Type Safety**: Using Hono's `hc`, your frontend API calls get exact TypeScript inferences from your backend routes. No more guessing what the API returns.
-  - **Centralized Validation**: You can use Zod to validate payloads on the backend before they ever touch the database, preventing dirty data.
-  - **Clean Relational Shaping**: Complex joins (`select('*, authors(*)')`) happen in the backend, and you can map them into clean UI interfaces before sending them to the frontend.
-  - **Security**: The frontend never knows the structure of your database. RLS is still used, but the API layer acts as a gatekeeper.
-- **Cons**: Requires writing explicit endpoints for standard CRUD operations. Loss of trivial real-time database subscriptions (though polling or Cloudflare WebSockets remain options).
+The system utilizes a monorepo structure with three main components:
+1.  **Admin Portal (`/admin`)**: Vite 6 SPA (React 19) for library staff.
+2.  **Patron Kiosk (`/kiosk`)**: Vite 6 SPA (React 19) for student self-service.
+3.  **Backend Engine (`/backend`)**: Hono (TypeScript) running on **Cloudflare Workers**.
 
 ---
 
-## 🛠️ Proposed Implementation Plan: "Type-Safe API Gateway"
+## ⚙️ Backend & Persistence
 
-If you decide to proceed with Hono RPC, here is the structured rollout plan:
+The backend leverages Cloudflare's serverless infrastructure for maximum reliability and zero-maintenance operations.
 
-### Phase 1: Backend Type & Route Restructuring
-To support `hc`, we need to strictly type our API responses and inputs.
-1. **Install Zod**: Add `zod` and `@hono/zod-validator` to the backend.
-2. **Modular Routing**: Break `index.ts` into smaller route files (e.g., `routes/catalog.ts`, `routes/patrons.ts`) returning chainable Hono instances.
-3. **Define AppType**: Export the combined `AppType` from `index.ts` so the frontend can consume it.
+### 🗄️ Database: Cloudflare D1 + Drizzle ORM
+- **Storage**: Primary data (Books, Patrons, Transactions) is stored in **Cloudflare D1** (SQLite).
+- **ORM**: **Drizzle ORM** provides type-safe query building and automated schema management.
+- **Workflow**: Schema is defined in `backend/src/db/schema.ts` and managed via `drizzle-kit`.
 
-### Phase 2: Relational Data Mapping (Backend)
-1. In the backend routes, perform the complex Supabase relational queries:
-   ```typescript
-   // Example Hono Route
-   app.get('/books', async (c) => {
-     const { data } = await supabase.from('books').select('*, book_authors(authors(name))');
-     // Map it to a clean type
-     const shaped = data.map(b => ({ ...b, author_names: b.book_authors.map(a => a.authors.name) }));
-     return c.json(shaped);
-   });
-   ```
+### 🖼️ Assets & Storage: Cloudflare R2
+- All binary assets (Book Covers, Staff IDs) are stored in a **Cloudflare R2** bucket (`thomian-assets`).
+- R2 provides S3-compatible API access with zero egress fees.
 
-### Phase 3: Frontend `hc` Integration
-1. Configure the `hc` client in the frontend:
-   ```typescript
-   import { hc } from 'hono/client';
-   import type { AppType } from '../../../backend/src/index'; // Import types directly
-   
-   export const apiClient = hc<AppType>(import.meta.env.VITE_API_BASE_URL);
-   ```
-2. Replace all `supabase.from(...)` and generic `fetch` calls in `realApi.ts` with type-safe RPC calls:
-   ```typescript
-   const res = await apiClient.catalog.books.$get();
-   const books = await res.json(); // Fully typed!
-   ```
+### 🤖 Intelligent Cataloging: Workers AI
+- The system uses **Cloudflare Workers AI** (`@cf/meta/llama-3.1-8b-instruct`) as a fallback for automatic **Dewey Decimal Classification (DDC)** when metadata is missing from Open Library or Google Books.
 
-### Phase 4: Auth Handling
-1. Supabase Auth (JWTs) will remain on the frontend to manage the session securely in LocalStorage/Cookies.
-2. We will intercept Hono `hc` requests to attach the `Authorization: Bearer <token>` header.
-3. The Hono backend will use this token when creating the Supabase client so RLS continues to protect user-specific data.
+---
 
-## 📝 User Review Required
+## 📡 API Strategy: Hono RPC (`hc`)
 
-> [!IMPORTANT]
-> Transitioning to Hono RPC means we will write endpoints for standard CRUD instead of letting the frontend do it directly. 
-> 
-> **Are you ready to proceed with migrating the application to a fully type-safe Hono RPC architecture?** If you approve, I will begin by restructuring the backend to export `AppType` and setting up Zod validation.
+The system uses a **Type-Safe RPC** model instead of traditional REST/SDK calls. This ensures full end-to-end type safety between the backend and frontends.
+
+### Benefits
+- **Zero-Cohesion Type Safety**: The frontend automatically knows the exact shape of every API response.
+- **No Manual Types**: Changes in the backend's Zod validators or response types are instantly reflected in the frontends.
+- **Centralized Validation**: Zod is used at the gateway to ensure only valid data enters the system.
+
+### Configuration Example
+The frontend initializes the `hc` client using the backend's exported `AppType`:
+```typescript
+import { hc } from 'hono/client';
+import type { AppType } from '../../../backend/src/index';
+
+export const client = hc<AppType>(import.meta.env.VITE_API_BASE_URL);
+```
+
+---
+
+## 🔐 Security & Auth
+
+The system uses **JWT-based Authentication** (HS256) at the Worker edge.
+
+- **Frontend**: Stores the JWT in a secure session.
+- **Backend Middleware**: Every request (except public routes like `/health` or home-screen stats) passes through a JWT verification middleware.
+- **Authorization**: The `Authorization: Bearer <token>` header is automatically attached to all `hc` client requests.
+
+---
+
+## 🎨 Frontend Stack: Vite 6 + React 19
+
+The frontend is built for speed and developer productivity.
+- **Framework**: **React 19** using the latest patterns (Hooks, Concurrent Rendering).
+- **Styling**: **Tailwind CSS v4** for a high-performance, utility-first design system.
+- **UI Components**: **Shadcn UI** (built on Base UI) for a premium, accessible interface.
+
+---
+
+## 🛠️ Tech Stack Recap
+
+| Layer | Technology |
+| :--- | :--- |
+| **Language** | TypeScript |
+| **Framework (Backend)** | Hono (Cloudflare Workers) |
+| **Framework (Frontend)** | React 19 (Vite 6) |
+| **Primary Database** | Cloudflare D1 (SQLite) |
+| **ORM** | Drizzle ORM |
+| **File Storage** | Cloudflare R2 |
+| **Classification AI** | Workers AI (Llama 3.1) |
+| **Styling** | Tailwind CSS v4 |
+| **RPC Engine** | Hono `hc` |
