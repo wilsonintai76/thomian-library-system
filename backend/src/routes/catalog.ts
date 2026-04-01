@@ -54,17 +54,66 @@ app.get('/stats', async (c) => {
   }
 })
 
-// Dewey Resolvers
-const DDC_MAP: Record<string, string> = {
-    'Fiction': '823', 'Juvenile Fiction': '823', 'Science': '500', 'History': '900', 'Religion': '200', 'Philosophy': '100', 'Psychology': '150', 'Social Sciences': '300', 'Language': '400', 'Mathematics': '510', 'Technology': '600', 'Arts': '700', 'Literature': '800', 'Geography': '910', 'Biography': '920'
-}
+// Dewey Resolvers — keyword list searched case-insensitively against all category strings combined
+// Ordered from most-specific to most-general so "juvenile fiction" beats plain "fiction"
+const DDC_ENTRIES: [string, string][] = [
+  // 000 – General Works / Computer Science
+  ['data science', '006'], ['machine learning', '006'], ['artificial intelligence', '006'],
+  ['computer science', '004'], ['programming', '005'], ['software', '005'],
+  ['computing', '004'], ['internet', '004'], ['database', '005'],
+  // 100 – Philosophy & Psychology
+  ['self-help', '158'], ['self help', '158'], ['motivation', '158'],
+  ['psychology', '150'], ['philosophy', '100'], ['ethics', '170'], ['logic', '160'],
+  // 200 – Religion
+  ['christianity', '230'], ['islam', '297'], ['buddhism', '294'],
+  ['spirituality', '248'], ['theology', '230'], ['bible', '220'], ['religion', '200'],
+  // 300 – Social Sciences
+  ['current events', '300'], ['world affairs', '300'],
+  ['economics', '330'], ['economy', '330'], ['political science', '320'], ['politics', '320'],
+  ['law', '340'], ['education', '370'], ['business', '650'], ['management', '658'],
+  ['sociology', '301'], ['anthropology', '306'], ['statistics', '310'], ['social science', '300'],
+  // 400 – Language
+  ['linguistics', '410'], ['grammar', '415'], ['dictionary', '423'],
+  ['english language', '420'], ['language', '400'],
+  // 500 – Science
+  ['astronomy', '520'], ['chemistry', '540'], ['physics', '530'],
+  ['ecology', '577'], ['botany', '580'], ['zoology', '590'],
+  ['geology', '551'], ['mathematics', '510'], ['math', '510'],
+  ['biology', '570'], ['scientific', '500'], ['nature', '508'], ['science', '500'],
+  // 600 – Technology / Applied
+  ['medicine', '610'], ['medical', '610'], ['health', '613'],
+  ['cooking', '641'], ['culinary', '641'], ['food', '641'],
+  ['engineering', '620'], ['architecture', '720'], ['agriculture', '630'], ['technology', '600'],
+  // 700 – Arts & Recreation
+  ['photography', '770'], ['graphic novel', '741'], ['comics', '741'], ['comic', '741'],
+  ['drawing', '741'], ['music', '780'], ['dance', '792'], ['theater', '792'],
+  ['cinema', '791'], ['film', '791'], ['sports', '796'], ['games', '794'],
+  ['crafts', '745'], ['design', '745'], ['art', '700'],
+  // 800 – Literature
+  ['juvenile fiction', '823'], ['juvenile nonfiction', '500'],
+  ['young adult fiction', '823'], ['young adult', '823'],
+  ['short stor', '823'], ['poetry', '811'], ['drama', '812'],
+  ['literature', '800'], ['fiction', '823'], ['novel', '823'],
+  // 900 – History & Geography
+  ['world war', '940'], ['biography', '920'],
+  ['travel', '910'], ['geography', '910'], ['historical', '900'], ['history', '900'],
+]
 function inferDDC(categories: string[] | undefined): string {
-    if (!categories || categories.length === 0) return '000';
-    for (const cat of categories) {
-      if (DDC_MAP[cat]) return DDC_MAP[cat];
-      for (const key in DDC_MAP) { if (cat.includes(key)) return DDC_MAP[key]; }
-    }
-    return '000';
+  if (!categories || categories.length === 0) return '000'
+  const combined = categories.join(' ').toLowerCase()
+  for (const [keyword, code] of DDC_ENTRIES) {
+    if (combined.includes(keyword)) return code
+  }
+  return '000'
+}
+// OL Books API — richer Dewey data than the search endpoint, used as DDC fallback
+async function fetchDDCFromOLBooks(isbn: string): Promise<string> {
+  try {
+    const resp = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`)
+    if (!resp.ok) return '000'
+    const data: any = await resp.json()
+    return data[`ISBN:${isbn}`]?.dewey_decimal_class?.[0]?.trim() || '000'
+  } catch { return '000' }
 }
 async function fetchOpenLibrary(isbn: string) {
     try {
@@ -99,13 +148,26 @@ app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() }))
   const ol = await fetchOpenLibrary(isbn)
   if (ol && ol.status === 'FOUND') {
       if (!ol.data.ddc_code || ol.data.ddc_code === '000') {
+          // Try GB categories first, then OL Books API
           const gbMatch = await fetchGoogleBooks(isbn);
-          if (gbMatch && gbMatch.data.ddc_code !== '000') ol.data.ddc_code = gbMatch.data.ddc_code;
+          if (gbMatch && gbMatch.data.ddc_code !== '000') {
+              ol.data.ddc_code = gbMatch.data.ddc_code;
+          } else {
+              const olBooksDDC = await fetchDDCFromOLBooks(isbn);
+              if (olBooksDDC !== '000') ol.data.ddc_code = olBooksDDC;
+          }
       }
       return c.json(ol)
   }
   const gb = await fetchGoogleBooks(isbn)
-  if (gb) return c.json(gb)
+  if (gb) {
+      // If GB categories didn't resolve DDC, try the OL Books API specifically for Dewey
+      if (!gb.data.ddc_code || gb.data.ddc_code === '000') {
+          const olBooksDDC = await fetchDDCFromOLBooks(isbn);
+          if (olBooksDDC !== '000') gb.data.ddc_code = olBooksDDC;
+      }
+      return c.json(gb)
+  }
   return c.json({ status: 'NOT_FOUND', data: { isbn, title: '', author: '', ddc_code: '000', status: 'STUB' } })
 })
 

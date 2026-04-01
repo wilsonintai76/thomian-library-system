@@ -184,13 +184,14 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
             else onUpdate('CLASSIFY', 'NOT_FOUND');
             return data.data;
         }
-        if (data.status === 'STUB') {
+        // Backend returns { status:'NOT_FOUND', data:{ status:'STUB',...} } when all APIs miss
+        // Check outer status OR inner data.status for STUB
+        if (data.status === 'NOT_FOUND' || data.status === 'STUB' || data.data?.status === 'STUB') {
             onUpdate('LOCAL', 'NOT_FOUND');
             onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
             onUpdate('GOOGLE_BOOKS', 'STUB');
-            if (data.data.ddc_code && data.data.ddc_code !== '000') onUpdate('CLASSIFY', 'FOUND');
-            else onUpdate('CLASSIFY', 'NOT_FOUND');
-            return data.data;
+            onUpdate('CLASSIFY', 'NOT_FOUND');
+            return data.data || null;
         }
     } catch { /* fall through */ }
     onUpdate('LOCAL', 'NOT_FOUND');
