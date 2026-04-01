@@ -82,10 +82,19 @@ export const uploadToR2 = async (file: File): Promise<string | null> => {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: form,
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            console.error(`[R2 Upload] HTTP ${res.status}: ${body}`);
+            return null;
+        }
         const data = await res.json() as { success: boolean; url: string };
-        return data.success ? data.url : null;
-    } catch {
+        if (!data.success) {
+            console.error('[R2 Upload] Backend returned success:false', data);
+            return null;
+        }
+        return data.url;
+    } catch (err) {
+        console.error('[R2 Upload] fetch error:', err);
         return null;
     }
 };

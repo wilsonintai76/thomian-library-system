@@ -145,16 +145,20 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             stopCamera();
             
             setIsUploadingPhoto(true);
-            const blob = await (await fetch(dataUrl)).blob();
-            const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            
-            const publicUrl = await uploadToR2(file);
-            setIsUploadingPhoto(false);
-            
-            if (publicUrl) {
-                setFormData({ ...formData, photo_url: publicUrl });
-            } else {
-                alert("Cloudflare R2 Upload Failed.");
+            try {
+                const blob = await (await fetch(dataUrl)).blob();
+                const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                const publicUrl = await uploadToR2(file);
+                if (publicUrl) {
+                    setFormData(prev => ({ ...prev, photo_url: publicUrl }));
+                } else {
+                    alert("Photo upload failed. Check console for details.");
+                }
+            } catch (err) {
+                console.error('[capturePhoto]', err);
+                alert("Photo upload error. Check console for details.");
+            } finally {
+                setIsUploadingPhoto(false);
             }
         }
     };
@@ -167,18 +171,21 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                 const img = new Image();
                 img.onload = async () => {
                     const dataUrl = resizeToCardRatio(img, img.naturalWidth, img.naturalHeight);
-                    
                     setIsUploadingPhoto(true);
-                    const blob = await (await fetch(dataUrl)).blob();
-                    const f = new File([blob], `upload-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                    
-                    const publicUrl = await uploadToR2(f);
-                    setIsUploadingPhoto(false);
-                    
-                    if (publicUrl) {
-                        setFormData(prev => ({ ...prev, photo_url: publicUrl }));
-                    } else {
-                        alert("Cloudflare R2 Upload Failed.");
+                    try {
+                        const blob = await (await fetch(dataUrl)).blob();
+                        const f = new File([blob], `upload-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        const publicUrl = await uploadToR2(f);
+                        if (publicUrl) {
+                            setFormData(prev => ({ ...prev, photo_url: publicUrl }));
+                        } else {
+                            alert("Photo upload failed. Check console for details.");
+                        }
+                    } catch (err) {
+                        console.error('[handleFileUpload]', err);
+                        alert("Photo upload error. Check console for details.");
+                    } finally {
+                        setIsUploadingPhoto(false);
                     }
                 };
                 img.src = reader.result as string;
