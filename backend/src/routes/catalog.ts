@@ -81,6 +81,7 @@ const DDC_ENTRIES: [string, string][] = [
   ['geology', '551'], ['mathematics', '510'], ['math', '510'],
   ['biology', '570'], ['scientific', '500'], ['nature', '508'], ['science', '500'],
   // 600 – Technology / Applied
+  ['materials science', '620'], ['material science', '620'], ['engineering material', '620'], ['materials', '620'],
   ['medicine', '610'], ['medical', '610'], ['health', '613'],
   ['cooking', '641'], ['culinary', '641'], ['food', '641'],
   ['engineering', '620'], ['architecture', '720'], ['agriculture', '630'], ['technology', '600'],
@@ -106,10 +107,13 @@ function inferDDC(categories: string[] | undefined): string {
   }
   return '000'
 }
+// OL Bot User-Agent — required by Open Library's API policy to avoid silent blocking
+const OL_UA = 'Thomian-Library/1.0 (school library management system; contact: admin@thomian.edu.my)'
+
 // OL Books API — richer Dewey data than the search endpoint, used as DDC fallback
 async function fetchDDCFromOLBooks(isbn: string): Promise<string> {
   try {
-    const resp = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`)
+    const resp = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`, { headers: { 'User-Agent': OL_UA } })
     if (!resp.ok) return '000'
     const data: any = await resp.json()
     return data[`ISBN:${isbn}`]?.dewey_decimal_class?.[0]?.trim() || '000'
@@ -117,9 +121,25 @@ async function fetchDDCFromOLBooks(isbn: string): Promise<string> {
 }
 async function fetchOpenLibrary(isbn: string) {
     try {
-      const resp = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&limit=1&fields=title,author_name,dewey_number,cover_i,publisher,first_publish_year`)
-      if (!resp.ok) return null
-      const data: any = await resp.json(); const doc = data.docs?.[0]
+      // Primary: OL Books API (full cover HTTPS URL, better structured data, same DDC field)
+      const booksResp = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`, { headers: { 'User-Agent': OL_UA } })
+      if (booksResp.ok) {
+        const booksData: any = await booksResp.json()
+        const book = booksData[`ISBN:${isbn}`]
+        if (book) {
+          return { source: 'Open Library', status: 'FOUND', data: {
+            isbn, title: book.title || '', author: book.authors?.[0]?.name || 'Unknown',
+            cover_url: book.cover?.medium || null,
+            ddc_code: book.dewey_decimal_class?.[0]?.trim() || '000',
+            publisher: book.publishers?.[0]?.name || '',
+            pub_year: (book.publish_date || '').match(/\d{4}/)?.[0] || ''
+          }}
+        }
+      }
+      // Fallback: OL Search API (broader ISBN coverage)
+      const searchResp = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}&limit=1&fields=title,author_name,dewey_number,cover_i,publisher,first_publish_year`, { headers: { 'User-Agent': OL_UA } })
+      if (!searchResp.ok) return null
+      const searchData: any = await searchResp.json(); const doc = searchData.docs?.[0]
       if (!doc) return null
       return { source: 'Open Library', status: 'FOUND', data: { isbn, title: doc.title, author: doc.author_name?.[0] || 'Unknown', cover_url: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null, ddc_code: doc.dewey_number?.[0] || '000', publisher: doc.publisher?.[0] || '', pub_year: doc.first_publish_year?.toString() || '' } }
     } catch { return null }
@@ -148,13 +168,10 @@ app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() }))
   const ol = await fetchOpenLibrary(isbn)
   if (ol && ol.status === 'FOUND') {
       if (!ol.data.ddc_code || ol.data.ddc_code === '000') {
-          // Try GB categories first, then OL Books API
+          // Books API already tried inside fetchOpenLibrary; try GB categories as cross-check
           const gbMatch = await fetchGoogleBooks(isbn);
           if (gbMatch && gbMatch.data.ddc_code !== '000') {
               ol.data.ddc_code = gbMatch.data.ddc_code;
-          } else {
-              const olBooksDDC = await fetchDDCFromOLBooks(isbn);
-              if (olBooksDDC !== '000') ol.data.ddc_code = olBooksDDC;
           }
       }
       return c.json(ol)
