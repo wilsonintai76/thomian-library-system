@@ -43,6 +43,8 @@ const KioskHome: React.FC = () => {
     const [holdConfirmationId, setHoldConfirmationId] = useState<string | null>(null);
     const [patronHolds, setPatronHolds] = useState<{ id: string; title: string; status: string; expires: string }[]>([]);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [updateAvailable, setUpdateAvailable] = useState(false);
+    const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -75,6 +77,24 @@ const KioskHome: React.FC = () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
+    }, []);
+
+    const applyUpdate = () => {
+        if (swRegRef.current?.waiting) {
+            swRegRef.current.waiting.postMessage({ type: 'SKIP_WAITING' });
+            navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+        } else {
+            window.location.reload();
+        }
+    };
+
+    useEffect(() => {
+        const handleSwUpdate = (e: Event) => {
+            swRegRef.current = (e as CustomEvent<ServiceWorkerRegistration>).detail;
+            setUpdateAvailable(true);
+        };
+        window.addEventListener('swUpdateAvailable', handleSwUpdate);
+        return () => window.removeEventListener('swUpdateAvailable', handleSwUpdate);
     }, []);
 
     const handleSearch = async () => {
@@ -217,6 +237,20 @@ const KioskHome: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-8 flex flex-col gap-6 md:gap-8 pb-24 font-sans relative">
+
+            {/* Update Available Banner */}
+            {updateAvailable && (
+                <div className="fixed top-0 left-0 right-0 z-[500] bg-blue-600 text-white px-4 py-3 flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest shadow-2xl">
+                    <RefreshCw className="h-4 w-4 shrink-0" style={{ animation: 'spin 3s linear infinite' }} />
+                    <span>New version available</span>
+                    <button onClick={applyUpdate} className="px-4 py-1.5 bg-white text-blue-700 rounded-full font-black hover:bg-blue-50 transition-colors ml-1 text-xs">
+                        Reload to update
+                    </button>
+                    <button onClick={() => setUpdateAvailable(false)} className="ml-2 hover:opacity-70 transition-opacity" aria-label="Dismiss">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
 
             {/* Offline Banner */}
             {!isOnline && (

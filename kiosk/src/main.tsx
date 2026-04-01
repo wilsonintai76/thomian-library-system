@@ -11,3 +11,23 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </main>
   </React.StrictMode>,
 )
+
+// PWA Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      if (registration.waiting) {
+        window.dispatchEvent(new CustomEvent('swUpdateAvailable', { detail: registration }));
+      }
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            window.dispatchEvent(new CustomEvent('swUpdateAvailable', { detail: registration }));
+          }
+        });
+      });
+    }).catch(() => {});
+  });
+}

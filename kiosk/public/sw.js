@@ -9,11 +9,16 @@ const PRECACHE_URLS = [
 
 // Install Event: Cache core assets immediately
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
   );
+  // Do NOT call skipWaiting() here — the app will trigger it via postMessage.
+});
+
+// Allow the React app to trigger activation on demand
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 // Activate Event: Clean up old caches
