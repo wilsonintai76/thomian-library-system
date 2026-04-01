@@ -117,7 +117,7 @@ const KioskHome: React.FC = () => {
     const handleUpdatePatronProfile = async (updatedPatron: Patron) => {
         await mockUpdatePatron(updatedPatron);
         setActivePatron(updatedPatron);
-        alert("Profile updated successfully!");
+        // Modal closes itself on success — no alert needed
     };
 
     const initiateHold = () => {
