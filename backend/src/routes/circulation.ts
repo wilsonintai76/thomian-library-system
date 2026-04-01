@@ -113,8 +113,12 @@ app.post('/checkout', zValidator('json', checkoutSchema), async (c) => {
 app.post('/return_book', zValidator('json', returnBookSchema), async (c) => {
     const db = getDB(c)
     const { barcode } = c.req.valid('json')
-    
-    const [book] = await db.select().from(books).where(eq(books.barcode_id, barcode.trim())).limit(1)
+    const key = barcode.trim()
+
+    let [book] = await db.select().from(books).where(eq(books.barcode_id, key)).limit(1)
+    if (!book) {
+        [book] = await db.select().from(books).where(eq(books.isbn, key)).limit(1)
+    }
     if (!book) return c.json({ error: 'Book not found' }, 404)
     
     // Find active loan
@@ -153,7 +157,10 @@ app.post('/renew', zValidator('json', renewBookSchema), async (c) => {
     const db = getDB(c)
     const { barcode, patron_id } = c.req.valid('json')
     
-    const [book] = await db.select().from(books).where(eq(books.barcode_id, barcode)).limit(1)
+    let [book] = await db.select().from(books).where(eq(books.barcode_id, barcode)).limit(1)
+    if (!book) {
+        [book] = await db.select().from(books).where(eq(books.isbn, barcode)).limit(1)
+    }
     if (!book) return c.json({ success: false, error: 'Book not found' }, 404)
     
     const [loan] = await db.select().from(loans).where(and(eq(loans.book_id, book.id), isNull(loans.returned_at))).limit(1)

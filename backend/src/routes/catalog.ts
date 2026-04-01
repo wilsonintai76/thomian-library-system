@@ -267,8 +267,12 @@ app.get('/', zValidator('query', z.object({ search: z.string().optional() })), a
 
 app.get('/barcode/:barcode', async (c) => {
     const db = getDB(c)
-    const barcode = c.req.param('barcode')
-    const [book] = await db.select().from(books).where(eq(books.barcode_id, barcode.trim())).limit(1)
+    const barcode = c.req.param('barcode').trim()
+    // Accept barcode_id (BC-YYYY-NNNN) or raw ISBN scan
+    let [book] = await db.select().from(books).where(eq(books.barcode_id, barcode)).limit(1)
+    if (!book) {
+        [book] = await db.select().from(books).where(eq(books.isbn, barcode)).limit(1)
+    }
     if (!book) return c.json({ error: 'Book not found' }, 404)
     return c.json(book)
 })

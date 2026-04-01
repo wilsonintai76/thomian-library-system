@@ -135,12 +135,13 @@ const CirculationDesk: React.FC<{ initialMode?: 'CHECK_OUT' | 'CHECK_IN' | 'RENE
         setProcessingCheckout(true);
         const barcodes = scannedBooks.map(b => b.id);
         try {
-            const result = await mockCheckoutBooks(currentPatron.student_id, barcodes);
-            if (result.processed > 0) {
+            const result = await mockCheckoutBooks(currentPatron.id, barcodes);
+            const processed = (result as any).books_processed ?? result.processed ?? 0;
+            if (processed > 0) {
                 if (result.errors?.length > 0) {
-                    alert(`Issued ${result.processed} of ${scannedBooks.length} item(s).\nWarnings:\n${result.errors.join('\n')}`);
+                    alert(`Issued ${processed} of ${scannedBooks.length} item(s).\nWarnings:\n${result.errors.join('\n')}`);
                 } else {
-                    alert(`${result.processed} item(s) issued successfully.`);
+                    alert(`${processed} item(s) issued successfully.`);
                 }
                 clearSession();
             } else {

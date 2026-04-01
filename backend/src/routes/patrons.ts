@@ -54,7 +54,11 @@ app.get('/', zValidator('query', z.object({ search: z.string().optional() })), a
 app.get('/:id', async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
-    const [patron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)
+    // Try UUID first; fall back to student_id so barcode scanners work with either format
+    let [patron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)
+    if (!patron) {
+        [patron] = await db.select().from(patrons).where(eq(patrons.student_id, id)).limit(1)
+    }
     if (!patron) return c.json({ error: 'Patron not found' }, 404)
     return c.json(patron)
 })
