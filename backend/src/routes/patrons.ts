@@ -76,7 +76,7 @@ app.post('/verify_pin', zValidator('json', z.object({
   const [patron] = await db.select().from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
   
   if (!patron || patron.pin !== pin) {
-    return c.json({ success: false, message: 'Invalid Student ID or PIN' }, 401)
+    return c.json({ success: false, message: 'Invalid Student ID or PIN' }, 200)
   }
 
   if (patron.is_blocked) {
