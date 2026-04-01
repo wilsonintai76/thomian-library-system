@@ -41,6 +41,7 @@ const KioskHome: React.FC = () => {
     const [isPlacingHold, setIsPlacingHold] = useState(false);
     const [holdSuccess, setHoldSuccess] = useState(false);
     const [holdConfirmationId, setHoldConfirmationId] = useState<string | null>(null);
+    const [patronHolds, setPatronHolds] = useState<{ id: string; title: string; status: string; expires: string }[]>([]);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -137,6 +138,11 @@ const KioskHome: React.FC = () => {
             const updatedBook = { ...selectedBook, status: newStatus };
             setHoldConfirmationId(selectedBook.id);
             setSelectedBook(updatedBook);
+            const expires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+            setPatronHolds(prev => [
+                ...prev.filter(h => h.id !== selectedBook.id),
+                { id: selectedBook.id, title: selectedBook.title, status: 'READY', expires },
+            ]);
             const patchList = <T extends { id: string }>(list: T[]) =>
                 list.map(b => b.id === selectedBook.id ? { ...b, status: newStatus } : b);
             setResults(patchList);
@@ -488,6 +494,7 @@ const KioskHome: React.FC = () => {
                         <PatronPortal
                             patron={activePatron}
                             loans={patronLoans}
+                            holds={patronHolds}
                             onViewHistory={handleViewHistory}
                             onOpenSettings={() => setShowProfileEdit(true)}
                         />

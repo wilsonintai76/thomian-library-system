@@ -4,20 +4,23 @@ import React, { useState } from 'react';
 import { History, BookOpen, RefreshCw, CreditCard, CheckCircle, Sparkles, FileText, Bookmark, Clock, ChevronRight, X } from 'lucide-react';
 import { Patron, Loan } from '../../types';
 
+interface Hold {
+  id: string;
+  title: string;
+  status: string;
+  expires: string;
+}
+
 interface PatronPortalProps {
   patron: Patron;
   loans: Loan[];
+  holds: Hold[];
   onViewHistory: () => void;
   onOpenSettings: () => void;
 }
 
-const PatronPortal: React.FC<PatronPortalProps> = ({ patron, loans, onViewHistory, onOpenSettings }) => {
+const PatronPortal: React.FC<PatronPortalProps> = ({ patron, loans, holds, onViewHistory, onOpenSettings }) => {
   const [activeView, setActiveView] = useState<'LOANS' | 'RESERVES'>('LOANS');
-
-  // In a real app, holds would come from an API
-  const mockHolds = [
-      { id: 'h-1', title: 'The Great Gatsby', status: 'READY', expires: '2024-11-20' },
-  ];
 
   return (
     <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white animate-fade-in-up grid grid-cols-1 md:grid-cols-3 gap-8 shadow-2xl relative overflow-hidden">
@@ -35,7 +38,7 @@ const PatronPortal: React.FC<PatronPortalProps> = ({ patron, loans, onViewHistor
                     onClick={() => setActiveView('RESERVES')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeView === 'RESERVES' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-slate-400 hover:text-white'}`}
                 >
-                    <Bookmark className="h-4 w-4" /> My Reserves ({mockHolds.length})
+                    <Bookmark className="h-4 w-4" /> My Reserves ({holds.length})
                 </button>
             </div>
 
@@ -63,13 +66,13 @@ const PatronPortal: React.FC<PatronPortalProps> = ({ patron, loans, onViewHistor
                         ))
                     )
                 ) : (
-                    mockHolds.length === 0 ? (
+                    holds.length === 0 ? (
                         <div className="bg-white/5 border border-white/10 p-10 rounded-2xl text-center flex flex-col items-center justify-center h-full">
                             <Bookmark className="h-8 w-8 mb-3 text-slate-500 opacity-20" />
                             <p className="text-slate-400 italic font-medium uppercase text-[10px] tracking-widest">No reservations found</p>
                         </div>
                     ) : (
-                        mockHolds.map(hold => (
+                        holds.map(hold => (
                             <div key={hold.id} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex justify-between items-center group hover:bg-white/10 transition-all border-l-4 border-l-indigo-500">
                                 <div>
                                     <p className="font-bold text-lg leading-tight mb-1">{hold.title}</p>
