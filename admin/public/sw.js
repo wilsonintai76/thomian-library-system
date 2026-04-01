@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'thomian-lib-v1';
+const CACHE_NAME = 'thomian-lib-v3.4.2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
