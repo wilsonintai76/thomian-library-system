@@ -7,3 +7,29 @@
     @apply bg-gray-50 text-slate-900 font-sans;
   }
 }
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  /* Hide everything except the card print area */
+  body * {
+    visibility: hidden;
+  }
+  #card-print-area,
+  #card-print-area * {
+    visibility: visible;
+  }
+  #card-print-area {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px;
+    background: white;
+    align-content: flex-start;
+  }
+}
