@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
+import { sign } from 'hono/jwt'
 import { getDB, Bindings, hashPassword } from '../utils'
 import { patronSchema } from '../schema'
 import { patrons, profiles } from '../db/schema'
@@ -83,8 +84,16 @@ app.post('/verify_pin', zValidator('json', z.object({
     return c.json({ success: false, message: 'Account is blocked' }, 403)
   }
 
+  // Issue a short-lived patron JWT (30 min) so the kiosk can call authenticated endpoints
+  const token = await sign(
+    { sub: patron.id, role: 'PATRON', student_id: patron.student_id, exp: Math.floor(Date.now() / 1000) + 1800 },
+    c.env.JWT_SECRET,
+    'HS256'
+  )
+
   return c.json({
     success: true,
+    token,
     patron: {
       id: patron.id,
       full_name: patron.full_name,
@@ -102,27 +111,17 @@ app.post('/verify_pin', zValidator('json', z.object({
   })
 })
 
-// Public: patron updates their own safe fields authenticated by PIN (kiosk has no JWT)
+// Patron self-update — authenticated via JWT (role: PATRON), no admin JWT needed
 app.patch('/update_self', zValidator('json', z.object({
-  student_id: z.string(),
-  pin: z.string(),
   full_name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
   new_pin: z.string().length(4).optional(),
 })), async (c) => {
   const db = getDB(c)
-  const { student_id, pin, full_name, email, phone, new_pin } = c.req.valid('json')
-
-  const [patron] = await db.select({ id: patrons.id, pin: patrons.pin, is_blocked: patrons.is_blocked })
-    .from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
-
-  if (!patron || patron.pin !== pin) {
-    return c.json({ success: false, message: 'Invalid credentials' }, 200)
-  }
-  if (patron.is_blocked) {
-    return c.json({ success: false, message: 'Account is blocked' }, 200)
-  }
+  const payload = c.get('jwtPayload' as any) as { sub: string }
+  const patronId = payload.sub
+  const { full_name, email, phone, new_pin } = c.req.valid('json')
 
   const updates: Record<string, unknown> = {}
   if (full_name !== undefined) updates.full_name = full_name
@@ -131,11 +130,11 @@ app.patch('/update_self', zValidator('json', z.object({
   if (new_pin !== undefined) updates.pin = new_pin
 
   if (Object.keys(updates).length > 0) {
-    await db.update(patrons).set(updates).where(eq(patrons.id, patron.id))
+    await db.update(patrons).set(updates).where(eq(patrons.id, patronId))
   }
 
-  // Return the refreshed patron
-  const [updated] = await db.select().from(patrons).where(eq(patrons.id, patron.id)).limit(1)
+  const [updated] = await db.select().from(patrons).where(eq(patrons.id, patronId)).limit(1)
+  if (!updated) return c.json({ success: false, message: 'Patron not found' }, 404)
   return c.json({ success: true, patron: {
     id: updated.id,
     full_name: updated.full_name,

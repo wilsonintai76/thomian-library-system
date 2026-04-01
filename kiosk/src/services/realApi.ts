@@ -219,8 +219,6 @@ export const mockAddPatron = async (p: Patron): Promise<Patron> => {
 export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
     const res = await apiClient.patrons.update_self.$patch({
         json: {
-            student_id: p.student_id,
-            pin: p.pin ?? '',            // current PIN typed at login — used for identity verification
             full_name: p.full_name,
             email: p.email,
             phone: p.phone,
@@ -230,7 +228,7 @@ export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json() as { success: boolean; patron: Patron; message?: string };
     if (!data.success) throw new Error(data.message || 'Update failed');
-    // Preserve the session PIN (server never returns it)
+    // Preserve the session PIN — server never returns it; update to new_pin if it was changed
     return { ...data.patron, pin: p.new_pin ?? p.pin };
 };
 export const mockDeletePatron = async (id: string): Promise<void> => {
@@ -242,8 +240,11 @@ export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron 
         const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
         if (!res.ok) return null;
         const data = await res.json() as any;
-        // Store the typed PIN in session so self-update can use it for re-authentication
-        return data.success ? ({ ...data.patron as Patron, pin } as Patron) : null;
+        if (!data.success) return null;
+        // Store the patron JWT so all subsequent apiClient calls are authenticated
+        if (data.token) localStorage.setItem(TOKEN_KEY, data.token);
+        // Keep the typed PIN in session memory for local UX (e.g. PIN field hint in Identity Hub)
+        return { ...data.patron as Patron, pin } as Patron;
     } catch { return null; }
 };
 

@@ -36,17 +36,14 @@ app.use('*', async (c, next) => {
     '/auth/login',
     '/auth/setup-admin',
     '/health',
-    // Kiosk home loads these before patron login
+    // Kiosk home page loads these before any patron logs in
     '/catalog/new_arrivals',
     '/catalog/trending',
     '/system/events',
     '/system/system-config',
+    // Kiosk PIN login + pre-login help button
     '/patrons/verify_pin',
-    '/patrons/update_self',
-    '/circulation/patron_loans',
     '/system/alerts/trigger_help',
-    '/circulation/place_hold',
-    '/transactions',
   ]
 
   if (method === 'OPTIONS' || PUBLIC_ROUTES.some(r => path.startsWith(r))) {
