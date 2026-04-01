@@ -102,6 +102,56 @@ app.post('/verify_pin', zValidator('json', z.object({
   })
 })
 
+// Public: patron updates their own safe fields authenticated by PIN (kiosk has no JWT)
+app.patch('/update_self', zValidator('json', z.object({
+  student_id: z.string(),
+  pin: z.string(),
+  full_name: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  new_pin: z.string().length(4).optional(),
+})), async (c) => {
+  const db = getDB(c)
+  const { student_id, pin, full_name, email, phone, new_pin } = c.req.valid('json')
+
+  const [patron] = await db.select({ id: patrons.id, pin: patrons.pin, is_blocked: patrons.is_blocked })
+    .from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
+
+  if (!patron || patron.pin !== pin) {
+    return c.json({ success: false, message: 'Invalid credentials' }, 200)
+  }
+  if (patron.is_blocked) {
+    return c.json({ success: false, message: 'Account is blocked' }, 200)
+  }
+
+  const updates: Record<string, unknown> = {}
+  if (full_name !== undefined) updates.full_name = full_name
+  if (email !== undefined) updates.email = email
+  if (phone !== undefined) updates.phone = phone
+  if (new_pin !== undefined) updates.pin = new_pin
+
+  if (Object.keys(updates).length > 0) {
+    await db.update(patrons).set(updates).where(eq(patrons.id, patron.id))
+  }
+
+  // Return the refreshed patron
+  const [updated] = await db.select().from(patrons).where(eq(patrons.id, patron.id)).limit(1)
+  return c.json({ success: true, patron: {
+    id: updated.id,
+    full_name: updated.full_name,
+    card_name: updated.card_name,
+    student_id: updated.student_id,
+    patron_group: updated.patron_group,
+    email: updated.email,
+    phone: updated.phone,
+    photo_url: updated.photo_url,
+    fines: updated.fines ?? 0,
+    total_paid: updated.total_paid ?? 0,
+    library_class_id: updated.library_class_id,
+    is_blocked: updated.is_blocked,
+  }})
+})
+
 app.post('/', zValidator('json', patronSchema), async (c) => {
     const db = getDB(c)
     const { is_staff_active, role, password, ...patronData } = c.req.valid('json') as any

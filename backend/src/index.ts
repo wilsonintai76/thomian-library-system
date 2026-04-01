@@ -42,6 +42,7 @@ app.use('*', async (c, next) => {
     '/system/events',
     '/system/system-config',
     '/patrons/verify_pin',
+    '/patrons/update_self',
     '/circulation/patron_loans',
     '/system/alerts/trigger_help',
     '/circulation/place_hold',

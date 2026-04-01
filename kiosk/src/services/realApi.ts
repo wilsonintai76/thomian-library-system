@@ -217,9 +217,21 @@ export const mockAddPatron = async (p: Patron): Promise<Patron> => {
     return res.json() as unknown as Promise<Patron>;
 };
 export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
-    const res = await apiClient.patrons[':id'].$patch({ param: { id: p.id ?? p.student_id }, json: p as any });
+    const res = await apiClient.patrons.update_self.$patch({
+        json: {
+            student_id: p.student_id,
+            pin: p.pin ?? '',            // current PIN typed at login — used for identity verification
+            full_name: p.full_name,
+            email: p.email,
+            phone: p.phone,
+            ...(p.new_pin ? { new_pin: p.new_pin } : {}),
+        } as any
+    });
     if (!res.ok) throw new Error(await res.text());
-    return res.json() as unknown as Promise<Patron>;
+    const data = await res.json() as { success: boolean; patron: Patron; message?: string };
+    if (!data.success) throw new Error(data.message || 'Update failed');
+    // Preserve the session PIN (server never returns it)
+    return { ...data.patron, pin: p.new_pin ?? p.pin };
 };
 export const mockDeletePatron = async (id: string): Promise<void> => {
     await apiClient.patrons[':id'].$delete({ param: { id } });
@@ -230,7 +242,8 @@ export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron 
         const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
         if (!res.ok) return null;
         const data = await res.json() as any;
-        return data.success ? (data.patron as Patron) : null;
+        // Store the typed PIN in session so self-update can use it for re-authentication
+        return data.success ? ({ ...data.patron as Patron, pin } as Patron) : null;
     } catch { return null; }
 };
 

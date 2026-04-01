@@ -84,7 +84,8 @@ export interface Patron {
   email?: string;
   phone?: string;
   photo_url?: string; 
-  pin: string; // Secure 4-digit PIN for Kiosk access
+  pin?: string;   // Kiosk PIN — only present client-side (stored at login, never returned by server)
+  new_pin?: string; // Transient: new PIN being set via Identity Hub
 }
 
 export interface MapConfig {

@@ -85,7 +85,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ isOpen, onClose, pa
                 full_name: editName.trim(),
                 email: editEmail.trim(),
                 phone: editPhone.trim(),
-                ...(changingPin ? { pin: newPin } : {}),
+                // pin stays as-is (current PIN for auth); new_pin carries the change request
+                ...(changingPin ? { new_pin: newPin } : {}),
             };
             await onSave(updated);
             onClose();
