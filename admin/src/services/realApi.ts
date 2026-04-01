@@ -171,7 +171,6 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
                 onUpdate('LOCAL', 'FOUND');
                 onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
                 onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
-                onUpdate('CLASSIFY', 'NOT_FOUND');
             } else if (data.source === 'Open Library') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');
@@ -182,6 +181,7 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
                 onUpdate('GOOGLE_BOOKS', 'FOUND');
             }
             if (data.data.ddc_code && data.data.ddc_code !== '000') onUpdate('CLASSIFY', 'FOUND');
+            else onUpdate('CLASSIFY', 'NOT_FOUND');
             return data.data;
         }
         if (data.status === 'STUB') {
