@@ -106,7 +106,7 @@ const KioskHome: React.FC = () => {
         setIsHistoryLoading(true);
         setShowHistoryModal(true);
         try {
-            const history = await mockGetTransactionsByPatron(activePatron.student_id);
+            const history = await mockGetTransactionsByPatron(activePatron.id ?? activePatron.student_id);
             setPatronHistory(history);
         } finally {
             setIsHistoryLoading(false);

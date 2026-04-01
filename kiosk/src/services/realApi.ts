@@ -152,11 +152,11 @@ export const mockGetTrendingBooks = async (): Promise<Book[]> => {
     return res.ok ? (res.json() as Promise<Book[]>) : [];
 };
 export const mockPlaceHold = async (bookId: string, patronId: string): Promise<{ queued: boolean }> => {
-    const res = await request<{ success: boolean; queued: boolean; message?: string }>(
-        'POST', '/circulation/place_hold/', { book_id: bookId, patron_id: patronId }
-    );
-    if (!res.success) throw new Error(res.message || 'Hold failed');
-    return { queued: res.queued };
+    const res = await apiClient.circulation.place_hold.$post({ json: { book_id: bookId, patron_id: patronId } });
+    if (!res.ok) throw new Error('Hold failed');
+    const data = await res.json() as { success: boolean; queued: boolean; message?: string };
+    if (!data.success) throw new Error(data.message || 'Hold failed');
+    return { queued: data.queued };
 };
 export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: string, st: string) => void): Promise<Partial<Book> | null> => {
     onUpdate('LOCAL', 'PENDING');
@@ -217,7 +217,7 @@ export const mockAddPatron = async (p: Patron): Promise<Patron> => {
     return res.json() as unknown as Promise<Patron>;
 };
 export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
-    const res = await apiClient.patrons[':id'].$patch({ param: { id: p.student_id }, json: p as any });
+    const res = await apiClient.patrons[':id'].$patch({ param: { id: p.id ?? p.student_id }, json: p as any });
     if (!res.ok) throw new Error(await res.text());
     return res.json() as unknown as Promise<Patron>;
 };

@@ -71,6 +71,7 @@ export interface Book {
 }
 
 export interface Patron {
+  id?: string;          // UUID returned by verify_pin / server responses
   student_id: string;
   full_name: string;
   card_name?: string; // Preferred name on ID card (patron-controlled, like a credit card)

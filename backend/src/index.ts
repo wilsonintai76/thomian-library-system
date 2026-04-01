@@ -44,6 +44,7 @@ app.use('*', async (c, next) => {
     '/patrons/verify_pin',
     '/circulation/patron_loans',
     '/system/alerts/trigger_help',
+    '/circulation/place_hold',
   ]
 
   if (method === 'OPTIONS' || PUBLIC_ROUTES.some(r => path.startsWith(r))) {
