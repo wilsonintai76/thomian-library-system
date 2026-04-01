@@ -8,5 +8,6 @@
   ],
   "observability": {
     "enabled": true
-  }
+  },
+  "production_branch": "main"
 }

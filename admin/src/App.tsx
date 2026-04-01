@@ -315,16 +315,16 @@ const App: React.FC = () => {
 
       {showResetModal && <ResetPasswordModal onClose={() => setShowResetModal(false)} />}
 
-      {/* Update Available Banner */}
+      {/* Update Available Banner — fixed bottom-right toast so it's always visible */}
       {updateAvailable && (
-        <div className="bg-blue-600 text-white px-6 py-2.5 flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest print:hidden">
-          <RefreshCw className="h-3.5 w-3.5 shrink-0" style={{ animation: 'spin 3s linear infinite' }} />
+        <div className="fixed bottom-6 right-6 z-[200] bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-900/30 px-5 py-4 flex items-center gap-4 text-[10px] font-black uppercase tracking-widest print:hidden animate-fade-in-up">
+          <RefreshCw className="h-4 w-4 shrink-0" style={{ animation: 'spin 3s linear infinite' }} />
           <span>New version available</span>
-          <button onClick={applyUpdate} className="px-3 py-1 bg-white text-blue-700 rounded-full font-black hover:bg-blue-50 transition-colors ml-1">
-            Reload to update
+          <button onClick={applyUpdate} className="px-3 py-1.5 bg-white text-blue-700 rounded-xl font-black hover:bg-blue-50 transition-colors">
+            Update Now
           </button>
-          <button onClick={() => setUpdateAvailable(false)} className="ml-auto hover:opacity-70 transition-opacity" aria-label="Dismiss">
-            <X className="h-3.5 w-3.5" />
+          <button onClick={() => setUpdateAvailable(false)} className="hover:opacity-70 transition-opacity" aria-label="Dismiss">
+            <X className="h-4 w-4" />
           </button>
         </div>
       )}
@@ -374,7 +374,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex gap-10">
             <span className="flex items-center gap-2.5 text-slate-400 hover:text-slate-800 transition-colors cursor-help"><ScanLine className="h-3.5 w-3.5" /> Peripheral Interface Ready</span>
-            <span className="text-[8px] opacity-40 font-bold">Rel 4.8.2</span>
+            <span className="text-[8px] opacity-40 font-bold">v{__APP_VERSION__}</span>
           </div>
         </div>
       )}
