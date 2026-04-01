@@ -1,10 +1,9 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Settings, Download, Upload, Trash2, AlertTriangle, CheckCircle, ShieldAlert, FileJson, Loader2, RefreshCw, Database, HardDrive, Wifi, Server, Save, Printer, StickyNote, Sliders, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles } from 'lucide-react';
-import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, getLanUrl, setLanUrl, initializeNetwork, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
+import { Settings, Download, Upload, Trash2, AlertTriangle, ShieldAlert, Loader2, RefreshCw, Database, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles, Info } from 'lucide-react';
+import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, uploadToR2, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
-// import { supabase } from '../lib/supabase';
 import { DEFAULT_LOGO_URL } from '../constants';
 import PatronCard from './PatronCard';
 
@@ -16,14 +15,8 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [resetConfirm, setResetConfirm] = useState('');
     const [showResetModal, setShowResetModal] = useState(false);
-
-    const [stats, setStats] = useState({ books: 0, patrons: 0, txns: 0, size: '0 KB' });
-    const [networkMode, setNetworkMode] = useState('AUTO');
-    const [lanUrlInput, setLanUrlInput] = useState('');
-    const [isSavingNet, setIsSavingNet] = useState(false);
+    const [stats, setStats] = useState({ books: 0, patrons: 0, txns: 0 });
     const [config, setConfig] = useState<MapConfig | null>(null);
-    const [labelMode, setLabelMode] = useState('SHEET');
-    const [sheetLayout, setSheetLayout] = useState('3x10');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [logoSaving, setLogoSaving] = useState(false);
@@ -33,28 +26,19 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
         if (!file || !config) return;
         if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2 MB.'); return; }
         setLogoSaving(true);
-        
-        const fileExt = file.name.split('.').pop();
-        const fileName = `logo-${Date.now()}.${fileExt}`;
-        
-        /*
-        const { error } = await supabase.storage.from('logos').upload(fileName, file);
-        if (error) {
-            alert('Failed to upload logo: ' + error.message);
+        try {
+            const publicUrl = await uploadToR2(file);
+            if (!publicUrl) { alert('Logo upload failed. Please try again.'); return; }
+            const updated = { ...config, logo: publicUrl };
+            setConfig(updated);
+            await mockSaveMapConfig(updated);
+            onRefreshConfig?.();
+        } catch (err: any) {
+            alert('Upload error: ' + (err?.message || 'Unknown error'));
+        } finally {
             setLogoSaving(false);
-            return;
+            e.target.value = '';
         }
-
-        const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
-        */
-        const publicUrl = ""; // Placeholder for R2/D1 logic
-        
-        const updated = { ...config, logo: publicUrl };
-        setConfig(updated);
-        await mockSaveMapConfig(updated);
-        setLogoSaving(false);
-        onRefreshConfig?.();
-        e.target.value = '';
     };
 
     const handleRemoveLogo = async () => {
@@ -69,9 +53,6 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
 
     useEffect(() => {
         calculateStorageStats();
-        setLanUrlInput(getLanUrl());
-        setNetworkMode(localStorage.getItem('thomian_network_mode') || 'AUTO');
-        setLabelMode(localStorage.getItem('thomian_label_mode') || 'SHEET');
         mockGetMapConfig().then(setConfig);
     }, []);
 
@@ -79,9 +60,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
         const books = await mockGetBooks();
         const patrons = await mockGetPatrons();
         const txns = await mockGetTransactions();
-        const totalString = JSON.stringify(books) + JSON.stringify(patrons) + JSON.stringify(txns);
-        const bytes = new TextEncoder().encode(totalString).length;
-        setStats({ books: books.length, patrons: patrons.length, txns: txns.length, size: (bytes / 1024).toFixed(2) + ' KB' });
+        setStats({ books: books.length, patrons: patrons.length, txns: txns.length });
     };
 
     const toggleCirculationLock = async () => {
@@ -150,18 +129,10 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     const handleFactoryReset = async () => {
         if (resetConfirm !== 'DELETE') return;
         setIsProcessing(true);
+        localStorage.clear();
+        sessionStorage.clear();
         await performFactoryReset();
-        window.location.reload(); // Factory reset is a special case where full reload is cleaner
-    };
-
-    const saveNetworkSettings = async () => {
-        setIsSavingNet(true);
-        setLanUrl(lanUrlInput);
-        localStorage.setItem('thomian_network_mode', networkMode);
-        localStorage.setItem('thomian_label_mode', labelMode);
-        await initializeNetwork();
-        setIsSavingNet(false);
-        alert("System Configuration Saved.");
+        window.location.reload();
     };
 
     const themeOptions: { id: SystemTheme, label: string }[] = [
@@ -193,9 +164,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                 <div className="bg-slate-900 p-4 rounded-[1.5rem]">
                     <Settings className="h-8 w-8 text-white" />
                 </div>
-                <div>
+                <div className="flex-1">
                     <h2 className="text-4xl font-black tracking-tight uppercase">System Management</h2>
                     <p className="text-slate-500 font-medium">Branding, text palettes, and lifecycle protocols.</p>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                    <Info className="h-3.5 w-3.5 text-slate-400" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">v{__APP_VERSION__}</span>
                 </div>
             </div>
 
@@ -370,48 +345,20 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
 
             <section className="space-y-6">
                 <div className="flex items-center gap-3">
-                    <Server className="h-6 w-6 text-blue-600" />
-                    <h3 className="text-xl font-bold">Infrastructure</h3>
-                </div>
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Sync Mode</label>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => setNetworkMode('AUTO')} className={`py-5 rounded-2xl text-[10px] font-black flex flex-col items-center gap-3 border-2 transition-all ${networkMode === 'AUTO' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-100 text-slate-500'}`}><RefreshCw className="h-6 w-6" /> AUTO</button>
-                                <button onClick={() => setNetworkMode('LAN')} className={`py-5 rounded-2xl text-[10px] font-black flex flex-col items-center gap-3 border-2 transition-all ${networkMode === 'LAN' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-100 text-slate-500'}`}><Wifi className="h-6 w-6" /> LAN</button>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Core Server</label>
-                            <div className="flex gap-2">
-                                <input type="text" value={lanUrlInput} onChange={(e) => setLanUrlInput(e.target.value)} placeholder="http://10.0.0.X:8000" className="flex-1 px-4 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-mono text-sm focus:border-blue-500 outline-none" />
-                                <button onClick={saveNetworkSettings} disabled={isSavingNet} className="bg-slate-900 text-white px-8 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 flex items-center gap-3 shadow-xl transition-all">{isSavingNet ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} Save</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section className="space-y-6">
-                <div className="flex items-center gap-3">
                     <Database className="h-6 w-6 text-blue-600" />
-                    <h3 className="text-xl font-bold">Database Lifecycle</h3>
+                    <h3 className="text-xl font-bold">Configuration Backup</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 flex flex-col">
-                        <div className="flex justify-between items-start mb-8">
-                            <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-inner"><Download className="h-8 w-8" /></div>
-                            <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100"><Database className="h-4 w-4 text-blue-600" /><span className="text-xs font-black text-blue-700">{stats.size}</span></div>
-                        </div>
-                        <h4 className="text-xl font-black uppercase tracking-tight mb-2">Export Snapshots</h4>
-                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Download complete database as a portable JSON archive.</p>
-                        <button onClick={handleBackup} className="w-full py-5 rounded-2xl bg-blue-600 text-white font-black text-xs uppercase hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-blue-100">Export Repository</button>
+                        <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-inner mb-8"><Download className="h-8 w-8" /></div>
+                        <h4 className="text-xl font-black uppercase tracking-tight mb-2">Export Configuration</h4>
+                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Download system configuration (themes, map layout, rules) as a portable JSON backup.</p>
+                        <button onClick={handleBackup} className="w-full py-5 rounded-2xl bg-blue-600 text-white font-black text-xs uppercase hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-blue-100">Export Config</button>
                     </div>
                     <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 flex flex-col">
                         <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center shadow-inner mb-8"><Upload className="h-8 w-8" /></div>
                         <h4 className="text-xl font-black uppercase tracking-tight mb-2">Restore Backup</h4>
-                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Overwrite local cache with an external backup file.</p>
+                        <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Restore a previously exported configuration backup file.</p>
                         <input type="file" ref={fileInputRef} onChange={handleRestore} accept=".json" className="hidden" />
                         <button onClick={() => fileInputRef.current?.click()} className="w-full py-5 rounded-2xl bg-white border-2 border-slate-100 text-slate-600 font-black text-xs uppercase hover:bg-slate-50 transition-all flex items-center justify-center gap-3">Select File</button>
                     </div>
@@ -424,10 +371,10 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                         <div className="p-5 bg-rose-200 text-rose-700 rounded-[1.5rem] shrink-0 shadow-lg"><AlertTriangle className="h-10 w-10" /></div>
                         <div>
                             <h4 className="text-2xl font-black text-rose-900 uppercase tracking-tight mb-2">Danger Zone</h4>
-                            <p className="text-sm text-rose-700/80 font-medium max-w-xl leading-relaxed">A factory reset erases all records. This cannot be undone.</p>
+                            <p className="text-sm text-rose-700/80 font-medium max-w-xl leading-relaxed">Clears local session data and resets the application to defaults. You will be signed out.</p>
                         </div>
                     </div>
-                    <button onClick={() => setShowResetModal(true)} className="px-10 py-5 bg-rose-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-2xl shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95">Execute Wipe</button>
+                    <button onClick={() => setShowResetModal(true)} className="px-10 py-5 bg-rose-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-2xl shadow-rose-200 hover:bg-rose-700 transition-all active:scale-95">Reset Session</button>
                 </div>
             </section>
 
