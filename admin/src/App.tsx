@@ -164,13 +164,7 @@ const App: React.FC = () => {
     const init = async () => {
       await initializeNetwork();
       setNetworkStatus(getNetworkStatus() as any);
-      
-      // -- Browser Closure Cache Clear --
-      window.onbeforeunload = () => {
-          localStorage.clear();
-          sessionStorage.clear();
-      };
-      
+
       const user = await mockCheckSession();
       await refreshConfig();
       if (user) {
