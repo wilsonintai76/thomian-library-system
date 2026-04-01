@@ -24,7 +24,7 @@ app.use('*', cors({
 }))
 
 // Health Check
-app.get('/health', (c) => c.json({ status: 'OK', timestamp: new Date().toISOString(), version: '4.0.0-D1' }))
+app.get('/health', (c) => c.json({ status: 'OK', timestamp: new Date().toISOString(), version: '3.4.0' }))
 
 // Auth Middleware
 app.use('*', async (c, next) => {

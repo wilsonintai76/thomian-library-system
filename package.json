@@ -1,11 +1,14 @@
 {
   "name": "thomian-lib-monorepo",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "private": true,
   "scripts": {
     "dev:admin": "cd admin && npm run dev",
     "dev:kiosk": "cd kiosk && npm run dev",
     "dev:backend": "cd backend && npm run dev",
+    "bump": "node bump.mjs",
+    "bump:minor": "node bump.mjs minor",
+    "bump:major": "node bump.mjs major",
     "deploy:admin": "cd admin && npm run build && npx wrangler pages deploy dist --project-name=thomian-admin",
     "deploy:kiosk": "cd kiosk && npm run build && npx wrangler pages deploy dist --project-name=thomian-kiosk",
     "deploy:backend": "cd backend && npx wrangler deploy",
