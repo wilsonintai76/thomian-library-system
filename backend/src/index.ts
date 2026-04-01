@@ -44,6 +44,8 @@ app.use('*', async (c, next) => {
     // Kiosk PIN login + pre-login help button
     '/patrons/verify_pin',
     '/system/alerts/trigger_help',
+    // R2-served cover images are public (no auth needed to display book covers)
+    '/system/assets/',
   ]
 
   if (method === 'OPTIONS' || PUBLIC_ROUTES.some(r => path.startsWith(r))) {

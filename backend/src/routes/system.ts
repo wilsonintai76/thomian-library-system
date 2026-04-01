@@ -8,6 +8,38 @@ import { eq, asc, desc, sql } from 'drizzle-orm'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// ── R2 File Upload ─────────────────────────────────────────────────────────────
+// Accepts multipart/form-data with a 'file' field.
+// Returns a Worker-served public URL for the stored object.
+app.post('/upload', async (c) => {
+  const formData = await c.req.formData()
+  const file = formData.get('file') as File | null
+  if (!file) return c.json({ error: 'No file provided' }, 400)
+
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const key = `covers/${crypto.randomUUID()}.${ext}`
+
+  await c.env.R2.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type || 'application/octet-stream' }
+  })
+
+  const origin = new URL(c.req.url).origin
+  return c.json({ success: true, url: `${origin}/system/assets/${key}` })
+})
+
+// Serve objects from R2 — key allows slashes via wildcard segment
+app.get('/assets/:key{.+}', async (c) => {
+  const key = c.req.param('key')
+  const obj = await c.env.R2.get(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+
+  const headers = new Headers()
+  obj.writeHttpMetadata(headers)
+  headers.set('etag', obj.httpEtag)
+  headers.set('cache-control', 'public, max-age=31536000, immutable')
+  return new Response(obj.body, { headers })
+})
+
 app.get('/classes', async (c) => {
   const db = getDB(c)
   const data = await db.select().from(libraryClasses).orderBy(asc(libraryClasses.name))

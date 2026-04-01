@@ -55,7 +55,11 @@ export const mockUpdatePassword = async (_password: string): Promise<{ success: 
 export const mockCheckSession = async (): Promise<AuthUser | null> => {
     try {
         const res = await apiClient.auth.me.$get();
-        if (!res.ok) return null;
+        if (!res.ok) {
+            // Clear stale / expired token so the login modal appears cleanly
+            if (res.status === 401) localStorage.removeItem(SESSION_TOKEN_KEY);
+            return null;
+        }
         const data = await res.json() as any;
         return data.success ? data.user : null;
     } catch {
@@ -68,9 +72,22 @@ export const mockLogout = async (): Promise<void> => {
     localStorage.removeItem('thomian_user_profile');
 };
 
-export const uploadToR2 = async (_file: File): Promise<string | null> => {
-    // Placeholder for R2 upload logic (requires backend implementation for presigned URLs)
-    return null;
+export const uploadToR2 = async (file: File): Promise<string | null> => {
+    try {
+        const token = getToken();
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`${API_BASE}/system/upload`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: form,
+        });
+        if (!res.ok) return null;
+        const data = await res.json() as { success: boolean; url: string };
+        return data.success ? data.url : null;
+    } catch {
+        return null;
+    }
 };
 
 export const mockUpdateAuthUser = async (user: AuthUser): Promise<void> => {
