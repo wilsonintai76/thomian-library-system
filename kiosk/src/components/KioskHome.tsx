@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, LogIn, RefreshCw, Sparkles, ImageOff, History, BookOpen, Bookmark, Clock, Calendar, Bell, Phone, Mail, Save, Loader2, FileText, Banknote, UserCheck, TrendingUp, CalendarOff, GraduationCap, Lightbulb, Users, Settings, LogOut, Key, ChevronRight, AlertCircle, ShieldCheck, CheckCircle2, Trophy } from 'lucide-react';
+import { Search, X, LogIn, RefreshCw, Sparkles, ImageOff, History, BookOpen, Bookmark, Clock, Calendar, Bell, Phone, Mail, Save, Loader2, FileText, Banknote, UserCheck, TrendingUp, CalendarOff, GraduationCap, Lightbulb, Users, Settings, LogOut, Key, ChevronRight, AlertCircle, ShieldCheck, CheckCircle2, Trophy, WifiOff } from 'lucide-react';
 import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron, mockGetPatronLoans } from '../services/api';
 import { Book, LibraryEvent, MapConfig, Patron, Loan, Transaction } from '../types';
 import { DEFAULT_LOGO_URL } from '../constants';
@@ -42,6 +42,7 @@ const KioskHome: React.FC = () => {
     const [holdSuccess, setHoldSuccess] = useState(false);
     const [holdConfirmationId, setHoldConfirmationId] = useState<string | null>(null);
     const [patronHolds, setPatronHolds] = useState<{ id: string; title: string; status: string; expires: string }[]>([]);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -55,6 +56,12 @@ const KioskHome: React.FC = () => {
             sessionStorage.clear();
         };
 
+        // -- Offline/Online Detection --
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
         inputRef.current?.focus();
         mockGetEvents().then(setEvents);
         mockGetNewArrivals().then(setNewArrivals);
@@ -63,10 +70,16 @@ const KioskHome: React.FC = () => {
             setMapConfig(cfg);
             if (cfg.levels.length > 0) setActiveLevelId(cfg.levels[0].id);
         });
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
     }, []);
 
     const handleSearch = async () => {
         if (!query.trim()) return;
+        if (!isOnline) return; // banner already explains why
         setLoading(true);
         setSelectedBook(null);
         setHoldConfirmationId(null);
@@ -130,6 +143,10 @@ const KioskHome: React.FC = () => {
 
     const processHold = async (studentId: string) => {
         if (!selectedBook) return;
+        if (!isOnline) {
+            alert('No internet connection. Please reconnect and try again.');
+            return;
+        }
         setIsPlacingHold(true);
 
         try {
@@ -200,6 +217,15 @@ const KioskHome: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-8 flex flex-col gap-6 md:gap-8 pb-24 font-sans relative">
+
+            {/* Offline Banner */}
+            {!isOnline && (
+                <div className="fixed bottom-0 left-0 right-0 z-[500] bg-red-600 text-white px-4 py-3 flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest shadow-2xl">
+                    <WifiOff className="h-4 w-4 shrink-0" />
+                    <span>No internet &mdash; search &amp; holds unavailable. Your session is still accessible.</span>
+                </div>
+            )}
+
             <LibraryAssistant />
 
             {/* Modals are now extracted for state safety */}

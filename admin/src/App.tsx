@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert, WifiOff } from 'lucide-react';
 import { AdminTab, SystemAlert, AuthUser, MapConfig } from './types';
 import CatalogingDesk from './components/CatalogingDesk';
 import CirculationMatrix from './components/CirculationMatrix';
@@ -113,6 +113,7 @@ const App: React.FC = () => {
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const theme = mapConfig?.theme || 'EMERALD';
   const styles = SYSTEM_THEME_CONFIG[theme];
@@ -126,6 +127,17 @@ const App: React.FC = () => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -283,6 +295,14 @@ const App: React.FC = () => {
 
       {showResetModal && <ResetPasswordModal onClose={() => setShowResetModal(false)} />}
 
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="bg-red-600 text-white px-6 py-2.5 flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest print:hidden">
+          <WifiOff className="h-3.5 w-3.5 shrink-0" />
+          No internet connection &mdash; read-only mode. All write operations are disabled until connection is restored.
+        </div>
+      )}
+
       <main className="flex-1 overflow-hidden relative">
         {currentUser && (
           <div className={`h-full overflow-y-auto scrollbar-thin ${isMobile ? 'pb-24' : ''}`}>
@@ -314,7 +334,7 @@ const App: React.FC = () => {
       {!isMobile && (
         <div className="flex bg-white border-t border-slate-200 px-8 py-4 text-[9px] text-slate-500 justify-between items-center font-black uppercase tracking-[0.25em] shrink-0 print:hidden shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
           <div className="flex items-center gap-8">
-            <span className="flex items-center gap-2.5"><div className="h-2 w-2 rounded-full bg-emerald-500 shadow-lg shadow-emerald-200"></div>Core Status: <span className="text-slate-800">Synchronized</span></span>
+            <span className="flex items-center gap-2.5"><div className={`h-2 w-2 rounded-full shadow-lg ${isOnline ? 'bg-emerald-500 shadow-emerald-200' : 'bg-red-500 shadow-red-200'}`}></div>Core Status: <span className="text-slate-800">{isOnline ? 'Synchronized' : 'Offline'}</span></span>
             <div className="h-4 w-px bg-slate-100"></div>
             <span className="flex items-center gap-2.5">{networkStatus.isLan ? <Wifi className="h-3.5 w-3.5 text-emerald-500" /> : <Cloud className="h-3.5 w-3.5 text-slate-400" />}Sync Channel: <span className={networkStatus.isLan ? 'text-emerald-600' : 'text-slate-400'}>{networkStatus.mode}</span></span>
           </div>
