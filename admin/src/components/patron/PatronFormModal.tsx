@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { X, UserPlus, Save, GraduationCap, Phone, Mail, ShieldCheck, User, RefreshCw, Camera, Upload, Trash2, Aperture, AlertCircle, Key, Dices, Eye, EyeOff } from 'lucide-react';
+import { X, UserPlus, Save, GraduationCap, Phone, Mail, User, RefreshCw, Camera, Upload, Trash2, Aperture, AlertCircle, Key, Dices, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Patron, PatronGroup, LibraryClass } from '../../types';
 import { mockGetClasses, uploadToR2 } from '../../services/api';
 
@@ -48,10 +48,13 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     useEffect(() => {
         if (!isOpen) return;
         if (initialData) {
+            const isStaffGroup = initialData.patron_group === 'LIBRARIAN' || initialData.patron_group === 'ADMINISTRATOR';
+            const autoRole = (initialData.staff_role || (initialData.patron_group === 'ADMINISTRATOR' ? 'ADMINISTRATOR' : 'LIBRARIAN')) as 'LIBRARIAN' | 'ADMINISTRATOR';
             setFormData({ 
                 ...initialData,
-                is_staff_active: !!initialData.is_staff,
-                role: initialData.role || 'LIBRARIAN',
+                // Auto-enable portal for ADMINISTRATOR; for LIBRARIAN respect existing profile
+                is_staff_active: initialData.patron_group === 'ADMINISTRATOR' ? true : !!initialData.is_staff,
+                role: isStaffGroup ? autoRole : 'LIBRARIAN',
                 password: ''
             });
         } else {
@@ -89,6 +92,18 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
     const handleGeneratePin = () => {
         setFormData({ ...formData, pin: generateRandomPin() });
         setShowPin(true);
+    };
+
+    // Changing patron group auto-syncs role and portal access state
+    const handlePatronGroupChange = (group: PatronGroup) => {
+        const isStaffGroup = group === 'LIBRARIAN' || group === 'ADMINISTRATOR';
+        const autoRole: 'LIBRARIAN' | 'ADMINISTRATOR' = group === 'ADMINISTRATOR' ? 'ADMINISTRATOR' : 'LIBRARIAN';
+        setFormData(prev => ({
+            ...prev,
+            patron_group: group,
+            is_staff_active: isStaffGroup,
+            role: isStaffGroup ? autoRole : prev.role,
+        }));
     };
 
     const CARD_W = 400;
@@ -397,7 +412,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Patron Group</label>
                                 <select
                                     value={formData.patron_group}
-                                    onChange={(e) => setFormData({ ...formData, patron_group: e.target.value as PatronGroup })}
+                                    onChange={(e) => handlePatronGroupChange(e.target.value as PatronGroup)}
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-blue-500"
                                 >
                                     <option value="STUDENT">Student</option>
@@ -405,43 +420,47 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                     <option value="LIBRARIAN">Librarian</option>
                                     <option value="ADMINISTRATOR">Administrator</option>
                                 </select>
-                                {(formData.patron_group === 'LIBRARIAN' || formData.patron_group === 'ADMINISTRATOR') && (
-                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
-                                        <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-[9px] font-black text-blue-700 uppercase tracking-tight">Enable Admin Portal Access?</p>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={formData.is_staff_active} 
-                                                    onChange={(e) => setFormData({...formData, is_staff_active: e.target.checked})}
-                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                            <p className="text-[8px] text-blue-500 font-bold uppercase mt-1">Allows portal login using their email.</p>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-                            
-                            {formData.is_staff_active && (
-                                <div className="md:col-span-2 p-6 bg-slate-900 rounded-[1.5rem] border-2 border-blue-500/30 text-white space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Key className="h-4 w-4 text-blue-400" />
-                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Portal Credentials</h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Access Role</label>
-                                            <select
-                                                value={formData.role}
-                                                onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                                                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 font-bold text-white outline-none focus:border-blue-500 text-xs"
-                                            >
-                                                <option value="LIBRARIAN">Librarian (Staff)</option>
-                                                <option value="ADMINISTRATOR">Administrator (Superuser)</option>
-                                            </select>
+
+                            {/* Portal access — auto-shown for staff groups, role derived from patron_group */}
+                            {(formData.patron_group === 'LIBRARIAN' || formData.patron_group === 'ADMINISTRATOR') && (
+                                <div className="md:col-span-2 p-5 bg-slate-900 rounded-[1.5rem] border-2 border-blue-500/30 text-white space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <ShieldCheck className="h-4 w-4 text-blue-400" />
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Admin Portal Access</h4>
                                         </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                                formData.patron_group === 'ADMINISTRATOR'
+                                                    ? 'bg-purple-500/20 text-purple-300'
+                                                    : formData.is_staff_active ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-700 text-slate-400'
+                                            }`}>
+                                                {formData.patron_group === 'ADMINISTRATOR' ? '★ Superuser' : formData.is_staff_active ? 'Staff — Active' : 'Staff — Disabled'}
+                                            </span>
+                                            {/* ADMINISTRATOR is always on; LIBRARIAN can toggle */}
+                                            {formData.patron_group === 'LIBRARIAN' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, is_staff_active: !prev.is_staff_active }))}
+                                                    title={formData.is_staff_active ? 'Disable portal access' : 'Enable portal access'}
+                                                    className={`relative w-11 h-6 rounded-full transition-all ${
+                                                        formData.is_staff_active ? 'bg-blue-500' : 'bg-slate-600'
+                                                    }`}
+                                                >
+                                                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                                                        formData.is_staff_active ? 'left-5' : 'left-0.5'
+                                                    }`} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {formData.patron_group === 'ADMINISTRATOR' && (
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase -mt-2">Administrator portal access is always active.</p>
+                                    )}
+
+                                    {formData.is_staff_active && (
                                         <div>
                                             <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
                                                 {initialData?.is_staff ? 'Update Password' : 'Set Portal Password'}
@@ -451,12 +470,15 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                                 value={formData.password || ''}
                                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 font-bold text-white outline-none focus:border-blue-500 text-xs"
-                                                placeholder={initialData?.is_staff ? "Leave blank to keep current" : "••••••••"}
+                                                placeholder={initialData?.is_staff ? 'Leave blank to keep current' : 'Set a portal login password'}
                                             />
                                         </div>
-                                    </div>
-                                    {!formData.email && (
-                                        <p className="text-[9px] font-bold text-rose-400 uppercase tracking-widest flex items-center gap-1.5"><AlertCircle className="h-3 w-3" /> Email address is required for Portal access.</p>
+                                    )}
+
+                                    {formData.is_staff_active && !formData.email && (
+                                        <p className="text-[9px] font-bold text-rose-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <AlertCircle className="h-3 w-3" /> Email address is required for Portal access.
+                                        </p>
                                     )}
                                 </div>
                             )}
