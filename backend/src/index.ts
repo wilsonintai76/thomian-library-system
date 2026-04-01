@@ -32,12 +32,19 @@ app.use('*', async (c, next) => {
   const method = c.req.method
 
   // Skip auth for OPTIONS (CORS preflight) and public routes
-  if (
-    method === 'OPTIONS' ||
-    path.includes('/auth/login') ||
-    path.includes('/auth/setup-admin') ||
-    path.includes('/health')
-  ) {
+  const PUBLIC_ROUTES = [
+    '/auth/login',
+    '/auth/setup-admin',
+    '/health',
+    // Kiosk home loads these before patron login
+    '/catalog/new_arrivals',
+    '/catalog/trending',
+    '/system/events',
+    '/system/system-config',
+    '/patrons/verify_pin',
+  ]
+
+  if (method === 'OPTIONS' || PUBLIC_ROUTES.some(r => path.startsWith(r))) {
     return next()
   }
 
