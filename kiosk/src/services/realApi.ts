@@ -12,8 +12,8 @@ import type {
 import { hc } from 'hono/client';
 import type { AppType } from '../../../backend/src/index';
 
-const API_BASE = '/api';
-const TOKEN_KEY = 'thomian_auth_token';
+const API_BASE = import.meta.env.VITE_API_BASE as string;
+const TOKEN_KEY = 'thomian_session_token';
 
 function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
@@ -130,6 +130,7 @@ export const mockUpdateBook = async (book: Book): Promise<Book> => {
 export const mockDeleteBook = async (id: string): Promise<void> => {
     await apiClient.catalog[':id'].$delete({ param: { id } });
 };
+export const mockRestoreBook = async (b: Book): Promise<Book> => mockAddBook(b);
 export const mockSearchBooks = async (query: string): Promise<Book[]> => {
     const res = await apiClient.catalog.$get({ query: { search: query } });
     return res.ok ? (res.json() as Promise<Book[]>) : [];
@@ -223,6 +224,7 @@ export const mockUpdatePatron = async (p: Patron): Promise<Patron> => {
 export const mockDeletePatron = async (id: string): Promise<void> => {
     await apiClient.patrons[':id'].$delete({ param: { id } });
 };
+export const mockRestorePatron = async (p: Patron): Promise<void> => { await mockAddPatron(p); };
 export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron | null> => {
     try {
         const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
@@ -252,6 +254,10 @@ export const mockRecordTransaction = async (t: Transaction): Promise<Transaction
 };
 export const mockGetTransactions = async (): Promise<Transaction[]> => {
     const res = await apiClient.transactions.$get({ query: {} });
+    return res.ok ? (res.json() as Promise<Transaction[]>) : [];
+};
+export const mockGetTransactionsByPatron = async (patronId: string): Promise<Transaction[]> => {
+    const res = await apiClient.transactions.$get({ query: { patron_id: patronId } });
     return res.ok ? (res.json() as Promise<Transaction[]>) : [];
 };
 export const mockGetFinancialSummary = async () => {
@@ -295,6 +301,8 @@ export const mockAddEvent = async (e: any): Promise<LibraryEvent> => {
     const res = await apiClient.system.events.$post({ json: e });
     return res.json() as any;
 };
+export const mockDeleteEvent = async (_id: string): Promise<void> => { /* not exposed by backend */ };
+export const mockUpdateEvent = async (e: any): Promise<LibraryEvent> => mockAddEvent(e);
 
 export const mockGetActiveAlerts = async (): Promise<SystemAlert[]> => {
     const res = await apiClient.system.alerts.$get();
