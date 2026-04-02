@@ -19,16 +19,7 @@ const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest, mapConfig }
             </div>
 
             {/* Navigation */}
-            <nav className="relative z-50 flex items-center justify-between px-6 py-8 max-w-7xl mx-auto">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 flex items-center justify-center">
-                        <img src={mapConfig?.logo || DEFAULT_LOGO_URL} alt="SMK St. Thomas" className="h-full w-full object-contain" />
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="font-black text-xl tracking-tighter uppercase leading-none">Thomian Admin</span>
-                        <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5">Library HQ</span>
-                    </div>
-                </div>
+            <nav className="relative z-50 flex items-center justify-end px-6 py-8 max-w-7xl mx-auto">
                 <button 
                     onClick={onLoginRequest}
                     className="px-6 py-2.5 bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all duration-500 group"
