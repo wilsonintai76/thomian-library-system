@@ -1,12 +1,14 @@
 import React from 'react';
 import { ShieldCheck, BookOpen, BarChart3, Map, Zap, Layers, Globe, Clock, ChevronRight, Lock } from 'lucide-react';
+import { MapConfig } from '../types';
 import { DEFAULT_LOGO_URL } from '../constants';
 
 interface AdminLandingProps {
     onLoginRequest: () => void;
+    mapConfig: MapConfig | null;
 }
 
-const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest }) => {
+const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest, mapConfig }) => {
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30 overflow-x-hidden">
             {/* Ambient Background Elements */}
@@ -20,7 +22,7 @@ const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest }) => {
             <nav className="relative z-50 flex items-center justify-between px-6 py-8 max-w-7xl mx-auto">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 flex items-center justify-center">
-                        <img src={DEFAULT_LOGO_URL} alt="SMK St. Thomas" className="h-full w-full object-contain" />
+                        <img src={mapConfig?.logo || DEFAULT_LOGO_URL} alt="SMK St. Thomas" className="h-full w-full object-contain" />
                     </div>
                     <div className="flex flex-col">
                         <span className="font-black text-xl tracking-tighter uppercase leading-none">Thomian Admin</span>

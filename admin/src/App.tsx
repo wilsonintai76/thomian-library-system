@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert, WifiOff } from 'lucide-react';
 import { AdminTab, SystemAlert, AuthUser, MapConfig } from './types';
@@ -307,7 +306,7 @@ const App: React.FC = () => {
         )}
         
         {!currentUser && (
-          <AdminLanding onLoginRequest={() => setIsLoginOpen(true)} />
+          <AdminLanding onLoginRequest={() => setIsLoginOpen(true)} mapConfig={mapConfig} />
         )}
       </main>
 
