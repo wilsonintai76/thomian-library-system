@@ -56,6 +56,8 @@ export const libraryClassSchema = z.object({
   name: z.string().min(1),
   teacher_name: z.string().optional(),
   academic_year: z.string().optional(),
+  grade_level: z.string().optional(),
+  room_number: z.string().optional(),
   status: z.string().optional(),
   department: z.string().optional(),
   student_count: z.number().optional().or(z.string().transform(v => parseInt(v)))

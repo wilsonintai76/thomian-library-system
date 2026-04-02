@@ -95,6 +95,8 @@ export const libraryClasses = sqliteTable('library_classes', {
   name: text('name').notNull(),
   teacher_name: text('teacher_name'),
   academic_year: text('academic_year'),
+  grade_level: text('grade_level'),
+  room_number: text('room_number'),
   status: text('status').default('ACTIVE'),
   department: text('department'),
   student_count: integer('student_count').default(0),
