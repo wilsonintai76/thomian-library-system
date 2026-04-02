@@ -329,7 +329,7 @@ export const mockGetTransactionsByPatron = async (id: string): Promise<Transacti
     if (!res.ok) throw new Error(await res.text());
     return res.json() as Promise<Transaction[]>;
 };
-export const mockGetFinancialSummary = async (): Promise<{ total_revenue: number; outstanding_fines: number; transaction_count: number }> => {
+export const mockGetFinancialSummary = async (): Promise<{ totalCollected: number; totalFinesAssessed: number; totalReplacementsAssessed: number; totalWaived: number; transaction_count: number }> => {
     const res = await apiClient.transactions.summary.$get();
     if (!res.ok) throw new Error(await res.text());
     return res.json() as any;

@@ -10,11 +10,25 @@ const app = new Hono<{ Bindings: Bindings }>()
 
 app.get('/summary', async (c) => {
   const db = getDB(c)
-  const results = await db.select({ amount: transactions.amount }).from(transactions).limit(100)
-  const total = results.reduce((sum, t) => sum + (Number(t.amount) || 0), 0) || 0
+  const results = await db.select({ 
+    type: transactions.type,
+    amount: transactions.amount 
+  }).from(transactions)
+
+  const totals = results.reduce((acc, t) => {
+    const val = Number(t.amount) || 0
+    if (t.type.includes('PAYMENT')) acc.total_collected += val
+    if (t.type === 'FINE_ASSESSMENT') acc.total_fines_assessed += val
+    if (t.type === 'REPLACEMENT_ASSESSMENT') acc.total_replacements_assessed += val
+    if (t.type === 'WAIVE') acc.total_waived += val
+    return acc
+  }, { total_collected: 0, total_fines_assessed: 0, total_replacements_assessed: 0, total_waived: 0 })
+
   return c.json({
-    total_revenue: total,
-    outstanding_fines: 0,
+    totalCollected: totals.total_collected,
+    totalFinesAssessed: totals.total_fines_assessed,
+    totalReplacementsAssessed: totals.total_replacements_assessed,
+    totalWaived: totals.total_waived,
     transaction_count: results.length
   })
 })

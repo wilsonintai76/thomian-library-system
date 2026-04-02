@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertCircle, BookOpen, Printer, Download, Mail, LayoutTemplate, Library, RefreshCw, CheckCircle, Wallet, History, UserCheck, ShieldCheck, Zap, BarChart3, PieChart, Users, ChevronRight } from 'lucide-react';
-import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions, fetchAiInsights } from '../services/api';
+import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions } from '../services/api';
 import { SystemStats, OverdueReportItem, Transaction } from '../types';
 import StatCard from './reports/StatCard';
 import GenreIntelligence from './reports/GenreIntelligence';
@@ -14,7 +14,6 @@ const ReportsDashboard: React.FC = () => {
     const [overdues, setOverdues] = useState<OverdueReportItem[]>([]);
     const [financials, setFinancials] = useState<{ totalCollected: number, totalFinesAssessed: number, totalReplacementsAssessed: number, totalWaived: number } | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [aiInsights, setAiInsights] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -23,18 +22,16 @@ const ReportsDashboard: React.FC = () => {
 
     const loadData = async () => {
         setLoading(true);
-        const [statsData, overdueData, finSummary, txns, insightsData] = await Promise.all([
+        const [statsData, overdueData, finSummary, txns] = await Promise.all([
             mockGetSystemStats(),
             mockGetOverdueItems(),
             mockGetFinancialSummary(),
             mockGetTransactions(),
-            fetchAiInsights()
         ]);
         setStats(statsData as any);
         setOverdues(overdueData);
         setFinancials(finSummary);
         setTransactions(txns);
-        setAiInsights(insightsData);
         setLoading(false);
     };
 
@@ -83,32 +80,7 @@ const ReportsDashboard: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-[600px]">
-                        <div className="lg:col-span-3">
-                            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] h-full shadow-2xl relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/20 rounded-full blur-2xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000"></div>
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-2 bg-sky-500 rounded-xl">
-                                        <Zap className="h-5 w-5 text-slate-900" />
-                                    </div>
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-400">AI Strategist</h4>
-                                </div>
-                                <div className="space-y-4">
-                                    <h3 className="text-xl font-black leading-tight uppercase italic tracking-tighter">Narrative Intelligence</h3>
-                                    <div className="text-sm font-medium text-slate-300 leading-relaxed border-l-2 border-sky-500/30 pl-4 py-2">
-                                        {aiInsights || "Synthesizing collection metadata from global DDC schemas..."}
-                                    </div>
-                                    <div className="pt-6">
-                                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
-                                            <p className="text-[8px] font-black uppercase text-slate-500 mb-2">System Confidence</p>
-                                            <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                                                <div className="h-full bg-sky-500 w-[94%]" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="lg:col-span-9">
+                        <div className="lg:col-span-12">
                             <EngagementHub topReaders={stats.topReaders} topClasses={stats.topClasses} />
                         </div>
                     </div>
