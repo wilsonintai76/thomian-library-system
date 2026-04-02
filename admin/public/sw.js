@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'thomian-lib-v3.5.0';
+const CACHE_NAME = 'thomian-lib-v3.5.1';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -78,7 +78,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Default Strategy: Cache First, falling back to network
+  // 3. API Requests (Workers): Network Only
+  // Ensure we never serve stale data for configuration or records
+  if (url.hostname.includes('workers.dev')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 4. Default Strategy: Cache First, falling back to network
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       return cachedResponse || fetch(event.request);
