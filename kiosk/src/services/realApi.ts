@@ -12,7 +12,7 @@ import type {
 import { hc } from 'hono/client';
 import type { AppType } from '../../../backend/src/index';
 
-const API_BASE = import.meta.env.VITE_API_BASE as string;
+const API_BASE = (import.meta as any).env.VITE_API_BASE as string;
 const TOKEN_KEY = 'thomian_session_token';
 
 function getToken(): string | null {
@@ -30,12 +30,12 @@ async function parseApiError(res: Response): Promise<string> {
     }
 }
 
-export const apiClient = hc<AppType>(API_BASE, {
+export const apiClient = (hc as any)(API_BASE, {
     headers() {
         const token = getToken();
-        return token ? { Authorization: `Bearer ${token}` } : {};
+        return (token ? { Authorization: `Bearer ${token}` } : {}) as any;
     }
-});
+}) as any;
 
 function authHeaders(): HeadersInit {
     const token = getToken();
@@ -363,15 +363,15 @@ export const mockDeleteCirculationRule = async (id: string): Promise<void> => {
 
 export const mockGetMapConfig = async (): Promise<MapConfig> => {
     const res = await apiClient.system['system-config'].$get();
-    const d = res.ok ? (await res.json() as any) : {};
-    const mapData = d.map_data || {};
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json() as any;
     return {
         levels: [],
         shelves: [],
         theme: 'EMERALD',
         cardTemplate: 'TRADITIONAL',
-        ...mapData,
-        logo: d.logo,
+        ...data.map_data,
+        logo: data.logo,
         lastUpdated: new Date().toISOString()
     } as MapConfig;
 };

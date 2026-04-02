@@ -438,10 +438,18 @@ export const mockGetMapConfig = async (): Promise<MapConfig> => {
     const res = await apiClient.system['system-config'].$get();
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json() as any;
-    return data.map_data;
+    return {
+        ...data.map_data,
+        logo: data.logo
+    };
 };
 export const mockSaveMapConfig = async (config: MapConfig): Promise<void> => {
-    const res = await apiClient.system['system-config'].update_config.$post({ json: { map_data: config } });
+    const res = await apiClient.system['system-config'].update_config.$post({ 
+        json: { 
+            map_data: config,
+            logo: config.logo || null
+        } as any 
+    });
     if (!res.ok) throw new Error(await res.text());
 };
 
