@@ -440,7 +440,7 @@ export const mockGetMapConfig = async (): Promise<MapConfig> => {
     const data = await res.json() as any;
     return {
         ...data.map_data,
-        logo: data.logo
+        logo: data.logo || data.map_data?.logo
     };
 };
 export const mockSaveMapConfig = async (config: MapConfig): Promise<void> => {

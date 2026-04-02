@@ -14,6 +14,7 @@ import type { AppType } from '../../../backend/src/index';
 
 const API_BASE = (import.meta as any).env.VITE_API_BASE as string;
 const TOKEN_KEY = 'thomian_session_token';
+const CACHE_NAME = 'thomian-lib-v3.5.2';
 
 function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
@@ -371,7 +372,7 @@ export const mockGetMapConfig = async (): Promise<MapConfig> => {
         theme: 'EMERALD',
         cardTemplate: 'TRADITIONAL',
         ...data.map_data,
-        logo: data.logo,
+        logo: data.logo || data.map_data?.logo,
         lastUpdated: new Date().toISOString()
     } as MapConfig;
 };
