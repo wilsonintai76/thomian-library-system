@@ -4,7 +4,7 @@
  */
 
 // Official Master Logo URL (Host this on R2 or your local public/ folder)
-export const DEFAULT_LOGO_URL = '/logo.png';
+export const DEFAULT_LOGO_URL = '/school-logo.svg';
 
 export const SYSTEM_NAME = 'Thomian Library';
 export const SCHOOL_NAME = 'St. Thomas Secondary';
