@@ -8,6 +8,20 @@
       "when": 1774967257899,
       "tag": "0000_gray_wraith",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1775087736397,
+      "tag": "0001_brief_donald_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775090098279,
+      "tag": "0002_add_publisher_column",
+      "breakpoints": true
     }
   ]
 }

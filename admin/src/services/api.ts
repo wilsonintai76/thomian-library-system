@@ -36,6 +36,8 @@ export const mockGetNewArrivals = () => real.mockGetNewArrivals();
 export const mockGetTrendingBooks = () => real.mockGetTrendingBooks();
 export const mockPlaceHold = (b: any, p: any) => { requireOnline('Place Hold'); return real.mockPlaceHold(b, p); };
 export const simulateCatalogWaterfall = (i: any, u: any) => { requireOnline('Catalog Import'); return real.simulateCatalogWaterfall(i, u); };
+export const predictDDC = (t: string, a?: string, p?: string) => { requireOnline('AI Prediction'); return real.predictDDC(t, a, p); };
+export const getPublishers = () => real.getPublishers();
 
 // ── Patrons ───────────────────────────────────────────────────────────────────
 export const mockGetPatrons = () => real.mockGetPatrons();
@@ -111,4 +113,6 @@ export const performFactoryReset = async () => {
 
 // ── AI ────────────────────────────────────────────────────────────────────────
 export const aiAnalyzeBlueprint = (i: string, l: string) => { requireOnline('AI Analysis'); return real.aiAnalyzeBlueprint(i, l); };
+export const fetchAiInsights = () => real.fetchAiInsights();
+export const reclassifyBook = (id: string) => { requireOnline('AI Reclassify'); return real.reclassifyBook(id); };
 

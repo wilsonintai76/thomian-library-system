@@ -97,12 +97,12 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
     cardDarkHex: string;
 }> = {
     EMERALD: {
-        navBg: 'bg-emerald-50/90',
+        navBg: 'bg-emerald-50',
         navText: 'text-emerald-900',
         navBrand: 'text-emerald-950',
         navAccent: 'text-emerald-600',
         navBorder: 'border-emerald-100',
-        subnavBg: 'bg-emerald-50/40',
+        subnavBg: 'bg-emerald-50',
         subnavActive: 'text-emerald-700',
         subnavIdle: 'text-emerald-800/40',
         subnavIndicator: 'bg-emerald-600',
@@ -116,12 +116,12 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardDarkHex: '#064e3b'
     },
     PURPLE: {
-        navBg: 'bg-purple-50/90',
+        navBg: 'bg-purple-50',
         navText: 'text-purple-900',
         navBrand: 'text-purple-950',
         navAccent: 'text-purple-600',
         navBorder: 'border-purple-100',
-        subnavBg: 'bg-purple-50/40',
+        subnavBg: 'bg-purple-50',
         subnavActive: 'text-purple-700',
         subnavIdle: 'text-purple-800/40',
         subnavIndicator: 'bg-purple-600',
@@ -135,12 +135,12 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardDarkHex: '#581c87'
     },
     SKY: {
-        navBg: 'bg-sky-50/90',
+        navBg: 'bg-sky-50',
         navText: 'text-sky-900',
         navBrand: 'text-sky-950',
         navAccent: 'text-sky-600',
         navBorder: 'border-sky-100',
-        subnavBg: 'bg-sky-50/40',
+        subnavBg: 'bg-sky-50',
         subnavActive: 'text-sky-700',
         subnavIdle: 'text-sky-800/40',
         subnavIndicator: 'bg-sky-600',
@@ -154,7 +154,7 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardDarkHex: '#0c4a6e'
     },
     MIDNIGHT: {
-        navBg: 'bg-slate-900/95',
+        navBg: 'bg-slate-900',
         navText: 'text-slate-100',
         navBrand: 'text-white',
         navAccent: 'text-sky-400',
@@ -173,10 +173,10 @@ export const SYSTEM_THEME_CONFIG: Record<SystemTheme, {
         cardDarkHex: '#020617'
     },
     WHITE: {
-        navBg: 'bg-white/95',
+        navBg: 'bg-white',
         navText: 'text-slate-900',
         navBrand: 'text-slate-950',
-        navAccent: 'text-slate-500',
+        navAccent: 'text-slate-50',
         navBorder: 'border-slate-200',
         subnavBg: 'bg-white',
         subnavActive: 'text-slate-900',

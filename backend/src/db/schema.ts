@@ -29,6 +29,7 @@ export const books = sqliteTable('books', {
   acquisition_date: text('acquisition_date'),
   series: text('series'),
   edition: text('edition'),
+  publisher: text('publisher'),
   publisher_id: text('publisher_id'),
   pub_year: text('pub_year'),
   format: text('format'),
@@ -135,7 +136,9 @@ export const libraryEvents = sqliteTable('library_events', {
   id: text('id').primaryKey().notNull(),
   title: text('title').notNull(),
   description: text('description'),
-  start_time: text('start_time').notNull(),
+  date: text('date'), // Added for frontend compatibility
+  type: text('type'), // Added for frontend compatibility
+  start_time: text('start_time'), // Made optional
   end_time: text('end_time'),
   location: text('location'),
   status: text('status').default('UPCOMING'),

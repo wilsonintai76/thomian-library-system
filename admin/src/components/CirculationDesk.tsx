@@ -76,10 +76,15 @@ const CirculationDesk: React.FC<{ initialMode?: 'CHECK_OUT' | 'CHECK_IN' | 'RENE
                             triggerFlash();
                         }
                     } else {
-                        alert('Identity not found in Thomian Core.');
+                        const book = await mockGetBookByBarcode(query);
+                        if (book) {
+                            alert(`Scan patron card first, then scan books to renew.\n\n"${book.title}" is ready to be added once a patron is identified.`);
+                        } else {
+                            alert('Identity not found in Thomian Core.');
+                        }
                     }
                 } else {
-                    const result = await mockRenewBook(query, currentPatron.student_id);
+                    const result = await mockRenewBook(query, currentPatron.id);
                     setRenewHistory(prev => [{ book_title: result.book_title || query, due_date: result.due_date, renewal_count: result.renewal_count }, ...prev]);
                     triggerFlash();
                 }

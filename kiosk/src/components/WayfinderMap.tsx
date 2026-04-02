@@ -154,6 +154,10 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                 {/* LAYER 2: SHELVES */}
                 {filteredShelves.map((shelf) => {
                     const isActive = targetShelf?.id === shelf.id;
+                    const isVertical = shelf.height > shelf.width;
+                    const centerX = shelf.x + shelf.width / 2;
+                    const centerY = shelf.y + shelf.height / 2;
+
                     return (
                         <g key={shelf.id} id={shelf.id} className="transition-all duration-500">
                             {isActive && (
@@ -173,12 +177,25 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                                 strokeWidth={isActive ? 3 : 1}
                                 style={{ opacity: isActive || !targetShelf ? 1 : 0.4, transition: 'all 0.3s' }}
                             />
-                            <g style={{ pointerEvents: 'none' }}>
+                            <g 
+                                style={{ pointerEvents: 'none' }} 
+                                transform={isVertical ? `rotate(-90, ${centerX}, ${centerY})` : ''}
+                            >
+                                {/* Background Capsule for better visibility */}
+                                <rect
+                                    x={centerX - 35}
+                                    y={centerY - 12}
+                                    width="70"
+                                    height="22"
+                                    rx="11"
+                                    fill={isActive ? '#2563eb' : 'rgba(51, 65, 85, 0.9)'}
+                                    className="transition-all duration-300"
+                                    filter={isActive ? 'url(#glow)' : ''}
+                                />
                                 <text
-                                    x={shelf.x + shelf.width / 2} y={shelf.y + shelf.height / 2 + 5}
+                                    x={centerX} y={centerY + 4}
                                     textAnchor="middle"
-                                    className="text-xs font-black uppercase tracking-widest"
-                                    fill={isActive ? '#ffffff' : '#64748b'}
+                                    className="text-[10px] font-black uppercase tracking-widest fill-white"
                                 >
                                     {shelf.label}
                                 </text>

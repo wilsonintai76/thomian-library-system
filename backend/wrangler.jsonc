@@ -10,8 +10,6 @@
 		"enabled": true
 	},
 	"vars": {
-		"SUPABASE_URL": "https://gihlokkekganbokekury.supabase.co",
-		"SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpaGxva2tla2dhbmJva2VrdXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzcxMjksImV4cCI6MjA5MDQ1MzEyOX0.EmhAr8IdIrCOISsztmzimIUdR3XHc_cEY2g-2LDk7aw",
 		"JWT_SECRET": "replace-with-a-secure-secret-key"
 	},
 	"d1_databases": [

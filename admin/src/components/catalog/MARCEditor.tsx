@@ -1,7 +1,8 @@
 
 import React, { useRef, useEffect } from 'react';
-import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe } from 'lucide-react';
+import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe, Sparkles } from 'lucide-react';
 import { Book } from '../../types';
+import { predictDDC, getPublishers } from '../../services/api';
 import { getClassificationFromDDC, DEWEY_CATEGORIES, getStarterDdcForClassification } from '../../utils';
 import BookLabel from '../BookLabel';
 
@@ -18,26 +19,71 @@ interface MARCEditorProps {
 
 const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSaving, copies = 1, onCommit, onPreview, onImageUpload, onCancel }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoadingDdc, setIsLoadingDdc] = React.useState(false);
+  const [publisherList, setPublisherList] = React.useState<string[]>([]);
+
+  useEffect(() => {
+    const loadPublishers = async () => {
+        const list = await getPublishers();
+        setPublisherList(list);
+    };
+    loadPublishers();
+  }, []);
 
   // Auto-detect classification and suggest call number when DDC or Author changes
   useEffect(() => {
-      if (isManual && !book.id) {
-          const authorShort = String(book.author || '').slice(0, 3).toUpperCase();
-          const suggestedCall = book.ddc_code ? `${book.ddc_code} ${authorShort}` : '';
-          
-          if (suggestedCall && !book.call_number) {
-              setBook({ 
-                  ...book, 
-                  call_number: suggestedCall,
-                  cutter_number: authorShort
-              });
-          }
-      }
+    if (isManual && !book.id) {
+        const authorShort = String(book.author || '').slice(0, 3).toUpperCase();
+        const suggestedCall = (book.ddc_code && authorShort) ? `${book.ddc_code} ${authorShort}` : (book.ddc_code || '');
+        
+        // Update if empty, or if it currently matches a partial/stale version of the auto-call
+        const currentCall = book.call_number || '';
+        const isStaleOrEmpty = !currentCall || 
+                             currentCall === authorShort || 
+                             currentCall.trim() === book.ddc_code ||
+                             currentCall === `${book.ddc_code} `.trim();
+
+        if (suggestedCall && isStaleOrEmpty && currentCall !== suggestedCall) {
+            setBook({ 
+                ...book, 
+                call_number: suggestedCall,
+                cutter_number: authorShort
+            });
+        }
+    }
   }, [book.ddc_code, book.author]);
 
   const handleDdcChange = (val: string) => {
       const detected = getClassificationFromDDC(val);
       setBook({ ...book, ddc_code: val, classification: detected });
+  };
+
+  const handleAiSuggest = async () => {
+    if (!book.title) {
+        alert("Please enter at least the book title first.");
+        return;
+    }
+    setIsLoadingDdc(true);
+    try {
+        const ddc = await predictDDC(book.title, book.author, book.publisher as string);
+        if (ddc && ddc !== '000') {
+            const authorShort = String(book.author || '').slice(0, 3).toUpperCase();
+            const detected = getClassificationFromDDC(ddc);
+            setBook({ 
+                ...book, 
+                ddc_code: ddc, 
+                classification: detected,
+                call_number: authorShort ? `${ddc} ${authorShort}` : ddc,
+                cutter_number: authorShort
+            });
+        } else {
+            alert("AI could not determine a specific DDC for this title.");
+        }
+    } catch (err: any) {
+        alert(err?.message || "AI Suggestion failed.");
+    } finally {
+        setIsLoadingDdc(false);
+    }
   };
 
   const handleClassificationChange = (val: string) => {
@@ -119,7 +165,10 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-6 bg-indigo-50/30 rounded-3xl border border-indigo-100">
                             <div>
                                 <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">Publisher</label>
-                                <input type="text" value={book.publisher || ''} onChange={(e) => setBook({ ...book, publisher: e.target.value })} className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold text-indigo-900 outline-none focus:border-indigo-500" placeholder="e.g. Penguin Books" />
+                                <input list="publisher-suggestions" type="text" value={book.publisher || ''} onChange={(e) => setBook({ ...book, publisher: e.target.value })} className="w-full rounded-xl border-2 border-indigo-100 p-3 font-bold text-indigo-900 outline-none focus:border-indigo-500" placeholder="e.g. Penguin Books" />
+                                <datalist id="publisher-suggestions">
+                                    {publisherList.map(p => <option key={p} value={p} />)}
+                                </datalist>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">Year</label>
@@ -183,8 +232,28 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
                                     <span>DDC (Dewey)</span>
+                                    <button 
+                                        type="button"
+                                        onClick={handleAiSuggest}
+                                        disabled={isLoadingDdc}
+                                        className="h-5 w-5 text-amber-500 hover:text-amber-600 transition-colors disabled:opacity-30"
+                                        title="AI Suggest DDC"
+                                    >
+                                        {isLoadingDdc ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                    </button>
                                 </label>
-                                <input type="text" value={book.ddc_code || ''} onChange={(e) => handleDdcChange(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 p-4 font-mono font-black text-emerald-600 outline-none focus:border-emerald-500 shadow-sm" placeholder="530" />
+                                <div className="relative group">
+                                    <input type="text" value={book.ddc_code || ''} onChange={(e) => handleDdcChange(e.target.value)} className="w-full rounded-xl border-2 border-slate-100 p-4 font-mono font-black text-emerald-600 outline-none focus:border-emerald-500 shadow-sm" placeholder="530" />
+                                    {isLoadingDdc && (
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                            <div className="flex space-x-1">
+                                                <div className="h-1 w-1 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                                <div className="h-1 w-1 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                                <div className="h-1 w-1 bg-amber-400 rounded-full animate-bounce"></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Cutter / Call</label>

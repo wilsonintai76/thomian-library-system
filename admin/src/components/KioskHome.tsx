@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, LogIn, RefreshCw, Sparkles, ImageOff, History, BookOpen, Bookmark, Clock, Calendar, Bell, Phone, Mail, Save, Loader2, FileText, Banknote, UserCheck, TrendingUp, CalendarOff, GraduationCap, Lightbulb, Users, Settings, LogOut, Key, ChevronRight, AlertCircle, ShieldCheck, CheckCircle2, Trophy } from 'lucide-react';
 import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mockGetNewArrivals, mockGetTrendingBooks, mockGetMapConfig, mockUpdatePatron, mockGetTransactionsByPatron, mockVerifyPatron, mockGetPatronLoans } from '../services/api';
 import { Book, LibraryEvent, MapConfig, Patron, Loan, Transaction } from '../types';
 import WayfinderMap from './WayfinderMap';
-import LibraryAssistant from './LibraryAssistant';
 import PatronPortal from './kiosk/PatronPortal';
 import ProfileEditModal from './kiosk/ProfileEditModal';
 
@@ -181,7 +179,6 @@ const KioskHome: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-8 flex flex-col gap-6 md:gap-8 pb-24 font-sans relative">
-            <LibraryAssistant />
 
             {/* Modals are now extracted for state safety */}
             {activePatron && (

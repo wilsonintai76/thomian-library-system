@@ -2,26 +2,27 @@ import { z } from 'zod'
 
 export const bookSchema = z.object({
   id: z.string().optional(),
-  isbn: z.string().optional(),
+  isbn: z.string().optional().nullable(),
   title: z.string().min(1),
-  author: z.string().optional(),
-  ddc_code: z.string().optional(),
-  classification: z.string().optional(),
-  call_number: z.string().optional(),
-  barcode_id: z.string().optional(),
-  shelf_location: z.string().optional(),
-  cover_url: z.string().optional(),
-  value: z.number().optional().or(z.string().transform(v => parseFloat(v))),
-  vendor: z.string().optional(),
-  acquisition_date: z.string().optional(),
-  series: z.string().optional(),
-  edition: z.string().optional(),
+  author: z.string().optional().nullable(),
+  ddc_code: z.string().optional().nullable(),
+  classification: z.string().optional().nullable(),
+  call_number: z.string().optional().nullable(),
+  barcode_id: z.string().optional().nullable(),
+  shelf_location: z.string().optional().nullable(),
+  cover_url: z.string().optional().nullable(),
+  value: z.number().optional().nullable().or(z.string().nullable().transform(v => v ? parseFloat(v) : 0)),
+  vendor: z.string().optional().nullable(),
+  acquisition_date: z.string().optional().nullable(),
+  series: z.string().optional().nullable(),
+  edition: z.string().optional().nullable(),
+  publisher: z.string().optional().nullable(),
   publisher_id: z.string().optional().nullable(),
-  pub_year: z.string().optional(),
-  format: z.string().optional(),
-  language: z.string().optional(),
-  pages: z.number().optional().or(z.string().transform(v => parseInt(v))),
-  summary: z.string().optional(),
+  pub_year: z.string().optional().nullable(),
+  format: z.string().optional().nullable(),
+  language: z.string().optional().nullable(),
+  pages: z.number().optional().nullable().or(z.string().nullable().transform(v => v ? parseInt(v) : 0)),
+  summary: z.string().optional().nullable(),
   subjects: z.any().optional(), // Could be more strictly typed if needed
   marc_metadata: z.any().optional(),
   status: z.string().optional(),
@@ -110,4 +111,16 @@ export const updateConfigSchema = z.object({
 export const printLabelSchema = z.object({
   book_ids: z.array(z.string()),
   layout: z.string().optional()
+})
+
+export const libraryEventSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  date: z.string().optional(),
+  type: z.string().optional(),
+  start_time: z.string().optional(),
+  end_time: z.string().optional(),
+  location: z.string().optional(),
+  status: z.string().optional()
 })

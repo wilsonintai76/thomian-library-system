@@ -393,7 +393,7 @@ export const mockGetRecentActivity = async () => {
 };
 
 export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
-    const res = await fetch('/api/ai/analyze-blueprint/', {
+    const res = await fetch('/api/ai/analyze-blueprint', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ imageBase64, levelId }),

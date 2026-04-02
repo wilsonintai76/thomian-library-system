@@ -124,7 +124,7 @@ const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest }) => {
                         <div className="flex items-center gap-2"><Lock className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-widest">End-to-End SSL</span></div>
                     </div>
                     <p className="text-slate-500 text-xs font-medium tracking-tight">
-                        &copy; {new Date().getFullYear()} Thomian Library Systems. Powered by Cloudflare & Supabase Edge. 
+                        &copy; {new Date().getFullYear()} Thomian Library Systems. Powered by Cloudflare. 
                     </p>
                 </div>
             </footer>

@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Save, RefreshCw, Layers, Edit3, Move, Trash2, Plus, Info, Upload, Image as ImageIcon, Sparkles, Loader2, MapPinned, Layout, Building2, ChevronRight, Hash, Palette, Maximize2 } from 'lucide-react';
 import { MapConfig, ShelfDefinition, MapLevel } from '../types';
-import { mockGetMapConfig, mockSaveMapConfig, aiAnalyzeBlueprint } from '../services/api';
+import { mockGetMapConfig, mockSaveMapConfig, aiAnalyzeBlueprint, uploadToR2 } from '../services/api';
 import { SYSTEM_THEME_CONFIG } from '../utils';
-// import { supabase } from '../lib/supabase';
+
 import WayfinderMap from './WayfinderMap';
 
 interface MapCreatorProps {
@@ -17,6 +17,7 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
     const [saving, setSaving] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isUploadingBlueprint, setIsUploadingBlueprint] = useState(false);
     const [editMode, setEditMode] = useState<'SHELVES' | 'STATION'>('SHELVES');
     const [activeLevelId, setActiveLevelId] = useState<string>('');
     const [activeShelfId, setActiveShelfId] = useState<string | null>(null);
@@ -87,17 +88,26 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
         if (activeShelfId === id) setActiveShelfId(null);
     };
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file && config && activeLevelId) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setConfig({
-                    ...config,
-                    levels: config.levels.map(l => l.id === activeLevelId ? { ...l, customBackground: reader.result as string } : l)
-                });
-            };
-            reader.readAsDataURL(file);
+            setIsUploadingBlueprint(true);
+            try {
+                const publicUrl = await uploadToR2(file);
+                if (publicUrl) {
+                    setConfig({
+                        ...config,
+                        levels: config.levels.map(l => l.id === activeLevelId ? { ...l, customBackground: publicUrl } : l)
+                    });
+                } else {
+                    alert("Failed to upload blueprint to storage. Please try again.");
+                }
+            } catch (err: any) {
+                alert("Upload failed: " + (err?.message || "Unknown error"));
+            } finally {
+                setIsUploadingBlueprint(false);
+                e.target.value = '';
+            }
         }
     };
 
@@ -107,16 +117,11 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
             const fileExt = file.name.split('.').pop();
             const fileName = `logo-${Date.now()}.${fileExt}`;
             
-            /*
-            const { error } = await supabase.storage.from('logos').upload(fileName, file);
-            if (error) {
-                alert('Failed to upload logo: ' + error.message);
+            const publicUrl = await uploadToR2(file);
+            if (!publicUrl) {
+                alert('Failed to upload logo to storage.');
                 return;
             }
-
-            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
-            */
-            const publicUrl = ""; // Placeholder for R2 logic
             setConfig({ ...config, logo: publicUrl });
         }
     };
@@ -363,9 +368,11 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="bg-white/90 backdrop-blur border border-slate-200 text-slate-800 px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-xl hover:bg-white transition-all"
+                                disabled={isUploadingBlueprint}
+                                className="bg-white/90 backdrop-blur border border-slate-200 text-slate-800 px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-xl hover:bg-white transition-all disabled:opacity-50"
                             >
-                                <ImageIcon className={`h-4 w-4 ${styles.navAccent}`} /> Replace Blueprint
+                                {isUploadingBlueprint ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className={`h-4 w-4 ${styles.navAccent}`} />} 
+                                {isUploadingBlueprint ? 'Uploading...' : 'Replace Blueprint'}
                             </button>
                             {currentLevel?.customBackground && (
                                 <button
@@ -430,6 +437,24 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
                                     <div>
                                         <label className={`block text-[10px] font-black ${styles.navAccent} uppercase tracking-widest mb-2`}>End DDC</label>
                                         <input type="number" value={activeShelf.maxDDC} onChange={(e) => handleShelfUpdate(activeShelf.id, { maxDDC: parseFloat(e.target.value) || 0 })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono text-sm outline-none focus:border-blue-400" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+                                    <div>
+                                        <label className={`block text-[10px] font-black ${styles.navAccent} uppercase tracking-widest mb-2`}>Width (px)</label>
+                                        <input type="number" min="10" step="5" value={activeShelf.width} onChange={(e) => handleShelfUpdate(activeShelf.id, { width: parseInt(e.target.value) || 10 })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono text-sm outline-none focus:border-blue-400" />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-[10px] font-black ${styles.navAccent} uppercase tracking-widest mb-2`}>Height (px)</label>
+                                        <input type="number" min="10" step="5" value={activeShelf.height} onChange={(e) => handleShelfUpdate(activeShelf.id, { height: parseInt(e.target.value) || 10 })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono text-sm outline-none focus:border-blue-400" />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-[10px] font-black ${styles.navAccent} uppercase tracking-widest mb-2`}>Position X</label>
+                                        <input type="number" step="1" value={Math.round(activeShelf.x)} onChange={(e) => handleShelfUpdate(activeShelf.id, { x: parseInt(e.target.value) || 0 })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono text-sm outline-none focus:border-blue-400" />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-[10px] font-black ${styles.navAccent} uppercase tracking-widest mb-2`}>Position Y</label>
+                                        <input type="number" step="1" value={Math.round(activeShelf.y)} onChange={(e) => handleShelfUpdate(activeShelf.id, { y: parseInt(e.target.value) || 0 })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono text-sm outline-none focus:border-blue-400" />
                                     </div>
                                 </div>
                             </div>

@@ -10,15 +10,26 @@ interface WayfinderMapProps {
     activeLevelId?: string | null;
     highlightShelf?: string | null;
     configOverride?: MapConfig | null;
+    heatmapData?: Record<string, number>; // Shelf ID to heat value (0-1)
     onMapClick?: (x: number, y: number) => void;
     onAutoSwitchLevel?: (levelId: string) => void;
 }
+
+const getHeatColor = (val: number) => {
+    if (val === 0) return 'rgba(148, 163, 184, 0.2)';
+    // Interpolate Sky (14, 165, 233) to Rose (244, 63, 94)
+    const r = Math.floor(14 + (230) * val);
+    const g = Math.floor(165 - (102) * val);
+    const b = Math.floor(233 - (139) * val);
+    return `rgba(${r}, ${g}, ${b}, ${0.3 + val * 0.5})`;
+};
 
 const WayfinderMap: React.FC<WayfinderMapProps> = ({
     selectedBook,
     activeLevelId,
     highlightShelf,
     configOverride,
+    heatmapData,
     onMapClick,
     onAutoSwitchLevel
 }) => {
@@ -154,6 +165,10 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                 {/* LAYER 2: SHELVES */}
                 {filteredShelves.map((shelf) => {
                     const isActive = targetShelf?.id === shelf.id;
+                    const isVertical = shelf.height > shelf.width;
+                    const centerX = shelf.x + shelf.width / 2;
+                    const centerY = shelf.y + shelf.height / 2;
+
                     return (
                         <g key={shelf.id} id={shelf.id} className="transition-all duration-500">
                             {isActive && (
@@ -168,17 +183,30 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                                 x={shelf.x} y={shelf.y}
                                 width={shelf.width} height={shelf.height}
                                 rx="8"
-                                fill={isActive ? 'rgba(59, 130, 246, 0.7)' : 'rgba(148, 163, 184, 0.2)'}
-                                stroke={isActive ? '#2563eb' : '#94a3b8'}
+                                fill={isActive ? 'rgba(59, 130, 246, 0.7)' : getHeatColor(heatmapData?.[shelf.id] || 0)}
+                                stroke={isActive ? '#2563eb' : (heatmapData?.[shelf.id] ? 'rgba(255,255,255,0.4)' : '#94a3b8')}
                                 strokeWidth={isActive ? 3 : 1}
                                 style={{ opacity: isActive || !targetShelf ? 1 : 0.4, transition: 'all 0.3s' }}
                             />
-                            <g style={{ pointerEvents: 'none' }}>
+                            <g 
+                                style={{ pointerEvents: 'none' }} 
+                                transform={isVertical ? `rotate(-90, ${centerX}, ${centerY})` : ''}
+                            >
+                                {/* Background Capsule for better visibility */}
+                                <rect
+                                    x={centerX - 35}
+                                    y={centerY - 12}
+                                    width="70"
+                                    height="22"
+                                    rx="11"
+                                    fill={isActive ? '#2563eb' : 'rgba(51, 65, 85, 0.9)'}
+                                    className="transition-all duration-300"
+                                    filter={isActive ? 'url(#glow)' : ''}
+                                />
                                 <text
-                                    x={shelf.x + shelf.width / 2} y={shelf.y + shelf.height / 2 + 5}
+                                    x={centerX} y={centerY + 4}
                                     textAnchor="middle"
-                                    className="text-xs font-black uppercase tracking-widest"
-                                    fill={isActive ? '#ffffff' : '#64748b'}
+                                    className="text-[10px] font-black uppercase tracking-widest fill-white"
                                 >
                                     {shelf.label}
                                 </text>

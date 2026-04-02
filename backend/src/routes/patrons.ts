@@ -59,7 +59,7 @@ app.get('/:id', async (c) => {
     if (!patron) {
         [patron] = await db.select().from(patrons).where(eq(patrons.student_id, id)).limit(1)
     }
-    if (!patron) return c.json({ error: 'Patron not found' }, 404)
+    if (!patron) return c.json(null, 200)
     return c.json(patron)
 })
 
@@ -67,7 +67,7 @@ app.get('/student/:student_id', async (c) => {
     const db = getDB(c)
     const student_id = c.req.param('student_id')
     const [patron] = await db.select().from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
-    if (!patron) return c.json({ error: 'Patron not found' }, 404)
+    if (!patron) return c.json(null, 200)
     return c.json(patron)
 })
 

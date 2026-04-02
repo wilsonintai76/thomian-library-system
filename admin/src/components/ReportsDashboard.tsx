@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertCircle, BookOpen, Printer, Download, Mail, LayoutTemplate, Library, RefreshCw, CheckCircle, Wallet, History, UserCheck, ShieldCheck, Zap, BarChart3, PieChart, Users, ChevronRight } from 'lucide-react';
-import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions } from '../services/api';
+import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions, fetchAiInsights } from '../services/api';
 import { SystemStats, OverdueReportItem, Transaction } from '../types';
 import StatCard from './reports/StatCard';
 import GenreIntelligence from './reports/GenreIntelligence';
 import EngagementHub from './reports/EngagementHub';
+import WayfinderMap from './WayfinderMap';
 
 const ReportsDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'OVERDUE' | 'COLLECTION' | 'FINANCIAL'>('OVERVIEW');
@@ -13,6 +14,7 @@ const ReportsDashboard: React.FC = () => {
     const [overdues, setOverdues] = useState<OverdueReportItem[]>([]);
     const [financials, setFinancials] = useState<{ totalCollected: number, totalFinesAssessed: number, totalReplacementsAssessed: number, totalWaived: number } | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [aiInsights, setAiInsights] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -21,16 +23,18 @@ const ReportsDashboard: React.FC = () => {
 
     const loadData = async () => {
         setLoading(true);
-        const [statsData, overdueData, finSummary, txns] = await Promise.all([
+        const [statsData, overdueData, finSummary, txns, insightsData] = await Promise.all([
             mockGetSystemStats(),
             mockGetOverdueItems(),
             mockGetFinancialSummary(),
-            mockGetTransactions()
+            mockGetTransactions(),
+            fetchAiInsights()
         ]);
-        setStats(statsData);
+        setStats(statsData as any);
         setOverdues(overdueData);
         setFinancials(finSummary);
         setTransactions(txns);
+        setAiInsights(insightsData);
         setLoading(false);
     };
 
@@ -78,11 +82,33 @@ const ReportsDashboard: React.FC = () => {
                         <StatCard label="Overdue Risks" value={overdues.length} subtext="Pending Escalations" icon={AlertCircle} colorClass="text-rose-600 bg-rose-50 text-rose-600 border-rose-100" />
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[600px]">
-                        <div className="lg:col-span-4">
-                            <GenreIntelligence data={stats.itemsByClassification} totalBooks={stats.totalItems} />
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-[600px]">
+                        <div className="lg:col-span-3">
+                            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] h-full shadow-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/20 rounded-full blur-2xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-1000"></div>
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 bg-sky-500 rounded-xl">
+                                        <Zap className="h-5 w-5 text-slate-900" />
+                                    </div>
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-400">AI Strategist</h4>
+                                </div>
+                                <div className="space-y-4">
+                                    <h3 className="text-xl font-black leading-tight uppercase italic tracking-tighter">Narrative Intelligence</h3>
+                                    <div className="text-sm font-medium text-slate-300 leading-relaxed border-l-2 border-sky-500/30 pl-4 py-2">
+                                        {aiInsights || "Synthesizing collection metadata from global DDC schemas..."}
+                                    </div>
+                                    <div className="pt-6">
+                                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                                            <p className="text-[8px] font-black uppercase text-slate-500 mb-2">System Confidence</p>
+                                            <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
+                                                <div className="h-full bg-sky-500 w-[94%]" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="lg:col-span-8">
+                        <div className="lg:col-span-9">
                             <EngagementHub topReaders={stats.topReaders} topClasses={stats.topClasses} />
                         </div>
                     </div>
@@ -289,14 +315,37 @@ const ReportsDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-[600px]">
-                        <GenreIntelligence data={stats.itemsByClassification} totalBooks={stats.totalItems} />
-                        <div className="bg-white border border-slate-200 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center gap-6">
-                            <div className="h-32 w-32 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
-                                <RefreshCw className="h-16 w-16 opacity-10" />
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-[600px]">
+                        <div className="lg:col-span-4">
+                            <GenreIntelligence data={stats.itemsByClassification} totalBooks={stats.totalItems} />
+                        </div>
+                        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-[2.5rem] p-4 flex flex-col relative overflow-hidden group shadow-sm">
+                            <div className="absolute top-8 left-8 z-30 pointer-events-none">
+                                <h4 className="text-xl font-black text-slate-800 uppercase tracking-tighter mix-blend-multiply">Spatial Popularity Hub</h4>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Thermal zones normalized by loan velocity</p>
                             </div>
-                            <h4 className="text-xl font-black text-slate-400 uppercase tracking-tight">Spatial Heatmap Unavailable</h4>
-                            <p className="text-xs text-slate-400 font-medium max-w-xs uppercase leading-relaxed">Map logic integration required for shelf-level checkout hotzones.</p>
+                            <div className="absolute top-8 right-8 z-30 flex gap-2">
+                                <div className="flex items-center gap-2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full border border-slate-100 shadow-sm">
+                                    <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Live Heat</span>
+                                </div>
+                            </div>
+                            <div className="w-full h-full min-h-[500px]">
+                                <WayfinderMap heatmapData={(stats as any).shelfPopularity || {}} />
+                            </div>
+                            <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center gap-6">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-sky-200" />
+                                        <span className="text-[9px] font-black uppercase text-slate-400">Cold</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-rose-500" />
+                                        <span className="text-[9px] font-black uppercase text-slate-400">Hub</span>
+                                    </div>
+                                </div>
+                                <button className="text-[9px] font-black uppercase text-sky-600 hover:text-sky-700 transition-colors tracking-widest">Optimized Shelf Relocation logic →</button>
+                            </div>
                         </div>
                     </div>
                 </div>

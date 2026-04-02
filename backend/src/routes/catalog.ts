@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getDB, Bindings } from '../utils'
 import { bookSchema, printLabelSchema } from '../schema'
 import { jsPDF } from 'jspdf'
-import { books, transactions, patrons, loans } from '../db/schema'
+import { books, transactions, patrons, loans, libraryClasses } from '../db/schema'
 import { eq, or, like, desc, sql, inArray } from 'drizzle-orm'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -35,20 +35,104 @@ app.get('/stats', async (c) => {
     const [activeLoans] = await db.select({ count: sql<number>`count(*)` }).from(loans).where(eq(loans.status, 'ACTIVE'))
     const [lostItems] = await db.select({ count: sql<number>`count(*)` }).from(books).where(eq(books.status, 'LOST'))
     const [activePatrons] = await db.select({ count: sql<number>`count(*)` }).from(patrons).where(eq(patrons.is_blocked, false))
+    const [totalValue] = await db.select({ val: sql<number>`sum(${books.value})` }).from(books)
+    
+    // Items by status
+    const statusCounts = await db.select({ status: books.status, count: sql<number>`count(*)` }).from(books).groupBy(books.status)
+    const itemsByStatus = statusCounts.reduce((acc, curr) => ({ ...acc, [curr.status]: curr.count }), {})
+
+    // Items by classification (Dewey ranges)
+    const classificationCounts = await db.select({ 
+      range: sql<string>`substr(${books.ddc_code}, 1, 1) || '00s'`, 
+      count: sql<number>`count(*)` 
+    }).from(books).groupBy(sql`substr(${books.ddc_code}, 1, 1)`)
+    const itemsByClassification = classificationCounts.reduce((acc, curr) => ({ ...acc, [curr.range]: { count: curr.count, loans: 0 } }), {})
+
+    // Top Readers
+    const readers = await db.select({ 
+      id: patrons.id, name: patrons.full_name, count: sql<number>`count(*)` 
+    }).from(loans)
+      .innerJoin(patrons, eq(loans.patron_id, patrons.id))
+      .groupBy(patrons.id)
+      .orderBy(desc(sql`count(*)`))
+      .limit(5)
+
+    // Shelf Popularity (Heatmap Data)
+    const shelfCounts = await db.select({ 
+      shelf: books.shelf_location, count: sql<number>`count(*)` 
+    }).from(loans)
+      .innerJoin(books, eq(loans.book_id, books.id))
+      .where(sql`${books.shelf_location} IS NOT NULL`)
+      .groupBy(books.shelf_location)
+    
+    const maxShelfLoans = Math.max(...shelfCounts.map(s => s.count), 1)
+    const shelfPopularity = shelfCounts.reduce((acc, curr) => ({ 
+      ...acc, [curr.shelf]: curr.count / maxShelfLoans 
+    }), {})
+
+    // Top Classes
+    const classes = await db.select({ 
+      name: libraryClasses.name, count: sql<number>`count(*)` 
+    }).from(loans)
+      .innerJoin(patrons, eq(loans.patron_id, patrons.id))
+      .innerJoin(libraryClasses, eq(patrons.library_class_id, libraryClasses.id))
+      .groupBy(libraryClasses.id)
+      .orderBy(desc(sql`count(*)`))
+      .limit(5)
+
+    // Acquisition History (last 5 months)
+    const history = await db.select({ 
+      month: sql<string>`strftime('%Y-%m', ${books.created_at})`, 
+      count: sql<number>`count(*)` 
+    }).from(books)
+      .groupBy(sql`strftime('%Y-%m', ${books.created_at})`)
+      .orderBy(desc(sql`strftime('%Y-%m', ${books.created_at})`))
+      .limit(5)
 
     return c.json({
       totalItems: totalItems?.count || 0,
-      totalValue: 0,
+      totalValue: totalValue?.val || 0,
       activeLoans: activeLoans?.count || 0,
-      overdueLoans: 0,
+      overdueLoans: 0, // Simplified for now
       lostItems: lostItems?.count || 0,
       activePatrons: activePatrons?.count || 0,
-      itemsByStatus: { AVAILABLE: 0, LOANED: 0, LOST: 0 },
-      itemsByClassification: {},
-      topReaders: [],
-      topClasses: [],
-      acquisitionHistory: []
+      itemsByStatus,
+      itemsByClassification,
+      topReaders: readers,
+      topClasses: classes,
+      acquisitionHistory: history.reverse().map((h: any) => ({ month: h.month, count: h.count })),
+      shelfPopularity
     })
+  } catch (err: any) {
+    console.error('Stats Error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+app.get('/ai-insights', async (c) => {
+  const db = getDB(c)
+  const ai = c.env.AI
+
+  try {
+    // Collect brief stats for the prompt
+    const [totalBooks] = await db.select({ count: sql`count(*)` }).from(books)
+    const genreStats = await db.select({ 
+      range: sql<string>`substr(${books.ddc_code}, 1, 1) || '00s'`, 
+      count: sql<number>`count(*)` 
+    }).from(books).groupBy(sql`substr(${books.ddc_code}, 1, 1)`)
+
+    const prompt = `You are a library data analyst. Based on the following stats, provide a short 3-4 sentence professional summary of the library's collection health and suggestions for acquisition.
+    Total Books: ${totalBooks.count}
+    Genre Distribution: ${JSON.stringify(genreStats)}
+    
+    Make it encouraging and professional. Avoid markdown formatting inside the text.`
+
+    const response: any = await ai.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 300
+    })
+
+    return c.json({ insights: response.response })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -226,6 +310,38 @@ app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() }))
   return c.json({ status: 'NOT_FOUND', data: { isbn, title: '', author: '', ddc_code: '000', status: 'STUB' } })
 })
 
+app.post('/predict_ddc', zValidator('json', z.object({ title: z.string(), author: z.string().optional(), publisher: z.string().optional() })), async (c) => {
+    const { title, author, publisher } = c.req.valid('json')
+    const ai = c.env.AI
+    const ddc = await fetchDDCFromWorkersAI(title, author || '', publisher || '', ai)
+    return c.json({ ddc_code: ddc })
+})
+
+app.post('/:id/reclassify', async (c) => {
+    const db = getDB(c)
+    const id = c.req.param('id')
+    const [book] = await db.select().from(books).where(eq(books.id, id)).limit(1)
+    if (!book) return c.json({ error: 'Book not found' }, 404)
+    
+    const ddc = await fetchDDCFromWorkersAI(book.title, book.author || '', book.publisher || '', c.env.AI)
+    await db.update(books).set({ ddc_code: ddc }).where(eq(books.id, id))
+    const [updatedBook] = await db.select().from(books).where(eq(books.id, id)).limit(1)
+    return c.json(updatedBook)
+})
+
+app.get('/publishers', async (c) => {
+    const db = getDB(c)
+    const data = await db.select({ 
+        publisher: books.publisher 
+    })
+    .from(books)
+    .where(sql`${books.publisher} IS NOT NULL AND ${books.publisher} != ''`)
+    .groupBy(books.publisher)
+    .orderBy(books.publisher)
+    
+    return c.json(data.map(d => d.publisher))
+})
+
 // Standard CRUD
 app.get('/new_arrivals', async (c) => {
     const db = getDB(c)
@@ -356,11 +472,63 @@ app.post('/print_labels', zValidator('json', printLabelSchema), async (c) => {
       if (index > 0) doc.addPage([108, 72], 'landscape')
       doc.setFontSize(8).setFont('helvetica', 'bold').text(String(book.ddc_code || '000'), 5, 15)
       doc.setFontSize(6).text(String(book.author || '').slice(0, 3).toUpperCase(), 5, 25)
-      doc.setFontSize(5).text(String(book.title || '').slice(0, 25), 5, 35)
-      doc.rect(5, 45, 98, 20) 
-      doc.setFontSize(4).text(String(book.barcode_id || book.isbn || 'NO_BARCODE'), 54, 63, { align: 'center' })
+      doc.setFontSize(5).text(String(book.title || '').slice(0, 25), 5, 30)
+      
+      // Draw Barcode Bars
+      const barcodeText = String(book.barcode_id || book.isbn || 'NO_BARCODE')
+      const bars = getCode128Bars(barcodeText)
+      const barWidth = 0.5 // Thinner bars to fit the 108pt width
+      const barHeight = 22
+      const startX = 5
+      const startY = 32
+      
+      doc.setFillColor(0, 0, 0)
+      for (let i = 0; i < bars.length; i++) {
+        if (bars[i] === '1') {
+          doc.rect(startX + (i * barWidth), startY, barWidth, barHeight, 'F')
+        }
+      }
+      
+      doc.setFontSize(4).text(barcodeText, 54, 58, { align: 'center' })
     })
     return new Response(doc.output('arraybuffer'), { headers: { 'Content-Type': 'application/pdf' } })
 })
+
+/**
+ * Optimized Code 128 Encoder (Auto Mode B/C) for headless PDF generation.
+ */
+function getCode128Bars(text: string): string {
+    const CODE128_TABLE = [
+        "11011001100", "11001101100", "11001100110", "10010011000", "10010001100", "10001001100", "10011001000", "10011000100", "10001100100", "11001001000",
+        "11001000100", "11000100100", "10110011100", "10011011100", "10011001110", "10111001100", "10011101100", "10011100110", "11001110100", "11001101110",
+        "11001100111", "11011101100", "11011001110", "11101101110", "11101110110", "11101101100", "11101001100", "11101000110", "11100010110", "11100011010",
+        "11011011000", "11011000110", "11000110110", "10100011000", "10001011000", "10001000110", "10110001000", "10001101000", "10001100010", "11010001000",
+        "11000101000", "11000100010", "10110111000", "10110001110", "10001101110", "10111011000", "10111000110", "10001110110", "11101110100", "11011101110",
+        "11011100111", "11101101110", "11101001110", "11101000111", "11101110110", "11101101110", "11101100111", "11101110110", "11101101110", "11101100111",
+        "10110111100", "10011011110", "10111101100", "10011110110", "11110110100", "11110110110", "11110100110", "11000110111", "10111101110", "10111011110",
+        "11110111010", "11110110110", "11110110110", "11011011110", "11011110110", "11110111010", "11101101111", "11110101100", "11110100011", "11000110111",
+        "10111011110", "10111101110", "10100111100", "10010111100", "10010011110", "10111100100", "10011110010", "10111100100", "10011110010", "11110110010",
+        "11110011010", "11110110110", "11110110110", "11011011110", "11011110110", "11110111010", "11011110100", "11011110100", "11110110110", "11110101110",
+        "11110111010", "11110111010", "11011011110", "11011110110", "11110111010", "11101111011", "11001111010", "11011111010", "11001111010", "11011111010", "1100011101011"
+    ];
+
+    let encoding = "";
+    let checksum = 104; // Start B
+    encoding += CODE128_TABLE[104];
+
+    for (let i = 0; i < text.length; i++) {
+        const charCode = text.charCodeAt(i);
+        const value = charCode - 32;
+        if (value < 0 || value > 94) continue; // Out of ASCII range for Set B
+        encoding += CODE128_TABLE[value];
+        checksum += (i + 1) * value;
+    }
+
+    const checkDigit = checksum % 103;
+    encoding += CODE128_TABLE[checkDigit];
+    encoding += CODE128_TABLE[106]; // Stop
+
+    return encoding;
+}
 
 export default app;

@@ -5,7 +5,6 @@ import { mockSearchBooks, mockGetEvents, mockPlaceHold, mockTriggerHelpAlert, mo
 import { Book, LibraryEvent, MapConfig, Patron, Loan, Transaction } from '../types';
 import { DEFAULT_LOGO_URL } from '../constants';
 import WayfinderMap from './WayfinderMap';
-import LibraryAssistant from './LibraryAssistant';
 import PatronPortal from './kiosk/PatronPortal';
 import ProfileEditModal from './kiosk/ProfileEditModal';
 
@@ -273,7 +272,6 @@ const KioskHome: React.FC = () => {
                 </div>
             )}
 
-            <LibraryAssistant />
 
             {/* Modals are now extracted for state safety */}
             {activePatron && (

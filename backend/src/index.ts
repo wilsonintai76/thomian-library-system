@@ -10,6 +10,7 @@ import transactionsRouter from './routes/transactions'
 import circulationRouter from './routes/circulation'
 import systemRouter from './routes/system'
 import authRouter from './routes/auth'
+import aiRouter from './routes/ai'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -36,19 +37,25 @@ app.use('*', async (c, next) => {
     '/auth/login',
     '/auth/setup-admin',
     '/health',
-    // Kiosk home page loads these before any patron logs in
     '/catalog/new_arrivals',
     '/catalog/trending',
     '/system/events',
     '/system/system-config',
-    // Kiosk PIN login + pre-login help button
     '/patrons/verify_pin',
     '/system/alerts/trigger_help',
-    // R2-served cover images are public (no auth needed to display book covers)
     '/system/assets/',
   ]
 
-  if (method === 'OPTIONS' || PUBLIC_ROUTES.some(r => path.startsWith(r))) {
+  // Normalize path by removing double slashes and optional /api prefix
+  const normalizedPath = path.replace(/\/+/g, '/').replace(/^\/api/, '')
+  
+  const isPublic = method === 'OPTIONS' || PUBLIC_ROUTES.some(r => 
+    normalizedPath === r || 
+    normalizedPath.startsWith(r + '/') ||
+    (r.endsWith('/') && normalizedPath.startsWith(r))
+  )
+
+  if (isPublic) {
     return next()
   }
 
@@ -79,6 +86,7 @@ const routes = app
   .route('/circulation', circulationRouter)
   .route('/system', systemRouter)
   .route('/auth', authRouter)
+  .route('/ai', aiRouter)
 
 export type AppType = typeof routes
 export default app

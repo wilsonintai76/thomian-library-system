@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { getDB, Bindings } from '../utils'
-import { libraryClassSchema, updateConfigSchema, circulationRuleSchema } from '../schema'
+import { libraryClassSchema, updateConfigSchema, circulationRuleSchema, libraryEventSchema } from '../schema'
 import { z } from 'zod'
 import { books, patrons, loans, transactions, libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents } from '../db/schema'
 import { eq, asc, desc, sql } from 'drizzle-orm'
@@ -153,22 +153,22 @@ app.post('/alerts/:id/resolve', async (c) => {
 
 app.get('/events', async (c) => {
   const db = getDB(c)
-  const data = await db.select().from(libraryEvents).orderBy(asc(libraryEvents.start_time))
+  const data = await db.select().from(libraryEvents).orderBy(asc(libraryEvents.date), asc(libraryEvents.start_time))
   return c.json(data || [])
 })
 
-app.post('/events', zValidator('json', z.any()), async (c) => {
+app.post('/events', zValidator('json', libraryEventSchema), async (c) => {
   const db = getDB(c)
-  const body = c.req.valid('json')
+  const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
   await db.insert(libraryEvents).values({ ...body, id })
   const [newEvent] = await db.select().from(libraryEvents).where(eq(libraryEvents.id, id)).limit(1)
   return c.json(newEvent)
 })
 
-app.patch('/events/:id', zValidator('json', z.any()), async (c) => {
+app.patch('/events/:id', zValidator('json', libraryEventSchema), async (c) => {
   const db = getDB(c)
-  const body = c.req.valid('json')
+  const body = c.req.valid('json') as any
   const id = c.req.param('id')
   await db.update(libraryEvents).set(body).where(eq(libraryEvents.id, id))
   const [updatedEvent] = await db.select().from(libraryEvents).where(eq(libraryEvents.id, id)).limit(1)

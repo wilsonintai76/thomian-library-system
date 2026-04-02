@@ -193,7 +193,12 @@ app.post('/renew', zValidator('json', renewBookSchema), async (c) => {
         renewal_count: (loan.renewal_count || 0) + 1 
     }).where(eq(loans.id, loan.id))
     
-    return c.json({ success: true, due_date: nextDue.toISOString() })
+    return c.json({ 
+        success: true, 
+        due_date: nextDue.toISOString(),
+        book_title: book.title,
+        renewal_count: (loan.renewal_count || 0) + 1
+    })
 })
 
 app.post('/place_hold', zValidator('json', placeHoldSchema), async (c) => {

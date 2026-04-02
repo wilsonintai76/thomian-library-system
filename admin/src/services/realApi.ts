@@ -235,6 +235,25 @@ export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: strin
     onUpdate('WORKERS_AI', 'NOT_FOUND');
     return null;
 };
+export const predictDDC = async (title: string, author?: string, publisher?: string): Promise<string> => {
+    try {
+        const res = await apiClient.catalog.predict_ddc.$post({ json: { title, author, publisher } });
+        if (!res.ok) return '000';
+        const data = await res.json() as { ddc_code: string };
+        return data.ddc_code || '000';
+    } catch {
+        return '000';
+    }
+};
+export const getPublishers = async (): Promise<string[]> => {
+    try {
+        const res = await apiClient.catalog.publishers.$get();
+        if (!res.ok) return [];
+        return await res.json() as string[];
+    } catch {
+        return [];
+    }
+};
 
 // ── Patrons ─────────────────────────────────────────────────────────
 
@@ -334,7 +353,7 @@ export const mockProcessReturn = async (barcode: string): Promise<CheckInResult>
     }
     return res.json() as unknown as Promise<CheckInResult>;
 };
-export const mockRenewBook = async (barcode: string, patronId: string): Promise<{ success: boolean; due_date?: string; error?: string }> => {
+export const mockRenewBook = async (barcode: string, patronId: string): Promise<{ success: boolean; due_date: string; book_title: string; renewal_count: number; error?: string }> => {
     const res = await apiClient.circulation.renew.$post({ json: { barcode, patron_id: patronId } });
     if (!res.ok) throw new Error(await res.text());
     return res.json() as any;
@@ -480,7 +499,34 @@ export const performFactoryReset = async (): Promise<void> => {
     // Implement on system router if needed
 };
 
-export const aiAnalyzeBlueprint = async (_imageBase64: string, _level: string): Promise<any> => {
-    // AI blueprint analysis — not yet implemented for Cloudflare D1 backend
-    throw new Error("aiAnalyzeBlueprint not implemented");
+export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/ai/analyze-blueprint`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ imageBase64, levelId }),
+    });
+    
+    if (res.status === 429) throw new Error('QUOTA_EXHAUSTED');
+    if (!res.ok) {
+        const err = await parseApiError(res);
+        throw new Error(err);
+    }
+    return res.json() as Promise<ShelfDefinition[]>;
+};
+
+export const fetchAiInsights = async (): Promise<string> => {
+    const res = await apiClient.catalog.ai_insights.$get();
+    if (!res.ok) return "Unable to generate insights at this time.";
+    const data = await res.json() as any;
+    return data.insights || "No strategic insights available for the current collection size.";
+};
+
+export const reclassifyBook = async (id: string): Promise<Book> => {
+    const res = await apiClient.catalog[':id'].reclassify.$post({ param: { id } });
+    if (!res.ok) throw new Error('AI Reclassification failed');
+    return res.json() as unknown as Promise<Book>;
 };

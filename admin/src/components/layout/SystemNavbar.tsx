@@ -41,7 +41,7 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
   }, []);
 
   return (
-    <nav className={`${styles.navBg} backdrop-blur-md ${styles.navText} shadow-sm border-b ${styles.navBorder} z-50 sticky top-0 print:hidden`}>
+    <nav className={`${styles.navBg} ${styles.navText} shadow-sm border-b ${styles.navBorder} z-50 sticky top-0 print:hidden`}>
       <div className="max-w-[1800px] mx-auto px-4 lg:px-6">
         <div className="flex items-center justify-between h-16 lg:h-20">
           
@@ -111,7 +111,7 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
                     <div className="relative" ref={profileMenuRef}>
                         <button 
                             onClick={() => setShowProfileMenu(!showProfileMenu)}
-                            className={`flex items-center gap-3 p-1 rounded-2xl border ${styles.navBorder}/50 hover:border-slate-300 hover:bg-white/50 transition-all`}
+                            className={`flex items-center gap-3 p-1 rounded-2xl border ${styles.navBorder}/50 hover:border-slate-300 hover:bg-white transition-all`}
                         >
                             <div className={`h-8 w-8 lg:h-9 lg:w-9 ${currentUser.avatar_color || 'bg-slate-900'} rounded-xl flex items-center justify-center font-black text-xs text-white uppercase shadow-md`}>
                                 {currentUser.full_name.charAt(0)}
