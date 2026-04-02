@@ -109,7 +109,7 @@ app.get('/stats', async (c) => {
   }
 })
 
-app.get('/ai-insights', async (c) => {
+app.get('/ai_insights', async (c) => {
   const db = getDB(c)
   const ai = c.env.AI
 
