@@ -92,6 +92,32 @@ const KioskHome: React.FC = () => {
         return () => window.removeEventListener('swUpdateAvailable', handleSwUpdate);
     }, []);
 
+    // -- Inactivity Auto-Logout Logic --
+    useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+        const threshold = (mapConfig?.idleTimeout || 60) * 60 * 1000; // minutes to ms
+        
+        const resetTimer = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (activePatron) {
+                timeoutId = setTimeout(() => {
+                    handleLogout();
+                }, threshold);
+            }
+        };
+
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+        if (activePatron) {
+            events.forEach(e => window.addEventListener(e, resetTimer));
+            resetTimer(); // Start initial timer
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            events.forEach(e => window.removeEventListener(e, resetTimer));
+        };
+    }, [activePatron, mapConfig?.idleTimeout]);
+
     const handleSearch = async () => {
         if (!query.trim()) return;
         if (!isOnline) return; // banner already explains why

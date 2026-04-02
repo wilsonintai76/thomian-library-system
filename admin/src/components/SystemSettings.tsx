@@ -315,7 +315,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                                     <option value={480}>8 Hours</option>
                                 </select>
                             </div>
-                            <p className="mt-3 text-[10px] text-slate-400 font-bold uppercase leading-tight">Redirects to Kiosk after period of inactivity.</p>
+                            <p className="mt-3 text-[10px] text-slate-400 font-bold uppercase leading-tight">Redirects to Landing Page (Admin) or Home Screen (Kiosk) after period of inactivity.</p>
                         </div>
                     </div>
                 </div>
