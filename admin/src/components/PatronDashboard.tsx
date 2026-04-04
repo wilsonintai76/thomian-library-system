@@ -240,14 +240,14 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                                 <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">
                                     {bulkPreviewPatrons.length > 1 ? `Batch Preview: ${bulkPreviewPatrons.length} Cards` : 'PVC Identity Card Preview'}
                                 </h3>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Print on photo paper for durability</p>
+                                <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest mt-1">Tip: Enable "Background Graphics" in print settings for cut guides.</p>
                             </div>
                             
                             <div className="flex flex-wrap items-center gap-3">
                                 {bulkPreviewPatrons.length === 1 && (
                                     <label className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
                                         <input type="checkbox" checked={replicateToFill} onChange={(e) => setReplicateToFill(e.target.checked)} className="accent-sky-600 h-4 w-4" />
-                                        <span className="text-[10px] font-black uppercase text-slate-600">Replicate to Fill Sheet</span>
+                                        <span className="text-[10px] font-black uppercase text-slate-600">Auto-Fill Sheet</span>
                                     </label>
                                 )}
 
@@ -259,7 +259,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                         </div>
 
                         <div id="card-print-area" className={`
-                            flex-1 overflow-y-auto w-full p-4 scrollbar-thin print:p-0 print:overflow-visible
+                            print-area flex-1 overflow-y-auto w-full p-4 scrollbar-thin print:p-0 print:overflow-visible
                             ${gridType === 'GRID_4X4' ? 'grid-4x4 print-page-a4' : 'flex flex-wrap justify-center gap-10 print:grid print:grid-cols-2 print:gap-0 print:justify-start print-page-a4'}
                         `}>
                             {printItems.map((patron, idx) => (
@@ -273,7 +273,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                             <button onClick={handlePdfPrint} className="w-full py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2">
                                 <Printer className="h-4 w-4" /> Execute Print
                             </button>
-                            <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">Enable "Background Graphics" in print settings</p>
+                            <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">Printer scaling must be "Default" or "100%"</p>
                             <button onClick={() => setBulkPreviewPatrons(null)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
                         </div>
                     </div>

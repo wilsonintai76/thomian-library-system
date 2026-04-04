@@ -237,48 +237,9 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     setReplicateToFill(resolved.length === 1);
   };
 
-  const handlePrintAction = async () => {
+  const handlePrintAction = () => {
     if (!bulkPreviewBooks || bulkPreviewBooks.length === 0) return;
-    const bookIds = bulkPreviewBooks.map(b => b.id).filter(Boolean) as number[];
-    const token = localStorage.getItem('thomian_session_token');
-    const apiBase = import.meta.env.VITE_API_BASE || '/api';
-    // Open preview tab immediately to avoid popup blockers after async fetch.
-    const previewWin = window.open('', '_blank');
-    if (previewWin) {
-      previewWin.document.write('<!doctype html><html><body style="font-family:monospace;padding:16px">Generating PDF preview...</body></html>');
-      previewWin.document.close();
-    }
-    try {
-      const resp = await fetch(`${apiBase}/catalog/print_labels`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ book_ids: bookIds, layout: printLayout }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err.error || `Server error ${resp.status}`);
-      }
-      const blob = await resp.blob();
-      if (!blob.size) {
-        throw new Error('Server returned an empty PDF file');
-      }
-      const url = URL.createObjectURL(blob);
-      if (previewWin) {
-        previewWin.location.href = url;
-      } else {
-        window.open(url, '_blank');
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err: unknown) {
-      if (previewWin && !previewWin.closed) {
-        previewWin.close();
-      }
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Could not generate PDF: ${msg}`);
-    }
+    window.print();
   };
 
   const startBlankAsset = () => {
@@ -302,7 +263,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   return (
     <div className="p-4 md:p-8 max-w-[1600px] mx-auto h-full flex flex-col relative pb-32">
       {undoAction && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 z-[100] animate-fade-in-up">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 z-[100] animate-fade-in-up print:hidden">
           <span className="text-sm font-medium">Item "{undoAction.book.title}" deleted.</span>
           <button onClick={handleUndoDelete} className="text-blue-400 font-bold uppercase tracking-widest text-xs hover:text-blue-300">Undo</button>
           <button aria-label="Dismiss" onClick={() => { clearTimeout(undoAction.timeout); setUndoAction(null); }} className="text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
@@ -319,7 +280,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                 <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">
                   {bulkPreviewBooks.length > 1 ? `Batch Print Job: ${bulkPreviewBooks.length} Stickers` : 'Asset Sticker Preview'}
                 </h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Print on plain A4 paper — cut &amp; stick, or use Avery adhesive label sheets</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 text-blue-600">Tip: Enable "Background Graphics" in print settings for cut guides.</p>
               </div>
               
               <div className="flex flex-wrap items-center gap-3">
@@ -327,7 +288,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                   {bulkPreviewBooks.length === 1 && (
                       <label className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
                           <input type="checkbox" checked={replicateToFill} onChange={(e) => setReplicateToFill(e.target.checked)} className="accent-blue-600 h-4 w-4" />
-                          <span className="text-[10px] font-black uppercase text-slate-600">Replicate to Fill Sheet</span>
+                          <span className="text-[10px] font-black uppercase text-slate-600">Auto-Fill Sheet</span>
                       </label>
                   )}
 
@@ -337,9 +298,9 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                     <button onClick={() => setGridType('GRID_4X4')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${gridType === 'GRID_4X4' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>4x4 Grid</button>
                   </div>
 
-                  {/* Mode Selector */}
+                  {/* Mode Selector - Hidden in 4x4 or Sheet mode if needed, but let's keep it */}
                   <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setPrintLayout('SINGLE')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SINGLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Scissors className="h-3.5 w-3.5" /> Manual Cut</button>
+                    <button onClick={() => setPrintLayout('SINGLE')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SINGLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Scissors className="h-3.5 w-3.5" /> A4 Plain</button>
                     <button onClick={() => setPrintLayout('SHEET')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SHEET' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><LayoutGrid className="h-3.5 w-3.5" /> Label sheet</button>
                   </div>
               </div>
@@ -361,9 +322,9 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
             <div className="flex gap-4 w-full print:hidden shrink-0 mt-4 border-t border-slate-100 pt-6">
               <div className="flex-1 flex items-center gap-3 text-slate-400 text-[10px] font-bold uppercase tracking-tighter">
                 <Settings2 className="h-4 w-4" />
-                <span>Enable "Background Graphics" in browser print settings for correct barcode printing.</span>
+                <span>Printer scaling must be "Default" or "100%" for perfect label alignment.</span>
               </div>
-              <button onClick={() => setBulkPreviewBooks(null)} className="px-8 py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200">Cancel Job</button>
+              <button onClick={() => setBulkPreviewBooks(null)} className="px-8 py-4 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200">Close</button>
               <button onClick={handlePrintAction} className="px-12 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 flex items-center justify-center gap-2 shadow-xl shadow-blue-100 active:scale-95 transition-all">
                 <Printer className="h-5 w-5" /> Execute Print
               </button>
