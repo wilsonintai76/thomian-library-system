@@ -14,22 +14,35 @@
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
-  /* Hide everything except the card print area */
-  body * {
-    visibility: hidden;
+
+  /* 
+     Standard print reset to allow natural page breaks.
+     We hide the main app and only show dedicated print containers.
+  */
+  body {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
-  #card-print-area,
-  #card-print-area * {
-    visibility: visible;
+
+  /* Hide everything except dedicated print areas */
+  body > *:not(.print-container-root) {
+    display: none !important;
   }
-  #card-print-area {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    padding: 16px;
-    background: white;
-    align-content: flex-start;
+
+  /* 
+     Manual Cut Guide Utility 
+     Adds a subtle dotted line for manual cutting on A4 paper.
+  */
+  .cut-guide-dotted {
+    border: 0.5pt dashed #cbd5e1 !important; /* light slate-300 */
+    margin: -0.25pt; /* prevent double borders when tiled */
+  }
+
+  /* Ensure the print container spans full width and allows multi-page flow */
+  .print-page-flow {
+    display: block !important;
+    width: 100% !important;
+    visibility: visible !important;
   }
 }

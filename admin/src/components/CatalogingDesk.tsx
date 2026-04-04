@@ -294,8 +294,8 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
       {isScannerOpen && <MobileScanner onScan={(text) => { setIsScannerOpen(false); setIsbn(text); handleCatalogSearch(); }} onClose={() => setIsScannerOpen(false)} />}
 
       {bulkPreviewBooks && (
-        <div className="fixed inset-0 z-[120] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 print:bg-white print:backdrop-blur-none print:inset-0 print:p-0">
-          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-6 max-h-[90vh] w-full max-w-5xl overflow-hidden print:shadow-none print:rounded-none print:p-0 print:max-h-none print:overflow-visible print:max-w-none">
+        <div className="fixed inset-0 z-[120] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 print:bg-white print:backdrop-blur-none print:inset-0 print:p-0 print-container-root">
+          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-6 max-h-[90vh] w-full max-w-5xl overflow-hidden print:shadow-none print:rounded-none print:p-0 print:max-h-none print:overflow-visible print:max-w-none print-page-flow">
 
             <div className="flex items-center justify-between w-full border-b border-slate-100 pb-6 print:hidden">
               <div>
@@ -312,10 +312,10 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
 
             <div className={`
                     print-area flex-1 overflow-y-auto w-full p-4 scrollbar-thin 
-                    ${printLayout === 'SHEET' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 print:grid-cols-3 print:gap-0' : 'flex flex-wrap justify-center gap-6 print:block'}
+                    ${printLayout === 'SHEET' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 print:grid-cols-5 print:gap-4' : 'flex flex-wrap justify-center gap-6 print:grid print:grid-cols-5 print:gap-2'}
                   `}>
               {bulkPreviewBooks.map((book, idx) => (
-                <div key={idx} className="print:break-after-avoid flex items-center justify-center">
+                <div key={idx} className={`print:break-inside-avoid flex items-center justify-center ${printLayout === 'SINGLE' ? 'cut-guide-dotted' : ''}`}>
                   <BookLabel book={book} isSheetMode={printLayout === 'SHEET'} />
                 </div>
               ))}
@@ -517,26 +517,6 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
         />
       )}
 
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          .print-area, .print-area * { visibility: visible !important; }
-          .print-area {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            z-index: 9999;
-            background: white;
-            padding: 0.5in;
-          }
-        }
-      `}</style>
     </div>
   );
 };

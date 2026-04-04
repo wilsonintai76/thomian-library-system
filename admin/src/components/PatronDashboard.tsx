@@ -217,14 +217,14 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
             />
 
             {bulkPreviewPatrons && (
-                <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 print:bg-white print:p-0 print:inset-0">
-                    <div className="bg-white rounded-[2rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-8 max-h-[80vh] overflow-y-auto print:shadow-none print:p-0 print:rounded-none print:max-h-none print:overflow-visible">
+                <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 print:bg-white print:p-0 print:inset-0 print-container-root">
+                    <div className="bg-white rounded-[2rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-8 max-h-[80vh] overflow-y-auto print:shadow-none print:p-0 print:rounded-none print:max-h-none print:overflow-visible print-page-flow">
                         <h3 className="font-black uppercase tracking-widest text-slate-400 text-xs print:hidden">
                             {bulkPreviewPatrons.length > 1 ? `Batch Preview: ${bulkPreviewPatrons.length} Cards` : 'PVC Identity Card Preview'}
                         </h3>
-                        <div id="card-print-area" className="flex flex-wrap justify-center gap-10 print:gap-4 print:justify-start">
+                        <div id="card-print-area" className="flex flex-wrap justify-center gap-10 print:grid print:grid-cols-2 print:gap-4 print:justify-start">
                             {bulkPreviewPatrons.map((patron, idx) => (
-                                <div key={idx} style={{width:324, height:204, overflow:'hidden', flexShrink:0}}>
+                                <div key={idx} className="print:break-inside-avoid cut-guide-dotted" style={{width:324, height:204, overflow:'hidden', flexShrink:0}}>
                                     <PatronCard patron={patron} config={mapConfig} />
                                 </div>
                             ))}
