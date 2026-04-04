@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, BookOpen, Keyboard, LayoutGrid, Settings2, Building, CheckCircle, Scissors } from 'lucide-react';
 import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, uploadToR2 } from '../services/api';
 import { Book as BookType } from '../types';
@@ -43,8 +43,24 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [undoAction, setUndoAction] = useState<{ book: BookType, timeout: NodeJS.Timeout } | null>(null);
   const isbnInputRef = useRef<HTMLInputElement>(null);
 
-  // Sheet Print Config
+  // Sheet Print Config: AUTO (5x11), GRID_4X4 (4x4)
   const [printLayout, setPrintLayout] = useState<'SINGLE' | 'SHEET'>('SHEET');
+  const [gridType, setGridType] = useState<'AUTO' | 'GRID_4X4'>('AUTO');
+  const [replicateToFill, setReplicateToFill] = useState(true);
+
+  // Helper to generate the display list based on replication
+  const printItems = useMemo(() => {
+    if (!bulkPreviewBooks) return [];
+    if (!replicateToFill) return bulkPreviewBooks;
+    
+    // Fill to grid capacity
+    const capacity = gridType === 'GRID_4X4' ? 16 : 55;
+    const items = [];
+    for (let i = 0; i < capacity; i++) {
+        items.push(bulkPreviewBooks[i % bulkPreviewBooks.length]);
+    }
+    return items;
+  }, [bulkPreviewBooks, replicateToFill, gridType]);
 
   useEffect(() => {
     if (view === 'ADD') {
@@ -218,6 +234,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     );
     setBulkPreviewBooks(resolved);
     setPrintLayout(resolved.length > 1 ? 'SHEET' : 'SINGLE');
+    setReplicateToFill(resolved.length === 1);
   };
 
   const handlePrintAction = async () => {
@@ -297,24 +314,44 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
         <div className="fixed inset-0 z-[120] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 print:bg-white print:backdrop-blur-none print:inset-0 print:p-0 print-container-root">
           <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-6 max-h-[90vh] w-full max-w-5xl overflow-hidden print:shadow-none print:rounded-none print:p-0 print:max-h-none print:overflow-visible print:max-w-none print-page-flow">
 
-            <div className="flex items-center justify-between w-full border-b border-slate-100 pb-6 print:hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between w-full border-b border-slate-100 pb-6 print:hidden gap-4">
               <div>
                 <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">
                   {bulkPreviewBooks.length > 1 ? `Batch Print Job: ${bulkPreviewBooks.length} Stickers` : 'Asset Sticker Preview'}
                 </h3>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Print on plain A4 paper — cut &amp; stick, or use Avery adhesive label sheets</p>
               </div>
-              <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button onClick={() => setPrintLayout('SINGLE')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SINGLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Scissors className="h-3.5 w-3.5" /> Cut Sheet (A4)</button>
-                <button onClick={() => setPrintLayout('SHEET')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SHEET' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><LayoutGrid className="h-3.5 w-3.5" /> Label Sheet (Avery)</button>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                  {/* Fill Page Replicator */}
+                  {bulkPreviewBooks.length === 1 && (
+                      <label className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
+                          <input type="checkbox" checked={replicateToFill} onChange={(e) => setReplicateToFill(e.target.checked)} className="accent-blue-600 h-4 w-4" />
+                          <span className="text-[10px] font-black uppercase text-slate-600">Replicate to Fill Sheet</span>
+                      </label>
+                  )}
+
+                  {/* Grid Selector */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <button onClick={() => setGridType('AUTO')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${gridType === 'AUTO' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>5x11 Grid</button>
+                    <button onClick={() => setGridType('GRID_4X4')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${gridType === 'GRID_4X4' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>4x4 Grid</button>
+                  </div>
+
+                  {/* Mode Selector */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <button onClick={() => setPrintLayout('SINGLE')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SINGLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Scissors className="h-3.5 w-3.5" /> Manual Cut</button>
+                    <button onClick={() => setPrintLayout('SHEET')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase flex items-center gap-2 ${printLayout === 'SHEET' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><LayoutGrid className="h-3.5 w-3.5" /> Label sheet</button>
+                  </div>
               </div>
             </div>
 
             <div className={`
-                    print-area flex-1 overflow-y-auto w-full p-4 scrollbar-thin 
-                    ${printLayout === 'SHEET' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 print:grid-cols-5 print:gap-4' : 'flex flex-wrap justify-center gap-6 print:grid print:grid-cols-5 print:gap-2'}
+                    print-area flex-1 overflow-y-auto w-full p-4 scrollbar-thin print:p-0 print:overflow-visible
+                    ${printLayout === 'SHEET' 
+                        ? (gridType === 'GRID_4X4' ? 'grid-4x4 print-page-a4' : 'grid-5x11 print-page-a4') 
+                        : 'flex flex-wrap justify-center gap-6 print:grid print:grid-cols-5 print:gap-2'}
                   `}>
-              {bulkPreviewBooks.map((book, idx) => (
+              {printItems.map((book, idx) => (
                 <div key={idx} className={`print:break-inside-avoid flex items-center justify-center ${printLayout === 'SINGLE' ? 'cut-guide-dotted' : ''}`}>
                   <BookLabel book={book} isSheetMode={printLayout === 'SHEET'} />
                 </div>

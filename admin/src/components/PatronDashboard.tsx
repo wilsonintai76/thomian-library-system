@@ -44,6 +44,21 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
     const [bulkPreviewPatrons, setBulkPreviewPatrons] = useState<Patron[] | null>(null);
     const [newPatronSlip, setNewPatronSlip] = useState<Patron | null>(null);
+    const [gridType, setGridType] = useState<'AUTO' | 'GRID_4X4'>('AUTO');
+    const [replicateToFill, setReplicateToFill] = useState(true);
+
+    const printItems = useMemo(() => {
+        if (!bulkPreviewPatrons) return [];
+        if (!replicateToFill) return bulkPreviewPatrons;
+        
+        // Fill to grid capacity: AUTO (2x5 = 10), GRID_4X4 (16)
+        const capacity = gridType === 'GRID_4X4' ? 16 : 10;
+        const items = [];
+        for (let i = 0; i < capacity; i++) {
+            items.push(bulkPreviewPatrons[i % bulkPreviewPatrons.length]);
+        }
+        return items;
+    }, [bulkPreviewPatrons, replicateToFill, gridType]);
 
     useEffect(() => {
         loadInitialData();
@@ -132,6 +147,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
     const handlePrintRequest = (items: Patron[]) => {
         setBulkPreviewPatrons(items);
+        setReplicateToFill(items.length === 1);
     };
 
     const handleCsvExport = () => {
@@ -218,23 +234,47 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
             {bulkPreviewPatrons && (
                 <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 print:bg-white print:p-0 print:inset-0 print-container-root">
-                    <div className="bg-white rounded-[2rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-8 max-h-[80vh] overflow-y-auto print:shadow-none print:p-0 print:rounded-none print:max-h-none print:overflow-visible print-page-flow">
-                        <h3 className="font-black uppercase tracking-widest text-slate-400 text-xs print:hidden">
-                            {bulkPreviewPatrons.length > 1 ? `Batch Preview: ${bulkPreviewPatrons.length} Cards` : 'PVC Identity Card Preview'}
-                        </h3>
-                        <div id="card-print-area" className="flex flex-wrap justify-center gap-10 print:grid print:grid-cols-2 print:gap-4 print:justify-start">
-                            {bulkPreviewPatrons.map((patron, idx) => (
-                                <div key={idx} className="print:break-inside-avoid cut-guide-dotted" style={{width:324, height:204, overflow:'hidden', flexShrink:0}}>
+                    <div className="bg-white rounded-[2rem] p-10 shadow-2xl animate-fade-in-up flex flex-col items-center gap-8 max-h-[90vh] overflow-hidden print:shadow-none print:p-0 print:rounded-none print:max-h-none print:overflow-visible print-page-flow">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between w-full border-b border-slate-100 pb-6 print:hidden gap-4">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-800">
+                                    {bulkPreviewPatrons.length > 1 ? `Batch Preview: ${bulkPreviewPatrons.length} Cards` : 'PVC Identity Card Preview'}
+                                </h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Print on photo paper for durability</p>
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-3">
+                                {bulkPreviewPatrons.length === 1 && (
+                                    <label className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors">
+                                        <input type="checkbox" checked={replicateToFill} onChange={(e) => setReplicateToFill(e.target.checked)} className="accent-sky-600 h-4 w-4" />
+                                        <span className="text-[10px] font-black uppercase text-slate-600">Replicate to Fill Sheet</span>
+                                    </label>
+                                )}
+
+                                <div className="flex bg-slate-100 p-1 rounded-xl">
+                                    <button onClick={() => setGridType('AUTO')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${gridType === 'AUTO' ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500'}`}>Standard (2 Column)</button>
+                                    <button onClick={() => setGridType('GRID_4X4')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase ${gridType === 'GRID_4X4' ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500'}`}>4x4 Grid</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="card-print-area" className={`
+                            flex-1 overflow-y-auto w-full p-4 scrollbar-thin print:p-0 print:overflow-visible
+                            ${gridType === 'GRID_4X4' ? 'grid-4x4 print-page-a4' : 'flex flex-wrap justify-center gap-10 print:grid print:grid-cols-2 print:gap-0 print:justify-start print-page-a4'}
+                        `}>
+                            {printItems.map((patron, idx) => (
+                                <div key={idx} className="print:break-inside-avoid cut-guide-dotted flex items-center justify-center overflow-hidden">
                                     <PatronCard patron={patron} config={mapConfig} />
                                 </div>
                             ))}
                         </div>
+
                         <div className="flex flex-col gap-3 w-full max-w-sm print:hidden shrink-0">
                             <button onClick={handlePdfPrint} className="w-full py-4 bg-sky-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-sky-700 transition-all shadow-xl shadow-sky-100 flex items-center justify-center gap-2">
-                                <Printer className="h-4 w-4" /> Print / Save as PDF
+                                <Printer className="h-4 w-4" /> Execute Print
                             </button>
-                            <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">Print on paper · Laminate · Done</p>
-                            <button onClick={() => setBulkPreviewPatrons(null)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Close</button>
+                            <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">Enable "Background Graphics" in print settings</p>
+                            <button onClick={() => setBulkPreviewPatrons(null)} className="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
                         </div>
                     </div>
                 </div>
