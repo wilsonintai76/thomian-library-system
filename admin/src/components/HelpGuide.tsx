@@ -57,39 +57,38 @@ const HelpGuide: React.FC = () => {
     },
     {
       id: 'STICKERS',
-      title: 'Hardware & Stickers',
+      title: 'Hardware & Printing',
       icon: StickyNote,
-      description: 'Setup for Zebra printers and adhesive sheet printing.',
+      description: 'Setup for A4 optimized labels and manual cutting.',
       content: (
         <div className="space-y-6">
           <section>
             <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
-               Sticker Label Standards <Printer className="h-5 w-5 text-blue-600" />
+               A4 Optimized Grids <Printer className="h-5 w-5 text-blue-600" />
             </h3>
-            <p className="text-slate-600 mb-4">Thomian Library supports two standard sticker formats:</p>
+            <p className="text-slate-600 mb-4">Thomian Library is optimized for standard A4 and Photo Paper, maximizing efficiency for manual processing.</p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <span className="font-bold text-blue-600 uppercase text-[10px] tracking-widest block mb-2">Standard Sheet (A4/Letter)</span>
+                    <span className="font-bold text-blue-600 uppercase text-[10px] tracking-widest block mb-2">5-Up Label Grid</span>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                        Best for standard laser/inkjet printers. Use "Sheet Grid" mode. 
-                        <strong>Tip:</strong> Ensure your printer's "Scale" is set to 100% and "Background Graphics" is enabled.
+                        Labels are arranged in a high-density 5-column grid. This fits standard **1.5" x 1" labels** perfectly on A4 sheets. 
+                        <strong>Pro Tip:</strong> Use "Cut Sheet" mode to render dotted manual cut guides.
                     </p>
                 </div>
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-widest block mb-2">Thermal Rolls (Zebra)</span>
+                    <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-widest block mb-2">Manual Cut Guides</span>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                        Best for high-volume labeling. Uses the 1.5" x 1" continuous sticker format.
-                        Requires a direct IP connection to the printer on the local LAN.
+                        Every label and ID card in "Cut Mode" includes a **dotted gray border**. These are designed to assist librarians with precise manual cutting using scissors or paper trimmers.
                     </p>
                 </div>
             </div>
 
-            <h4 className="font-bold text-slate-800 mb-2">Browser Print Tips:</h4>
+            <h4 className="font-bold text-slate-800 mb-2">Essential Browser Settings:</h4>
             <ul className="list-disc pl-5 space-y-2 text-sm text-slate-600">
-                <li><strong>Margins:</strong> Set to "None" in the print dialog.</li>
-                <li><strong>Scale:</strong> Must be "Default" or "100%".</li>
-                <li><strong>Alignment:</strong> If stickers are misaligned on a sheet, use the Sheet Calibration offsets in System Settings.</li>
+                <li><strong>Margins:</strong> Set to **"None"** in the print dialog for perfect alignment.</li>
+                <li><strong>Background Graphics:</strong> Must be **enabled** to print barcodes and card colors correctly.</li>
+                <li><strong>Scale:</strong> Must be set to **"100%"** or "Default".</li>
             </ul>
           </section>
         </div>
@@ -99,26 +98,25 @@ const HelpGuide: React.FC = () => {
       id: 'PATRONS',
       title: 'Patron Management',
       icon: UserCheck,
-      description: 'Registration, slips, and identity management.',
+      description: 'Registration, ID Cards, and identity management.',
       content: (
         <div className="space-y-6">
           <section>
             <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
-               Registration Slips <Printer className="h-5 w-5 text-blue-600" />
+               Identity Card Printing <Smartphone className="h-5 w-5 text-blue-600" />
             </h3>
-            <p className="text-slate-600 mb-4">When a new patron is registered, the system automatically generates a unique Patron ID and a secure 4-digit PIN.</p>
+            <p className="text-slate-600 mb-4">The system generates high-fidelity identification cards for every patron, optimized for printing on photo paper.</p>
             <ul className="list-disc pl-5 space-y-2 text-sm text-slate-600">
-                <li><strong>Auto-Generation:</strong> The Patron ID is generated based on the current year and a random sequence.</li>
-                <li><strong>Slip Printing:</strong> A registration slip containing the ID and PIN is displayed immediately after registration. This should be printed and given to the patron.</li>
-                <li><strong>PIN Management:</strong> Patrons can change their PIN later using the Kiosk Profile settings. Librarians can also reset it from the Patron Dashboard.</li>
+                <li><strong>2-Column Layout:</strong> Cards are automatically tiled in 2 columns on A4 paper for maximum paper savings.</li>
+                <li><strong>Durable Design:</strong> Cards include the Patron ID, Barcode, and Profile image to ensure multi-year durability.</li>
+                <li><strong>Manual Trimming:</strong> Use the built-in manual cut guides (dotted lines) for accurate trimming after printing.</li>
             </ul>
           </section>
           <section>
             <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
-               Undo Deletions <RefreshCcw className="h-5 w-5 text-amber-500" />
+               Registration Protocol <ShieldCheck className="h-5 w-5 text-emerald-600" />
             </h3>
-            <p className="text-slate-600 mb-4">Accidental deletions of patron records can be reversed within a 5-second window.</p>
-            <p className="text-sm text-slate-600">Look for the "Undo" notification bar at the bottom of the screen immediately after deleting a patron.</p>
+            <p className="text-slate-600 mb-4">New patrons receive a unique ID and a secure 4-digit PIN. The PIN is required for account access at the Kiosk.</p>
           </section>
         </div>
       )
@@ -201,6 +199,33 @@ const HelpGuide: React.FC = () => {
               AI Vision Analysis <Sparkles className="h-5 w-5 text-amber-500" />
             </h3>
             <p className="text-slate-600">The <strong>AI Auto-Map</strong> feature uses Gemini to identify shelving units from blueprint uploads, assigning DDC ranges automatically to new zones.</p>
+          </section>
+        </div>
+      )
+    },
+    {
+      id: 'SYSTEM',
+      title: 'System & Release',
+      icon: RefreshCcw,
+      description: 'Versioning and infrastructure status.',
+      content: (
+        <div className="space-y-6">
+          <section>
+            <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
+              Grouped Versioning <RefreshCcw className="h-5 w-5 text-blue-600" />
+            </h3>
+            <p className="text-slate-600 mb-4">The Thomian Library System uses a **Grouped Versioning Strategy** (e.g., v3.5.x) for the entire monorepo.</p>
+            <ul className="list-disc pl-5 space-y-2 text-sm text-slate-600">
+                <li><strong>Synchronization:</strong> All modules (Admin, Kiosk, and Backend) share the same version number to guarantee compatibility.</li>
+                <li><strong>Release Markers:</strong> Every major fix or feature update triggers a new version bump across all packages.</li>
+                <li><strong>CDN Caching:</strong> Version bumps automatically refresh service worker cache keys to ensure you are always running the latest code.</li>
+            </ul>
+          </section>
+          <section>
+            <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
+              High Availability <Globe className="h-5 w-5 text-emerald-600" />
+            </h3>
+            <p className="text-slate-600 text-sm">Our infrastructure is powered by **Cloudflare Workers & Pages**, providing millisecond response times and offline-first PWA capabilities via Vite.</p>
           </section>
         </div>
       )
