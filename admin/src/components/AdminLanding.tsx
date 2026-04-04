@@ -34,7 +34,7 @@ const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest, mapConfig }
             <main className="relative z-10 pt-12 md:pt-24 pb-32 px-6 max-w-7xl mx-auto text-center">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-[0.2em] mb-8 animate-fade-in-up">
                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                    Production Environment v3.2.8
+                    Production Environment v{__APP_VERSION__}
                 </div>
                 
                 <h1 className="text-5xl md:text-8xl font-black tracking-tighter leading-[0.9] mb-8 animate-fade-in-up">

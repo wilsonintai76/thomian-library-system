@@ -578,7 +578,7 @@ const KioskHome: React.FC = () => {
                                 </div>
                                 <div>
                                     <h1 className="text-2xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight uppercase leading-none">Thomian Kiosk</h1>
-                                    <p className="text-slate-500 font-bold uppercase text-[10px] md:text-xs tracking-[0.3em] opacity-70">Official Student Gateway</p>
+                                    <p className="text-slate-500 font-bold uppercase text-[10px] md:text-xs tracking-[0.3em] opacity-70">Official Student Gateway v{__APP_VERSION__}</p>
                                 </div>
                             </div>
                             <div className="relative group mt-4">

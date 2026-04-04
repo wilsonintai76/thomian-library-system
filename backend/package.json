@@ -1,6 +1,6 @@
 {
   "name": "thomian-backend",
-  "version": "3.5.4",
+  "version": "3.5.5",
   "description": "Thomian Library System Hono/Typescript Backend for Cloudflare Workers",
   "main": "src/index.ts",
   "scripts": {
