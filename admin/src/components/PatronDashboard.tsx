@@ -147,7 +147,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
     const handlePrintRequest = (items: Patron[]) => {
         setBulkPreviewPatrons(items);
-        setReplicateToFill(items.length === 1);
+        setReplicateToFill(false); // Default to selected count, not auto-fill
     };
 
     const handleCsvExport = () => {

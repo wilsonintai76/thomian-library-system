@@ -234,7 +234,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
     );
     setBulkPreviewBooks(resolved);
     setPrintLayout(resolved.length > 1 ? 'SHEET' : 'SINGLE');
-    setReplicateToFill(resolved.length === 1);
+    setReplicateToFill(false); // Default to selected count, not auto-fill
   };
 
   const handlePrintAction = () => {
