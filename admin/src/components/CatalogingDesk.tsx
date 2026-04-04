@@ -313,7 +313,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
                         : 'flex flex-wrap justify-center gap-6 print:grid print:grid-cols-5 print:gap-2'}
                   `}>
               {printItems.map((book, idx) => (
-                <div key={idx} className={`print:break-inside-avoid flex items-center justify-center ${printLayout === 'SINGLE' ? 'cut-guide-dotted' : ''}`}>
+                <div key={idx} className="print:break-inside-avoid flex items-center justify-center cut-guide-dotted">
                   <BookLabel book={book} isSheetMode={printLayout === 'SHEET'} />
                 </div>
               ))}
