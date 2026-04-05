@@ -1,13 +1,15 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { getDB, Bindings } from '../utils'
+import { getDB, Bindings, Variables, requireRole } from '../utils'
 import { bookSchema, printLabelSchema } from '../schema'
 import { jsPDF } from 'jspdf'
 import { books, transactions, patrons, loans, libraryClasses } from '../db/schema'
 import { eq, or, like, desc, sql, inArray } from 'drizzle-orm'
 
-const app = new Hono<{ Bindings: Bindings }>()
+import { getCache, CACHE_KEYS } from '../kv'
+
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 app.get('/recent_activity', async (c) => {
   const db = getDB(c)
@@ -29,67 +31,86 @@ app.get('/recent_activity', async (c) => {
 })
 
 app.get('/stats', async (c) => {
+  const cache = getCache(c.env.KV)
+  const cached = await cache.get(CACHE_KEYS.STATS)
+  if (cached) return c.json(cached)
+
   const db = getDB(c)
   try {
-    const [totalItems] = await db.select({ count: sql<number>`count(*)` }).from(books)
-    const [activeLoans] = await db.select({ count: sql<number>`count(*)` }).from(loans).where(eq(loans.status, 'ACTIVE'))
-    const [lostItems] = await db.select({ count: sql<number>`count(*)` }).from(books).where(eq(books.status, 'LOST'))
-    const [activePatrons] = await db.select({ count: sql<number>`count(*)` }).from(patrons).where(eq(patrons.is_blocked, false))
-    const [totalValue] = await db.select({ val: sql<number>`sum(${books.value})` }).from(books)
+    // ⚡️ Parallelized for Maximum Performance
+    const [
+      totalItemsQuery,
+      activeLoansQuery,
+      lostItemsQuery,
+      activePatronsQuery,
+      totalValueQuery,
+      statusCounts,
+      classificationCounts,
+      readers,
+      shelfCounts,
+      classes,
+      history
+    ] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(books),
+      db.select({ count: sql<number>`count(*)` }).from(loans).where(eq(loans.status, 'ACTIVE')),
+      db.select({ count: sql<number>`count(*)` }).from(books).where(eq(books.status, 'LOST')),
+      db.select({ count: sql<number>`count(*)` }).from(patrons).where(eq(patrons.is_blocked, false)),
+      db.select({ val: sql<number>`sum(${books.value})` }).from(books),
+      db.select({ status: books.status, count: sql<number>`count(*)` }).from(books).groupBy(books.status),
+      db.select({ 
+        range: sql<string>`substr(${books.ddc_code}, 1, 1) || '00s'`, 
+        count: sql<number>`count(*)` 
+      }).from(books).groupBy(sql`substr(${books.ddc_code}, 1, 1)`),
+      db.select({ 
+        id: patrons.id, name: patrons.full_name, count: sql<number>`count(*)` 
+      }).from(loans)
+        .innerJoin(patrons, eq(loans.patron_id, patrons.id))
+        .groupBy(patrons.id)
+        .orderBy(desc(sql`count(*)`))
+        .limit(5),
+      db.select({ 
+        shelf: books.shelf_location, count: sql<number>`count(*)` 
+      }).from(loans)
+        .innerJoin(books, eq(loans.book_id, books.id))
+        .where(sql`${books.shelf_location} IS NOT NULL`)
+        .groupBy(books.shelf_location),
+      db.select({ 
+        name: libraryClasses.name, count: sql<number>`count(*)` 
+      }).from(loans)
+        .innerJoin(patrons, eq(loans.patron_id, patrons.id))
+        .innerJoin(libraryClasses, eq(patrons.library_class_id, libraryClasses.id))
+        .groupBy(libraryClasses.id)
+        .orderBy(desc(sql`count(*)`))
+        .limit(5),
+      db.select({ 
+        month: sql<string>`strftime('%Y-%m', ${books.created_at})`, 
+        count: sql<number>`count(*)` 
+      }).from(books)
+        .groupBy(sql`strftime('%Y-%m', ${books.created_at})`)
+        .orderBy(desc(sql`strftime('%Y-%m', ${books.created_at})`))
+        .limit(5)
+    ])
+
+    const totalItems = totalItemsQuery[0]
+    const activeLoans = activeLoansQuery[0]
+    const lostItems = lostItemsQuery[0]
+    const activePatrons = activePatronsQuery[0]
+    const totalValue = totalValueQuery[0]
     
     // Items by status
-    const statusCounts = await db.select({ status: books.status, count: sql<number>`count(*)` }).from(books).groupBy(books.status)
-    const itemsByStatus = statusCounts.reduce((acc, curr) => ({ ...acc, [curr.status]: curr.count }), {})
+    const itemsByStatus = statusCounts.reduce<Record<string, number>>((acc, curr) => ({ ...acc, [curr.status ?? 'UNKNOWN']: curr.count }), {} as Record<string, number>)
 
     // Items by classification (Dewey ranges)
-    const classificationCounts = await db.select({ 
-      range: sql<string>`substr(${books.ddc_code}, 1, 1) || '00s'`, 
-      count: sql<number>`count(*)` 
-    }).from(books).groupBy(sql`substr(${books.ddc_code}, 1, 1)`)
-    const itemsByClassification = classificationCounts.reduce((acc, curr) => ({ ...acc, [curr.range]: { count: curr.count, loans: 0 } }), {})
-
-    // Top Readers
-    const readers = await db.select({ 
-      id: patrons.id, name: patrons.full_name, count: sql<number>`count(*)` 
-    }).from(loans)
-      .innerJoin(patrons, eq(loans.patron_id, patrons.id))
-      .groupBy(patrons.id)
-      .orderBy(desc(sql`count(*)`))
-      .limit(5)
+    const itemsByClassification = classificationCounts.reduce<Record<string, { count: number, loans: number }>>((acc, curr) => ({ ...acc, [curr.range ?? 'OTHER']: { count: curr.count, loans: 0 } }), {} as Record<string, { count: number, loans: number }>)
 
     // Shelf Popularity (Heatmap Data)
-    const shelfCounts = await db.select({ 
-      shelf: books.shelf_location, count: sql<number>`count(*)` 
-    }).from(loans)
-      .innerJoin(books, eq(loans.book_id, books.id))
-      .where(sql`${books.shelf_location} IS NOT NULL`)
-      .groupBy(books.shelf_location)
-    
-    const maxShelfLoans = Math.max(...shelfCounts.map(s => s.count), 1)
-    const shelfPopularity = shelfCounts.reduce((acc, curr) => ({ 
-      ...acc, [curr.shelf]: curr.count / maxShelfLoans 
-    }), {})
+    const shelfCountsTyped = shelfCounts as { shelf: string | null, count: number }[]
+    const maxShelfLoans = Math.max(...shelfCountsTyped.map(s => s.count), 1)
+    const shelfPopularity = shelfCountsTyped.reduce<Record<string, number>>((acc, curr) => ({ 
+      ...acc, [curr.shelf ?? 'OTHER']: curr.count / maxShelfLoans 
+    }), {} as Record<string, number>)
 
-    // Top Classes
-    const classes = await db.select({ 
-      name: libraryClasses.name, count: sql<number>`count(*)` 
-    }).from(loans)
-      .innerJoin(patrons, eq(loans.patron_id, patrons.id))
-      .innerJoin(libraryClasses, eq(patrons.library_class_id, libraryClasses.id))
-      .groupBy(libraryClasses.id)
-      .orderBy(desc(sql`count(*)`))
-      .limit(5)
-
-    // Acquisition History (last 5 months)
-    const history = await db.select({ 
-      month: sql<string>`strftime('%Y-%m', ${books.created_at})`, 
-      count: sql<number>`count(*)` 
-    }).from(books)
-      .groupBy(sql`strftime('%Y-%m', ${books.created_at})`)
-      .orderBy(desc(sql`strftime('%Y-%m', ${books.created_at})`))
-      .limit(5)
-
-    return c.json({
+    const stats = {
       totalItems: totalItems?.count || 0,
       totalValue: totalValue?.val || 0,
       activeLoans: activeLoans?.count || 0,
@@ -102,20 +123,28 @@ app.get('/stats', async (c) => {
       topClasses: classes,
       acquisitionHistory: history.reverse().map((h: any) => ({ month: h.month, count: h.count })),
       shelfPopularity
-    })
+    }
+
+    // Cache results for 15 minutes
+    await cache.put(CACHE_KEYS.STATS, stats, 900)
+    return c.json(stats)
   } catch (err: any) {
     console.error('Stats Error:', err)
-    return c.json({ error: err.message }, 500)
+    return c.json({ success: false, error: 'Failed to fetch catalog statistics.' }, 500)
   }
 })
 
 app.get('/ai_insights', async (c) => {
+  const cache = getCache(c.env.KV)
+  const cached = await cache.get(CACHE_KEYS.AI_INSIGHTS)
+  if (cached) return c.json(cached)
+
   const db = getDB(c)
   const ai = c.env.AI
 
   try {
     // Collect brief stats for the prompt
-    const [totalBooks] = await db.select({ count: sql`count(*)` }).from(books)
+    const [totalBooks] = await db.select({ count: sql<number>`count(*)` }).from(books)
     const genreStats = await db.select({ 
       range: sql<string>`substr(${books.ddc_code}, 1, 1) || '00s'`, 
       count: sql<number>`count(*)` 
@@ -132,9 +161,12 @@ app.get('/ai_insights', async (c) => {
       max_tokens: 300
     })
 
-    return c.json({ insights: response.response })
+    const stats = { insights: response.response || response.description || "Analysis currently unavailable." }
+    await cache.put(CACHE_KEYS.AI_INSIGHTS, stats, 3600) // Cache for 1 hour
+    return c.json(stats)
   } catch (err: any) {
-    return c.json({ error: err.message }, 500)
+    console.error('AI Insights Error:', err)
+    return c.json({ insights: "Strategic insights unavailable at this time." })
   }
 })
 
@@ -310,14 +342,14 @@ app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() }))
   return c.json({ status: 'NOT_FOUND', data: { isbn, title: '', author: '', ddc_code: '000', status: 'STUB' } })
 })
 
-app.post('/predict_ddc', zValidator('json', z.object({ title: z.string(), author: z.string().optional(), publisher: z.string().optional() })), async (c) => {
+app.post('/predict_ddc', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', z.object({ title: z.string(), author: z.string().optional(), publisher: z.string().optional() })), async (c) => {
     const { title, author, publisher } = c.req.valid('json')
     const ai = c.env.AI
     const ddc = await fetchDDCFromWorkersAI(title, author || '', publisher || '', ai)
     return c.json({ ddc_code: ddc })
 })
 
-app.post('/:id/reclassify', async (c) => {
+app.post('/reclassify/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const [book] = await db.select().from(books).where(eq(books.id, id)).limit(1)
@@ -417,7 +449,7 @@ async function generateBarcode(db: any, year: number): Promise<string> {
     return `${prefix}${String(lastNum + 1).padStart(4, '0')}`
 }
 
-app.post('/', zValidator('json', bookSchema), async (c) => {
+app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const bookData = c.req.valid('json') as any
     const id = crypto.randomUUID()
@@ -436,7 +468,7 @@ app.post('/', zValidator('json', bookSchema), async (c) => {
     return c.json(newBook)
 })
 
-app.patch('/:id', zValidator('json', bookSchema), async (c) => {
+app.patch('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const bookData = c.req.valid('json') as any
@@ -453,14 +485,14 @@ app.patch('/:id', zValidator('json', bookSchema), async (c) => {
     return c.json(updatedBook)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     await db.delete(books).where(eq(books.id, id))
     return c.json({ success: true })
 })
 
-app.post('/print_labels', zValidator('json', printLabelSchema), async (c) => {
+app.post('/print_labels', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', printLabelSchema), async (c) => {
     const db = getDB(c)
     const { book_ids } = c.req.valid('json')
     const results = await db.select().from(books).where(inArray(books.id, book_ids))

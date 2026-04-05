@@ -10,7 +10,7 @@ import type {
     CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition,
 } from '../types';
 import { hc } from 'hono/client';
-import { type AppType } from '../../../backend/src/index';
+import type { AppType } from '../../../backend/src/index.ts';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 const SESSION_TOKEN_KEY = 'thomian_session_token';
@@ -33,9 +33,11 @@ async function parseApiError(res: Response): Promise<string> {
 export const apiClient = hc<AppType>(API_BASE, {
     headers() {
         const token = getToken();
-        return token ? { Authorization: `Bearer ${token}` } : {};
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        return headers;
     }
-}) as any; // Cast to any to bypass path-related type inference issues outside src
+});
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
@@ -85,13 +87,8 @@ export const mockLogout = async (): Promise<void> => {
 
 export const uploadToR2 = async (file: File): Promise<string | null> => {
     try {
-        const token = getToken();
-        const form = new FormData();
-        form.append('file', file);
-        const res = await fetch(`${API_BASE}/system/upload`, {
-            method: 'POST',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: form,
+        const res = await apiClient.system.upload.$post({
+            form: { file }
         });
         if (!res.ok) {
             const body = await res.text().catch(() => '');
@@ -105,7 +102,7 @@ export const uploadToR2 = async (file: File): Promise<string | null> => {
         }
         return data.url;
     } catch (err) {
-        console.error('[R2 Upload] fetch error:', err);
+        console.error('[R2 Upload] RPC error:', err);
         return null;
     }
 };
@@ -478,27 +475,14 @@ export const getLanUrl = (): string => localStorage.getItem('thomian_lan_url') |
 export const setLanUrl = (url: string): void => { localStorage.setItem('thomian_lan_url', url); };
 
 export const exportSystemData = async (): Promise<string> => {
-    const token = getToken();
-    const res = await fetch(`${API_BASE}/system/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const res = await apiClient.system.export.$get();
     if (!res.ok) throw new Error('Export failed');
     return JSON.stringify(await res.json(), null, 2);
 };
 
-export const importSystemData = async (jsonString: string): Promise<boolean> => {
+export const importSystemData = async (data: any): Promise<boolean> => {
     try {
-        const data = JSON.parse(jsonString);
-        if (!data?.tables) return false; // Not a full backup envelope
-        const token = getToken();
-        const res = await fetch(`${API_BASE}/system/import`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(data),
-        });
+        const res = await apiClient.system.import.$post({ json: data });
         return res.ok;
     } catch { return false; }
 };
@@ -508,22 +492,21 @@ export const performFactoryReset = async (): Promise<void> => {
 };
 
 export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
-    const token = getToken();
-    const res = await fetch(`${API_BASE}/ai/analyze-blueprint`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ imageBase64, levelId }),
-    });
-    
-    if (res.status === 429) throw new Error('QUOTA_EXHAUSTED');
-    if (!res.ok) {
-        const err = await parseApiError(res);
-        throw new Error(err);
+    try {
+        const res = await apiClient.ai['analyze-blueprint'].$post({
+            json: { imageBase64, levelId }
+        });
+        
+        if (res.status === 429) throw new Error('QUOTA_EXHAUSTED');
+        if (!res.ok) {
+            const err = await parseApiError(res);
+            throw new Error(err);
+        }
+        return res.json() as Promise<ShelfDefinition[]>;
+    } catch (err) {
+        console.error('AI Blueprint Error:', err);
+        throw err;
     }
-    return res.json() as Promise<ShelfDefinition[]>;
 };
 
 export const fetchAiInsights = async (): Promise<string> => {
@@ -534,7 +517,7 @@ export const fetchAiInsights = async (): Promise<string> => {
 };
 
 export const reclassifyBook = async (id: string): Promise<Book> => {
-    const res = await apiClient.catalog[':id'].reclassify.$post({ param: { id } });
+    const res = await apiClient.catalog.reclassify[':id'].$post({ param: { id } });
     if (!res.ok) throw new Error('AI Reclassification failed');
     return res.json() as unknown as Promise<Book>;
 };

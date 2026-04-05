@@ -2,7 +2,7 @@
 export type ViewMode = 'KIOSK' | 'ADMIN';
 export type AdminTab = 'DASHBOARD' | 'CIRCULATION' | 'CATALOG' | 'PATRONS' | 'MATRIX' | 'MAP' | 'CALENDAR' | 'REPORTS' | 'HELP' | 'SETTINGS' | 'PROFILE';
 
-export type PatronGroup = 'STUDENT' | 'TEACHER' | 'LIBRARIAN' | 'ADMINISTRATOR';
+export type PatronGroup = 'STUDENT' | 'TEACHER' | 'LIBRARIAN' | 'ADMINISTRATOR' | 'GUEST';
 export type SystemTheme = 'EMERALD' | 'PURPLE' | 'SKY' | 'MIDNIGHT' | 'WHITE';
 export type PatronCardTemplate = 'TRADITIONAL' | 'MODERN' | 'MINIMAL';
 

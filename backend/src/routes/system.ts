@@ -1,17 +1,19 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { getDB, Bindings } from '../utils'
+import { getDB, Bindings, Variables, requireRole } from '../utils'
 import { libraryClassSchema, updateConfigSchema, circulationRuleSchema, libraryEventSchema } from '../schema'
 import { z } from 'zod'
 import { books, patrons, loans, transactions, libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents } from '../db/schema'
 import { eq, asc, desc, sql } from 'drizzle-orm'
 
-const app = new Hono<{ Bindings: Bindings }>()
+import { getCache, CACHE_KEYS } from '../kv'
+
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 // ── R2 File Upload ─────────────────────────────────────────────────────────────
 // Accepts multipart/form-data with a 'file' field.
 // Returns a Worker-served public URL for the stored object.
-app.post('/upload', async (c) => {
+app.post('/upload', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   if (!file) return c.json({ error: 'No file provided' }, 400)
@@ -46,7 +48,7 @@ app.get('/classes', async (c) => {
   return c.json(data || [])
 })
 
-app.post('/classes', zValidator('json', libraryClassSchema), async (c) => {
+app.post('/classes', requireRole(['ADMINISTRATOR']), zValidator('json', libraryClassSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
@@ -55,7 +57,7 @@ app.post('/classes', zValidator('json', libraryClassSchema), async (c) => {
   return c.json(newClass)
 })
 
-app.delete('/classes/:id', async (c) => {
+app.delete('/classes/:id', requireRole(['ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   await db.delete(libraryClasses).where(eq(libraryClasses.id, c.req.param('id')))
   return c.json({ success: true })
@@ -67,7 +69,7 @@ app.get('/rules', async (c) => {
   return c.json(data || [])
 })
 
-app.post('/rules', zValidator('json', circulationRuleSchema), async (c) => {
+app.post('/rules', requireRole(['ADMINISTRATOR']), zValidator('json', circulationRuleSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
@@ -76,7 +78,7 @@ app.post('/rules', zValidator('json', circulationRuleSchema), async (c) => {
   return c.json(newRule)
 })
 
-app.patch('/rules/:id', zValidator('json', circulationRuleSchema), async (c) => {
+app.patch('/rules/:id', requireRole(['ADMINISTRATOR']), zValidator('json', circulationRuleSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = c.req.param('id')
@@ -85,20 +87,27 @@ app.patch('/rules/:id', zValidator('json', circulationRuleSchema), async (c) => 
   return c.json(updatedRule)
 })
 
-app.delete('/rules/:id', async (c) => {
+app.delete('/rules/:id', requireRole(['ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   await db.delete(circulationRules).where(eq(circulationRules.id, c.req.param('id')))
   return c.json({ success: true })
 })
 
 app.get('/system-config', async (c) => {
+  const cache = getCache(c.env.KV)
+  const cached = await cache.get(CACHE_KEYS.SYSTEM_CONFIG)
+  if (cached) return c.json(cached)
+
   const db = getDB(c)
   const [config] = await db.select().from(systemConfiguration).where(eq(systemConfiguration.id, 1)).limit(1)
-  if (!config) return c.json({ map_data: { levels: [], shelves: [] }, logo: null, theme: 'EMERALD' })
-  return c.json(config)
+  const result = config || { map_data: { levels: [], shelves: [] }, logo: null, theme: 'EMERALD' }
+  
+  // Cache for 24 hours (manually invalidated on update)
+  await cache.put(CACHE_KEYS.SYSTEM_CONFIG, result, 86400)
+  return c.json(result)
 })
 
-app.post('/system-config/update_config', zValidator('json', updateConfigSchema), async (c) => {
+app.post('/system-config/update_config', requireRole(['ADMINISTRATOR']), zValidator('json', updateConfigSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json')
   
@@ -116,6 +125,11 @@ app.post('/system-config/update_config', zValidator('json', updateConfigSchema),
   })
 
   const [updatedConfig] = await db.select().from(systemConfiguration).where(eq(systemConfiguration.id, 1)).limit(1)
+  
+  // Invalidate KV cache
+  const cache = getCache(c.env.KV)
+  await cache.delete(CACHE_KEYS.SYSTEM_CONFIG)
+  
   return c.json(updatedConfig)
 })
 
@@ -142,7 +156,7 @@ app.post('/alerts/trigger_help', zValidator('json', z.object({ location: z.strin
   return c.json(alert)
 })
 
-app.post('/alerts/:id/resolve', async (c) => {
+app.post('/alerts/:id/resolve', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   await db.update(systemAlerts).set({ 
     status: 'RESOLVED',
@@ -157,7 +171,7 @@ app.get('/events', async (c) => {
   return c.json(data || [])
 })
 
-app.post('/events', zValidator('json', libraryEventSchema), async (c) => {
+app.post('/events', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', libraryEventSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
@@ -166,7 +180,7 @@ app.post('/events', zValidator('json', libraryEventSchema), async (c) => {
   return c.json(newEvent)
 })
 
-app.patch('/events/:id', zValidator('json', libraryEventSchema), async (c) => {
+app.patch('/events/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', libraryEventSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = c.req.param('id')
@@ -175,7 +189,7 @@ app.patch('/events/:id', zValidator('json', libraryEventSchema), async (c) => {
   return c.json(updatedEvent)
 })
 
-app.delete('/events/:id', async (c) => {
+app.delete('/events/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   await db.delete(libraryEvents).where(eq(libraryEvents.id, c.req.param('id')))
   return c.json({ success: true })
@@ -183,7 +197,7 @@ app.delete('/events/:id', async (c) => {
 
 // ── Full Data Export ──────────────────────────────────────────────────────────
 // Returns a JSON envelope with all table data. Excludes profiles (auth-managed).
-app.get('/export', async (c) => {
+app.get('/export', requireRole(['ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   const [allBooks, allPatrons, allLoans, allTxns, allClasses, allRules, allConfig, allEvents] = await Promise.all([
     db.select().from(books),
@@ -213,7 +227,7 @@ app.get('/export', async (c) => {
 
 // ── Full Data Import (Restore) ────────────────────────────────────────────────
 // Wipes and restores all tables from a previously exported backup.
-app.post('/import', async (c) => {
+app.post('/import', requireRole(['ADMINISTRATOR']), async (c) => {
   const body = await c.req.json()
   if (!body?.tables) return c.json({ error: 'Invalid backup format — missing tables key' }, 400)
   const t = body.tables

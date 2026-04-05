@@ -2,12 +2,12 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sign } from 'hono/jwt'
-import { getDB, Bindings, hashPassword } from '../utils'
+import { getDB, Bindings, Variables, hashPassword, requireRole } from '../utils'
 import { patronSchema } from '../schema'
 import { patrons, profiles } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 app.get('/', zValidator('query', z.object({ search: z.string().optional() })), async (c) => {
     const db = getDB(c)
@@ -90,7 +90,12 @@ app.post('/verify_pin', zValidator('json', z.object({
 
   // Issue a short-lived patron JWT (30 min) so the kiosk can call authenticated endpoints
   const token = await sign(
-    { sub: patron.id, role: 'PATRON', student_id: patron.student_id, exp: Math.floor(Date.now() / 1000) + 1800 },
+    { 
+      id: patron.id, 
+      role: 'PATRON', 
+      username: patron.student_id, 
+      exp: Math.floor(Date.now() / 1000) + 1800 
+    },
     c.env.JWT_SECRET,
     'HS256'
   )
@@ -116,15 +121,15 @@ app.post('/verify_pin', zValidator('json', z.object({
 })
 
 // Patron self-update — authenticated via JWT (role: PATRON), no admin JWT needed
-app.patch('/update_self', zValidator('json', z.object({
+app.patch('/update_self', requireRole(['PATRON']), zValidator('json', z.object({
   full_name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
   new_pin: z.string().length(4).optional(),
 })), async (c) => {
   const db = getDB(c)
-  const payload = c.get('jwtPayload' as any) as { sub: string }
-  const patronId = payload.sub
+  const patronId = c.get('user')?.id
+  if (!patronId) return c.json({ success: false, message: 'Unauthorized' }, 401)
   const { full_name, email, phone, new_pin } = c.req.valid('json')
 
   const updates: Record<string, unknown> = {}
@@ -155,7 +160,7 @@ app.patch('/update_self', zValidator('json', z.object({
   }})
 })
 
-app.post('/', zValidator('json', patronSchema), async (c) => {
+app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', patronSchema), async (c) => {
     const db = getDB(c)
     const { is_staff_active, role, password, ...patronData } = c.req.valid('json') as any
     const id = crypto.randomUUID()
@@ -181,7 +186,7 @@ app.post('/', zValidator('json', patronSchema), async (c) => {
     return c.json(newPatron)
 })
 
-app.patch('/:id', zValidator('json', patronSchema), async (c) => {
+app.patch('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', patronSchema), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const { is_staff_active, role, password, ...patronData } = c.req.valid('json') as any
@@ -230,7 +235,7 @@ app.patch('/:id', zValidator('json', patronSchema), async (c) => {
     return c.json(updatedPatron)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const [patron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)

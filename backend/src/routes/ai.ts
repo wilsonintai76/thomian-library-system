@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { Bindings } from '../utils'
+import { getDB, Bindings, Variables, requireRole } from '../utils'
 
-const app = new Hono<{ Bindings: Bindings }>()
+import { getCache } from '../kv'
+
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 const analyzeSchema = z.object({
   imageBase64: z.string().optional(),
@@ -11,8 +13,20 @@ const analyzeSchema = z.object({
   levelId: z.string()
 })
 
-app.post('/analyze-blueprint', zValidator('json', analyzeSchema), async (c) => {
+app.post('/analyze-blueprint', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', analyzeSchema), async (c) => {
   const { imageBase64, imageUrl, levelId } = c.req.valid('json')
+  const cache = getCache(c.env.KV)
+  
+  // Create a unique hash for the request to use as a cache key
+  const inputToHash = `${levelId}:${imageUrl || imageBase64?.slice(0, 1000)}`
+  const msgUint8 = new TextEncoder().encode(inputToHash)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const cacheKey = `cache:ai:blueprint:${hashArray.map(b => b.toString(16).padStart(2, '0')).join('')}`
+
+  const cachedResult = await cache.get<any[]>(cacheKey)
+  if (cachedResult) return c.json(cachedResult)
+
   const ai = c.env.AI
 
   let image: Uint8Array | string
@@ -82,6 +96,8 @@ Note labels in the image like "DEWEY 000s", "GENERAL COLLECTION", "STUDY ZONE". 
       levelId: levelId
     }))
 
+    // Cache results for 24 hours
+    await cache.put(cacheKey, shelves, 86400)
     return c.json(shelves)
   } catch (err: any) {
     console.error('Vision Error:', err)

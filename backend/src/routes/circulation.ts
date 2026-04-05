@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { getDB, Bindings } from '../utils'
+import { getDB, Bindings, Variables, requireRole } from '../utils'
 import { checkoutSchema, returnBookSchema, renewBookSchema, placeHoldSchema } from '../schema'
 import { z } from 'zod'
 import { books, loans, patrons, transactions } from '../db/schema'
 import { eq, isNull, lt, and, desc, sql } from 'drizzle-orm'
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 // Public endpoint — returns loans for a single patron by student_id (used by kiosk)
 app.get('/patron_loans/:student_id', async (c) => {
@@ -27,7 +27,7 @@ app.get('/patron_loans/:student_id', async (c) => {
   return c.json(data.map(l => ({ ...l, book_title: l.book?.title, book_barcode: l.book?.barcode_id })))
 })
 
-app.get('/active_loans', async (c) => {
+app.get('/active_loans', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   const data = await db.select({
     id: loans.id,
@@ -45,7 +45,7 @@ app.get('/active_loans', async (c) => {
   return c.json(data)
 })
 
-app.get('/overdue', async (c) => {
+app.get('/overdue', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   const now = new Date().toISOString()
   const data = await db.select({
@@ -63,7 +63,7 @@ app.get('/overdue', async (c) => {
   return c.json(data)
 })
 
-app.post('/checkout', zValidator('json', checkoutSchema), async (c) => {
+app.post('/checkout', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', checkoutSchema), async (c) => {
     const db = getDB(c)
     const { patron_id, book_ids } = c.req.valid('json')
     
@@ -110,7 +110,7 @@ app.post('/checkout', zValidator('json', checkoutSchema), async (c) => {
     return c.json({ allowed: true, books_processed: results.filter(r => r.success).length, results, fine_amount_due: 0 })
 })
 
-app.post('/return_book', zValidator('json', returnBookSchema), async (c) => {
+app.post('/return_book', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', returnBookSchema), async (c) => {
     const db = getDB(c)
     const { barcode } = c.req.valid('json')
     const key = barcode.trim()
@@ -172,7 +172,7 @@ app.post('/return_book', zValidator('json', returnBookSchema), async (c) => {
     })
 })
 
-app.post('/renew', zValidator('json', renewBookSchema), async (c) => {
+app.post('/renew', requireRole(['PATRON', 'LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', renewBookSchema), async (c) => {
     const db = getDB(c)
     const { barcode, patron_id } = c.req.valid('json')
     
@@ -201,7 +201,7 @@ app.post('/renew', zValidator('json', renewBookSchema), async (c) => {
     })
 })
 
-app.post('/place_hold', zValidator('json', placeHoldSchema), async (c) => {
+app.post('/place_hold', requireRole(['PATRON', 'LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', placeHoldSchema), async (c) => {
     return c.json({ success: true, queued: true, message: "Added to hold queue" })
 })
 

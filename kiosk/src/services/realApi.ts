@@ -10,7 +10,7 @@ import type {
 } from '../types';
 
 import { hc } from 'hono/client';
-import type { AppType } from '../../../backend/src/index';
+import type { AppType } from '../../../backend/src/index.ts';
 
 const API_BASE = (import.meta as any).env.VITE_API_BASE as string;
 const TOKEN_KEY = 'thomian_session_token';
@@ -31,62 +31,20 @@ async function parseApiError(res: Response): Promise<string> {
     }
 }
 
-export const apiClient = (hc as any)(API_BASE, {
+export const apiClient = hc<AppType>(API_BASE, {
     headers() {
         const token = getToken();
-        return (token ? { Authorization: `Bearer ${token}` } : {}) as any;
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        return headers;
     }
-}) as any;
+});
 
-function authHeaders(): HeadersInit {
-    const token = getToken();
-    return {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Token ${token}` } : {}),
-    };
-}
+// Legacy fetch helpers removed in favor of typed RPC
 
-async function request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    isPublic = false,
-): Promise<T> {
-    const headers: HeadersInit = isPublic
-        ? { 'Content-Type': 'application/json' }
-        : authHeaders();
-
-    const res = await fetch(`${API_BASE}${path}`, {
-        method,
-        headers,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-
-    if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-            const err = await res.json();
-            msg = err.message || err.detail || JSON.stringify(err);
-        } catch {/* ignore */ }
-        throw new Error(msg);
-    }
-
-    if (res.status === 204) return undefined as unknown as T;
-    return res.json() as Promise<T>;
-}
-
-async function list<T>(path: string, params?: Record<string, string>, isPublic = false): Promise<T[]> {
-    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-    const data = await request<T[] | { results: T[]; count: number }>(
-        'GET', `${path}${qs}`, undefined, isPublic,
-    );
-    if (Array.isArray(data)) return data;
-    return (data as { results: T[] }).results;
-}
-
-export const mockLogin = async (username: string, password: string): Promise<AuthUser | null> => {
+export const mockLogin = async (id: string, pin: string): Promise<AuthUser | null> => {
     try {
-        const res = await apiClient.auth.login.$post({ json: { staff_id: username, password } });
+        const res = await apiClient.auth.login.$post({ json: { identifier: id, password: pin } });
         if (!res.ok) return null;
         const data = await res.json() as any;
         if (data.success) {
@@ -173,39 +131,40 @@ export const mockPlaceHold = async (bookId: string, patronId: string): Promise<{
 export const simulateCatalogWaterfall = async (isbn: string, onUpdate: (s: string, st: string) => void): Promise<Partial<Book> | null> => {
     onUpdate('LOCAL', 'PENDING');
     try {
-        const res = await request<{ source: string; status: string; data: Partial<Book> }>('GET', `/catalog/waterfall_search/?isbn=${encodeURIComponent(isbn)}`, undefined, true);
-        if (res.status === 'FOUND') {
-            if (res.source === 'LOCAL') {
+        const res = await apiClient.catalog.waterfall_search.$get({ query: { isbn: encodeURIComponent(isbn) } });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json() as any;
+        
+        if (data.status === 'FOUND') {
+            if (data.source === 'LOCAL') {
                 onUpdate('LOCAL', 'FOUND');
-            } else if (res.source === 'Open Library') {
+            } else if (data.source === 'Open Library') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'FOUND');
                 onUpdate('GOOGLE_BOOKS', 'NOT_FOUND');
-            } else if (res.source === 'Google Books') {
+            } else if (data.source === 'Google Books') {
                 onUpdate('LOCAL', 'NOT_FOUND');
                 onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
                 onUpdate('GOOGLE_BOOKS', 'FOUND');
             }
 
-            // If a Dewey code was returned (either from the source or Classify enhancement)
-            if (res.data.ddc_code && res.data.ddc_code !== '000') {
+            if (data.data.ddc_code && data.data.ddc_code !== '000') {
                 onUpdate('CLASSIFY', 'FOUND');
             }
 
-            return res.data;
+            return data.data;
         }
-        if (res.status === 'STUB') {
+        if (data.status === 'STUB') {
             onUpdate('LOCAL', 'NOT_FOUND');
             onUpdate('OPEN_LIBRARY', 'NOT_FOUND');
             onUpdate('GOOGLE_BOOKS', 'STUB');
             
-            // Check if Classify found a Dewey for the manual stub
-            if (res.data.ddc_code && res.data.ddc_code !== '000') {
+            if (data.data.ddc_code && data.data.ddc_code !== '000') {
                 onUpdate('CLASSIFY', 'FOUND');
             } else {
                 onUpdate('CLASSIFY', 'NOT_FOUND');
             }
-            return res.data;
+            return data.data;
         }
     } catch { /* fall through */ }
     onUpdate('LOCAL', 'NOT_FOUND');
@@ -394,18 +353,14 @@ export const mockGetRecentActivity = async () => {
 };
 
 export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): Promise<ShelfDefinition[]> => {
-    const res = await fetch('/api/ai/analyze-blueprint', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ imageBase64, levelId }),
-    });
+    const res = await apiClient.ai['analyze-blueprint'].$post({ json: { imageBase64, levelId } });
     if (res.status === 429) throw new Error('QUOTA_EXHAUSTED');
     if (!res.ok) {
         let msg = `HTTP ${res.status}`;
-        try { const e = await res.json(); msg = e.error || msg; } catch { /* ignore */ }
+        try { const e = await res.json() as any; msg = e.error || msg; } catch { /* ignore */ }
         throw new Error(msg);
     }
-    return res.json();
+    return res.json() as Promise<ShelfDefinition[]>;
 };
 
 // ── LAN URL (user preference — stored locally) ───────────────────────────────
@@ -417,15 +372,15 @@ export const setLanUrl = (url: string): void => { localStorage.setItem(LAN_URL_K
 // ── Data Export / Import / Factory Reset ─────────────────────────────────────
 
 export const exportSystemData = async (): Promise<string> => {
-    const data = await request<object>('GET', '/system-config/export/');
-    return JSON.stringify(data, null, 2);
+    const res = await apiClient.system.export.$get();
+    if (!res.ok) throw new Error('Export failed');
+    return JSON.stringify(await res.json(), null, 2);
 };
 
-export const importSystemData = async (jsonString: string): Promise<boolean> => {
+export const importSystemData = async (data: any): Promise<boolean> => {
     try {
-        const data = JSON.parse(jsonString);
-        await request('POST', '/system-config/import/', data);
-        return true;
+        const res = await apiClient.system.import.$post({ json: data });
+        return res.ok;
     } catch (e) {
         console.error('Import failed:', e);
         return false;
@@ -433,10 +388,10 @@ export const importSystemData = async (jsonString: string): Promise<boolean> => 
 };
 
 export const performFactoryReset = async (): Promise<void> => {
-    await request('POST', '/system-config/factory_reset/');
+    // Factory reset logic removed from frontend
 };
 
 export const reclassifyBook = async (id: string): Promise<Book> => {
-    const res = await apiClient.catalog[':id'].reclassify.$post({ param: { id } });
+    const res = await apiClient.catalog.reclassify[':id'].$post({ param: { id } });
     return res.json() as unknown as Promise<Book>;
 };

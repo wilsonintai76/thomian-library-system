@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { getDB, Bindings } from '../utils'
+import { getDB, Bindings, Variables, requireRole } from '../utils'
 import { transactionSchema } from '../schema'
 import { z } from 'zod'
 import { transactions, patrons, books } from '../db/schema'
 import { eq, desc, sql } from 'drizzle-orm'
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
-app.get('/summary', async (c) => {
+app.get('/summary', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   const db = getDB(c)
   const results = await db.select({ 
     type: transactions.type,
@@ -33,7 +33,7 @@ app.get('/summary', async (c) => {
   })
 })
 
-app.get('/', zValidator('query', z.object({ patron_id: z.string().optional() })), async (c) => {
+app.get('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('query', z.object({ patron_id: z.string().optional() })), async (c) => {
   const db = getDB(c)
   const { patron_id } = c.req.valid('query')
   
@@ -59,7 +59,7 @@ app.get('/', zValidator('query', z.object({ patron_id: z.string().optional() }))
   return c.json(data || [])
 })
 
-app.post('/', zValidator('json', transactionSchema), async (c) => {
+app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', transactionSchema), async (c) => {
   const db = getDB(c)
   const payload = c.req.valid('json') as any
   const id = crypto.randomUUID()

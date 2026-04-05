@@ -1,21 +1,34 @@
 import { Hono } from 'hono'
-import { getDB, Bindings, hashPassword } from '../utils'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sign, verify } from 'hono/jwt'
+import { getDB, Bindings, Variables, hashPassword, Role } from '../utils'
 import { profiles } from '../db/schema'
 import { eq, or } from 'drizzle-orm'
 
-const app = new Hono<{ Bindings: Bindings }>()
+import { getCache } from '../kv'
 
-// app.post('/login' ...
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 app.post('/login', zValidator('json', z.object({
   identifier: z.string(),
   password: z.string()
 })), async (c) => {
-  const db = getDB(c)
+  const cache = getCache(c.env.KV)
   const { identifier, password } = c.req.valid('json')
+  const rateLimitKey = `rate_limit:login:${identifier}`
+  
+  // Check Rate Limit
+  const attempts = await cache.get<number>(rateLimitKey) || 0
+  if (attempts >= 5) {
+    return c.json({ 
+      success: false, 
+      message: 'Too many failed login attempts. Please try again in 15 minutes.',
+      error: 'RATE_LIMIT_EXCEEDED'
+    }, 429)
+  }
+
+  const db = getDB(c)
   const hashedPassword = await hashPassword(password)
 
   // 1. Find user by email or staff_id
@@ -25,12 +38,19 @@ app.post('/login', zValidator('json', z.object({
     .limit(1)
 
   if (!user || user.password_hash !== hashedPassword) {
+    // Increment Rate Limit on failure
+    await cache.put(rateLimitKey, attempts + 1, 900) // 15 min TTL
     return c.json({ success: false, message: 'Invalid credentials' }, 401)
   }
 
-  // 2. Issue JWT
+  // Reset Rate Limit on success
+  await cache.delete(rateLimitKey)
+
+  // 2. Issue JWT with full context for RBAC
   const payload = {
     id: user.id,
+    username: user.staff_id || user.email,
+    role: user.role as Role,
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30, // 30 days
   }
   const token = await sign(payload, c.env.JWT_SECRET, 'HS256')
@@ -55,9 +75,11 @@ app.get('/me', async (c) => {
 
   try {
     const token = authHeader.split(' ')[1]
-    const payload = await verify(token, c.env.JWT_SECRET, 'HS256') as { id: string }
+    const payload = await verify(token, c.env.JWT_SECRET, 'HS256') as any
     
-    const [user] = await db.select().from(profiles).where(eq(profiles.id, payload.id)).limit(1)
+    // Use the id from either the new or old payload format if it exists
+    const userId = payload.id || (payload as any).sub
+    const [user] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
     if (!user) return c.json({ success: false }, 401)
 
     return c.json({

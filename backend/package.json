@@ -1,6 +1,6 @@
 {
   "name": "thomian-backend",
-  "version": "3.6.4",
+  "version": "3.7.1",
   "description": "Thomian Library System Hono/Typescript Backend for Cloudflare Workers",
   "main": "src/index.ts",
   "scripts": {
@@ -13,7 +13,7 @@
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.9",
     "jspdf": "^2.5.2",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250124.0",

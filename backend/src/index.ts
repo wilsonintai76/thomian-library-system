@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { verify } from 'hono/jwt'
-import { Bindings } from './utils'
+import { Bindings, Variables, Role, requireRole } from './utils'
 
 import catalogRouter from './routes/catalog'
 import patronsRouter from './routes/patrons'
@@ -12,7 +12,7 @@ import systemRouter from './routes/system'
 import authRouter from './routes/auth'
 import aiRouter from './routes/ai'
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 // Middleware
 app.use('*', logger())
@@ -24,8 +24,22 @@ app.use('*', cors({
   maxAge: 600,
 }))
 
+// Standard Global Error Handler
+app.onError((err, c) => {
+  console.error('[Hono Error]', err)
+  // Standardized Error Response
+  const status = (err as any).status || 500
+  const message = err.message || 'Internal Server Error'
+  return c.json({ 
+    success: false, 
+    error: err.name || 'Error', 
+    message,
+    code: (err as any).code 
+  }, status as any)
+})
+
 // Health Check
-app.get('/health', (c) => c.json({ status: 'OK', timestamp: new Date().toISOString(), version: '3.4.0' }))
+app.get('/health', (c) => c.json({ status: 'OK', timestamp: new Date().toISOString(), version: '3.7.0' }))
 
 // Auth Middleware
 app.use('*', async (c, next) => {
@@ -66,11 +80,19 @@ app.use('*', async (c, next) => {
 
   try {
     const token = authHeader.split(' ')[1]
-    const payload = await verify(token, c.env.JWT_SECRET, 'HS256')
-    c.set('jwtPayload' as any, payload)
+    const payload = await verify(token, c.env.JWT_SECRET, 'HS256') as any
+    
+    // Hardened Context Population
+    c.set('user', {
+      id: payload.id,
+      username: payload.username,
+      role: payload.role as Role
+    })
+    
     return next()
   } catch (err) {
     return c.json({ 
+      success: false,
       error: 'Unauthorized', 
       message: 'Token verification failed. Your session may have expired.',
       details: err instanceof Error ? err.message : 'Invalid signature'
@@ -79,7 +101,7 @@ app.use('*', async (c, next) => {
 })
 
 // Mount Routers and Export AppType
-const routes = app
+const appRouter = app
   .route('/catalog', catalogRouter)
   .route('/patrons', patronsRouter)
   .route('/transactions', transactionsRouter)
@@ -88,5 +110,5 @@ const routes = app
   .route('/auth', authRouter)
   .route('/ai', aiRouter)
 
-export type AppType = typeof routes
+export type AppType = typeof appRouter
 export default app
