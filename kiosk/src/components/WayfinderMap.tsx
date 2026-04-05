@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Navigation, RefreshCw, Layers, MapPin } from 'lucide-react';
-import { MapConfig, ShelfDefinition, MapLevel, Book } from '../types';
+import { MapConfig, ShelfDefinition, MapLevel, Book, MapElement } from '../types';
 import { mockGetMapConfig } from '../services/api';
 import { getShelfFromDDC } from '../utils';
 
@@ -37,35 +37,39 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
         }
     }, [configOverride]);
 
-    const getTargetShelf = (): ShelfDefinition | null => {
-        if (highlightShelf && config) return config.shelves.find(s => s.id === highlightShelf) || null;
-        if (!selectedBook || !config) return null;
+    const getTargetShelf = (): MapElement | null => {
+        if (!config) return null;
+        
+        const allShelves: MapElement[] = [];
+        config.levels.forEach(level => {
+            if (level.layout) {
+                level.layout.forEach(el => {
+                    if (el.type === 'SHELF') allShelves.push({ ...el, levelId: level.id } as any);
+                });
+            }
+        });
 
-        // Attempt 1: Direct ID match
-        let shelf = config.shelves.find(s => s.id === selectedBook.shelf_location);
-        if (shelf) return shelf;
+        if (highlightShelf) return allShelves.find(s => s.id === highlightShelf) || null;
+        if (!selectedBook) return null;
 
-        // Attempt 2: DDC Utility Logic
-        const ddcLabel = getShelfFromDDC(selectedBook.ddc_code);
-        shelf = config.shelves.find(s => s.label === ddcLabel);
-        if (shelf) return shelf;
-
-        // Attempt 3: Numeric DDC Range Match
         const ddcVal = parseFloat(selectedBook.ddc_code);
         if (!isNaN(ddcVal)) {
-            return config.shelves.find(s => ddcVal >= s.minDDC && ddcVal <= s.maxDDC) || null;
+            return allShelves.find(s => 
+                s.minDDC !== undefined && s.maxDDC !== undefined && 
+                ddcVal >= s.minDDC && ddcVal <= s.maxDDC
+            ) || null;
         }
 
         return null;
     };
 
     const targetShelf = getTargetShelf();
-    const effectiveLevelId = activeLevelId || (targetShelf ? targetShelf.levelId : (config?.levels[0]?.id || null));
+    const effectiveLevelId = activeLevelId || (targetShelf ? (targetShelf as any).levelId : (config?.levels[0]?.id || null));
 
     // Auto-switch notification for Kiosk UI
     useEffect(() => {
-        if (targetShelf && onAutoSwitchLevel && targetShelf.levelId !== activeLevelId) {
-            onAutoSwitchLevel(targetShelf.levelId);
+        if (targetShelf && onAutoSwitchLevel && (targetShelf as any).levelId !== activeLevelId) {
+            onAutoSwitchLevel((targetShelf as any).levelId);
         }
     }, [targetShelf, activeLevelId, onAutoSwitchLevel]);
 
@@ -88,7 +92,6 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
     }
 
     const currentLevel = config.levels.find(l => l.id === effectiveLevelId);
-    const filteredShelves = config.shelves.filter(s => s.levelId === effectiveLevelId);
 
     return (
         <div className="w-full h-full bg-white rounded-xl shadow-inner border border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
@@ -100,13 +103,13 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                         <Navigation className="h-4 w-4 text-blue-600" /> {currentLevel?.name || 'Main Hall'}
                     </h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {currentLevel?.customBackground ? 'Blueprint View' : 'Standard Floor View'}
+                        Interactive Floor Plan
                     </p>
                 </div>
             </div>
 
             {/* Book Context Overlay */}
-            {selectedBook && targetShelf && targetShelf.levelId === effectiveLevelId && (
+            {selectedBook && targetShelf && (targetShelf as any).levelId === effectiveLevelId && (
                 <div className="absolute bottom-4 left-4 z-20 bg-slate-900/95 text-white backdrop-blur border border-slate-700 p-4 rounded-2xl shadow-2xl max-w-xs animate-fade-in-up">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="p-2 bg-blue-600 rounded-lg">
@@ -114,7 +117,7 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                         </div>
                         <div>
                             <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest">Target Shelf</p>
-                            <p className="text-sm font-black text-white leading-tight">{targetShelf.label}</p>
+                            <p className="text-sm font-black text-white leading-tight">{targetShelf.label || 'Bookshelf'}</p>
                         </div>
                     </div>
                     <p className="text-xs text-slate-300 truncate border-t border-slate-700 pt-2 font-medium">
@@ -134,72 +137,86 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                         <feGaussianBlur stdDeviation="6" result="blur" />
                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                     </filter>
+
+                    <mask id="wall-opening-mask">
+                        <rect x="0" y="0" width="1000" height="600" fill="white" />
+                        {currentLevel?.layout?.filter(el => el.type === 'DOOR' || el.type === 'WINDOW').map(el => (
+                            <rect 
+                                key={`mask_${el.id}`}
+                                x={el.x} y={el.y} width={el.width} height={el.height} 
+                                fill="black"
+                                transform={`rotate(${el.rotation || 0}, ${el.x + el.width/2}, ${el.y + el.height/2})`}
+                            />
+                        ))}
+                    </mask>
                 </defs>
 
                 {/* LAYER 1: BACKGROUND */}
-                {currentLevel?.customBackground ? (
-                    <image
-                        href={currentLevel.customBackground}
-                        x="0" y="0" width="1000" height="600"
-                        preserveAspectRatio="xMidYMid slice"
-                        className="rounded-2xl"
-                    />
-                ) : (
-                    <g>
-                        <rect x="0" y="0" width="1000" height="600" fill="#f8fafc" rx="20" />
-                        <path d="M 0 300 H 1000 M 500 0 V 600" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-                    </g>
-                )}
+                <g>
+                    <rect x="0" y="0" width="1000" height="600" fill="#f8fafc" rx="20" />
+                    <path d="M 0 300 H 1000 M 500 0 V 600" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
+                </g>
 
-                {/* LAYER 2: SHELVES */}
-                {filteredShelves.map((shelf) => {
-                    const isActive = targetShelf?.id === shelf.id;
-                    const isVertical = shelf.height > shelf.width;
-                    const centerX = shelf.x + shelf.width / 2;
-                    const centerY = shelf.y + shelf.height / 2;
+                {/* LAYER 2: FLOOR PLAN LAYOUT (Includes Shelves) */}
+                <g mask="url(#wall-opening-mask)">
+                    {currentLevel?.layout?.filter(el => el.type === 'WALL' || el.type === 'PARTITION').map((el) => (
+                        <g key={el.id} transform={`translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}, ${el.width/2}, ${el.height/2})`}>
+                            {el.type === 'WALL' && <rect width={el.width} height={el.height} fill="#334155" />}
+                            {el.type === 'PARTITION' && <rect width={el.width} height={el.height} fill="#64748b" />}
+                        </g>
+                    ))}
+                </g>
 
+                {/* NON-WALL ELEMENTS (Furniture, Shelves, Openings) */}
+                {currentLevel?.layout?.filter(el => el.type !== 'WALL' && el.type !== 'PARTITION').map((el) => {
+                    const isTarget = targetShelf?.id === el.id;
                     return (
-                        <g key={shelf.id} id={shelf.id} className="transition-all duration-500">
-                            {isActive && (
-                                <rect
-                                    x={shelf.x - 4} y={shelf.y - 4}
-                                    width={shelf.width + 8} height={shelf.height + 8}
-                                    rx="12" fill="rgba(59, 130, 246, 0.2)"
-                                    className="animate-pulse"
+                        <g key={el.id} transform={`translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}, ${el.width/2}, ${el.height/2})`}>
+                            {isTarget && (
+                                <rect 
+                                    x={-4} y={-4} width={el.width+8} height={el.height+8} 
+                                    rx="12" fill="rgba(59, 130, 246, 0.3)" className="animate-pulse" 
                                 />
                             )}
-                            <rect
-                                x={shelf.x} y={shelf.y}
-                                width={shelf.width} height={shelf.height}
-                                rx="8"
-                                fill={isActive ? 'rgba(59, 130, 246, 0.7)' : 'rgba(148, 163, 184, 0.2)'}
-                                stroke={isActive ? '#2563eb' : '#94a3b8'}
-                                strokeWidth={isActive ? 3 : 1}
-                                style={{ opacity: isActive || !targetShelf ? 1 : 0.4, transition: 'all 0.3s' }}
-                            />
-                            <g 
-                                style={{ pointerEvents: 'none' }} 
-                                transform={isVertical ? `rotate(-90, ${centerX}, ${centerY})` : ''}
-                            >
-                                {/* Background Capsule for better visibility */}
-                                <rect
-                                    x={centerX - 35}
-                                    y={centerY - 12}
-                                    width="70"
-                                    height="22"
-                                    rx="11"
-                                    fill={isActive ? '#2563eb' : 'rgba(51, 65, 85, 0.9)'}
-                                    className="transition-all duration-300"
-                                    filter={isActive ? 'url(#glow)' : ''}
-                                />
-                                <text
-                                    x={centerX} y={centerY + 4}
-                                    textAnchor="middle"
-                                    className="text-[10px] font-black uppercase tracking-widest fill-white"
-                                >
-                                    {shelf.label}
+
+                            {el.type === 'SHELF' && (
+                                <g>
+                                    <rect 
+                                        width={el.width} height={el.height} 
+                                        fill={isTarget ? 'rgba(59, 130, 246, 0.7)' : '#fff'} 
+                                        stroke={isTarget ? '#2563eb' : '#cbd5e1'} 
+                                        strokeWidth={isTarget ? 3 : 2} 
+                                    />
+                                    {[...Array(Math.max(1, Math.floor(el.height / 15)))].map((_, i) => (
+                                        <line key={i} x1="5" y1={(i+1)*15} x2={el.width-5} y2={(i+1)*15} stroke={isTarget ? '#3b82f6' : '#cbd5e1'} strokeWidth="1" />
+                                    ))}
+                                    {el.label && (
+                                        <text x={el.width/2} y={el.height + 15} textAnchor="middle" className={`text-[10px] font-black uppercase tracking-widest ${isTarget ? 'fill-blue-600' : 'fill-slate-400'}`}>
+                                            {el.label}
+                                        </text>
+                                    )}
+                                </g>
+                            )}
+                            {el.type === 'COUNTER' && (
+                                <rect width={el.width} height={el.height} rx="12" fill="#e2e8f0" stroke="#cbd5e1" strokeWidth="2" />
+                            )}
+                            {el.type === 'TABLE' && (
+                                <rect width={el.width} height={el.height} rx="4" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1" />
+                            )}
+                            {el.type === 'WINDOW' && (
+                                <rect width={el.width} height={el.height} fill="#bae6fd" fillOpacity="0.4" stroke="#38bdf8" strokeWidth="1.5" />
+                            )}
+                            {el.type === 'DOOR' && (
+                                <g>
+                                    <path d={`M 0,${el.height} A ${el.width},${el.height} 0 0 1 ${el.width},0`} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 2" />
+                                    <rect width={4} height={el.height} fill="#64748b" />
+                                </g>
+                            )}
+                            {el.type === 'TEXT' && (
+                                <text x={el.width/2} y={el.height/2} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-black fill-slate-400 uppercase tracking-tighter">
+                                    {el.label}
                                 </text>
-                            </g>
+                            )}
                         </g>
                     );
                 })}

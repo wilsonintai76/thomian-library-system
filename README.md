@@ -1,4 +1,4 @@
-# Thomian Library System (v3.6.1)
+# Thomian Library System (v3.6.4)
 
 A professional-grade, Cloudflare-native Library Information System for St. Thomas Secondary School. The system delivers a student-centric self-service kiosk with interactive wayfinding and a high-performance librarian dashboard for cataloging, circulation, and PVC-grade identity management.
 

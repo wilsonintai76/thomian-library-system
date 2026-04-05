@@ -90,7 +90,7 @@ export interface Patron {
 
 export interface MapConfig {
     levels: MapLevel[];
-    shelves: ShelfDefinition[];
+    shelves?: ShelfDefinition[]; // Deprecated: Now managed via levels[].layout
     lastUpdated: string;
     logo?: string;
     circulationLocked?: boolean;
@@ -99,12 +99,31 @@ export interface MapConfig {
     idleTimeout?: number; // In minutes
 }
 
+export type MapElementType = 'WALL' | 'PARTITION' | 'DOOR' | 'WINDOW' | 'SHELF' | 'COUNTER' | 'TABLE' | 'TEXT' | 'PLANT';
+
+export interface MapElement {
+    id: string;
+    type: MapElementType;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation?: number; // In degrees
+    label?: string;
+    description?: string;
+    minDDC?: number; 
+    maxDDC?: number;
+    color?: string;
+}
+
 export interface MapLevel {
     id: string;
     name: string;
-    customBackground?: string;
     stationX: number;
     stationY: number;
+    roomWidth?: number; // In pixels
+    roomHeight?: number; // In pixels
+    layout?: MapElement[];
 }
 
 export interface ShelfDefinition {
