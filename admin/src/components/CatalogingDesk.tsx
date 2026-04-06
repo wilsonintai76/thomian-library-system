@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Database, Loader2, Plus, List, Printer, Eye, X, PackageSearch, Tag, Edit3, Calendar, MapPin, Trash2, ShieldCheck, BookOpen, Keyboard, LayoutGrid, Settings2, Building, CheckCircle, Scissors } from 'lucide-react';
-import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, uploadToR2 } from '../services/api';
-import { Book as BookType } from '../types';
+import { simulateCatalogWaterfall, mockSearchBooks, mockAddBook, mockUpdateBook, mockDeleteBook, mockRestoreBook, uploadToR2, mockGetMapConfig } from '../services/api';
+import { Book as BookType, MapConfig } from '../types';
 import { getClassificationFromDDC } from '../utils';
 import MobileScanner from './MobileScanner';
 import BookLabel from './BookLabel';
@@ -41,6 +41,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [undoAction, setUndoAction] = useState<{ book: BookType, timeout: NodeJS.Timeout } | null>(null);
+  const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
   const isbnInputRef = useRef<HTMLInputElement>(null);
 
   // Sheet Print Config: AUTO (5x11), GRID_4X4 (4x4)
@@ -72,6 +73,10 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
   useEffect(() => {
     loadInventory();
   }, [view, searchQuery]);
+
+  useEffect(() => {
+    mockGetMapConfig().then(setMapConfig).catch(() => {});
+  }, []);
 
   const loadInventory = async () => {
     if (view === 'LIST') {
@@ -512,6 +517,7 @@ const CatalogingDesk: React.FC<{ initialView?: 'ADD' | 'LIST' | 'STOCKTAKE' }> =
           onAddRequested={() => { setView('ADD'); startBlankAsset(); }}
           selectedIds={selectedBookIds}
           setSelectedIds={setSelectedBookIds}
+          logoUrl={mapConfig?.logo}
         />
       )}
 

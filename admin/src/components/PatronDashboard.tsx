@@ -1,10 +1,10 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 
-import { Users, Search, Loader2, Banknote, History, Download, Archive, UserPlus, Building2, RefreshCw, Edit, UserMinus, Mail, Phone, GraduationCap, IdCard, Printer, ShieldCheck, Filter, ChevronDown, X } from 'lucide-react';
+import { Users, Search, Loader2, Banknote, History, Download, Archive, UserPlus, Building2, RefreshCw, Edit, UserMinus, Mail, Phone, GraduationCap, IdCard, Printer, ShieldCheck, Filter, ChevronDown, X, FileText } from 'lucide-react';
 import { Patron, Transaction, AuthUser, MapConfig, LibraryClass } from '../types';
 import { mockGetPatrons, mockUpdatePatron, mockGetMapConfig, mockRecordTransaction, mockGetTransactionsByPatron, mockCheckSession, mockAddPatron, mockDeletePatron, mockGetClasses, mockRestorePatron } from '../services/api';
-import { exportToCSV } from '../utils';
+import { exportToCSV, exportToPDF } from '../utils';
 import ReceiptModal from './ReceiptModal';
 import PatronCard from './PatronCard';
 import LedgerInterface from './patron/LedgerInterface';
@@ -160,6 +160,25 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
             'Status': p.is_archived ? 'ARCHIVED' : (p.is_blocked ? 'BLOCKED' : 'ACTIVE')
         }));
         exportToCSV(exportData, 'Thomian_Patron_Directory');
+    };
+
+    const handlePdfExport = () => {
+        const exportData = filteredPatrons.map(p => ({
+            'ID': p.student_id,
+            'Full Name': p.full_name,
+            'Group': p.patron_group,
+            'Class': p.class_name || 'N/A',
+            'Fines (RM)': p.fines.toFixed(2),
+            'Status': p.is_archived ? 'ARCHIVED' : (p.is_blocked ? 'BLOCKED' : 'ACTIVE'),
+            'Email': p.email || '',
+            'Phone': p.phone || '',
+        }));
+        exportToPDF(
+            exportData,
+            'Patron Directory',
+            mapConfig?.logo,
+            { 'Total Patrons': filteredPatrons.length, 'Filter': statusFilter !== 'ALL' ? statusFilter : 'All Statuses' }
+        );
     };
 
     const handlePayment = async () => {
@@ -362,6 +381,20 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                         className="bg-white border-2 border-slate-200 text-slate-700 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 flex items-center gap-2 transition-all active:scale-95 shadow-sm"
                     >
                         <Building2 className="h-4 w-4 text-sky-500" /> Registry
+                    </button>
+                    <button
+                        onClick={handleCsvExport}
+                        className="bg-white border-2 border-slate-200 text-slate-600 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 flex items-center gap-2 transition-all shadow-sm"
+                        title="Export patron list to CSV"
+                    >
+                        <Download className="h-4 w-4" /> CSV
+                    </button>
+                    <button
+                        onClick={handlePdfExport}
+                        className="bg-white border-2 border-slate-200 text-slate-600 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 flex items-center gap-2 transition-all shadow-sm"
+                        title="Export patron list to PDF"
+                    >
+                        <FileText className="h-4 w-4" /> PDF
                     </button>
                     <button
                         onClick={() => setIsFormOpen(true)}

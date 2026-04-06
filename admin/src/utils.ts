@@ -220,3 +220,101 @@ export const exportToCSV = (data: any[], filename: string) => {
     link.click();
     document.body.removeChild(link);
 };
+
+/**
+ * PDF Export Utility — renders a printable HTML table in a hidden iframe
+ * and triggers the browser's native Print / Save-as-PDF dialog.
+ *
+ * @param data     Array of flat objects (same shape as exportToCSV)
+ * @param title    Report title shown at top of the PDF page
+ * @param filename Used for the visible heading line (not the filename — PDF naming is browser-controlled)
+ * @param logoUrl  Optional URL to show school logo in header
+ * @param meta     Optional extra key-value pairs to show in a subtitle row (e.g. { 'Total Records': 42 })
+ */
+export const exportToPDF = (
+    data: any[],
+    title: string,
+    logoUrl?: string | null,
+    meta?: Record<string, string | number>,
+) => {
+    if (!data || data.length === 0) return;
+
+    const headers = Object.keys(data[0]);
+    const timestamp = new Date().toLocaleString('en-MY', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+
+    const logoHtml = logoUrl
+        ? `<img src="${logoUrl}" style="height:36px;width:auto;object-fit:contain;margin-right:12px;" />`
+        : `<div style="height:36px;width:36px;background:#0f172a;border-radius:6px;display:flex;align-items:center;justify-content:center;margin-right:12px;flex-shrink:0;color:white;font-weight:900;font-size:14px;">T</div>`;
+
+    const metaHtml = meta
+        ? Object.entries(meta).map(([k, v]) =>
+            `<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.06em;">${k}: <strong style="color:#0f172a;">${v}</strong></span>`
+          ).join(' ')
+        : '';
+
+    const rowsHtml = data.map((item, i) =>
+        `<tr style="background:${i % 2 === 0 ? '#f8fafc' : 'white'}">
+            ${headers.map(h => {
+                const val = item[h] ?? '—';
+                return `<td style="padding:6px 10px;font-size:9px;color:#374151;border-bottom:1px solid #f1f5f9;word-break:break-word;">${String(val)}</td>`;
+            }).join('')}
+        </tr>`
+    ).join('');
+
+    const html = `<!DOCTYPE html><html><head>
+<meta charset="utf-8"/>
+<title>${title}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: white; padding: 14mm; }
+  @page { size: A4 landscape; margin: 0; }
+  @media print {
+    body { padding: 10mm; }
+    .no-print { display: none !important; }
+  }
+  table { width: 100%; border-collapse: collapse; table-layout: auto; }
+  th { text-align: left; padding: 7px 10px; font-size: 8px; font-weight: 900;
+       text-transform: uppercase; letter-spacing: 0.08em; color: white;
+       background: #0f172a; white-space: nowrap; }
+  tfoot td { background: #0f172a; color: white; font-size: 9px; font-weight: 700;
+             padding: 6px 10px; text-align: right; }
+</style>
+</head><body>
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:8px;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;">
+      ${logoHtml}
+      <div>
+        <div style="font-size:14px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:0.05em;">${title}</div>
+        <div style="font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-top:2px;">Thomian Library Management System</div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:8px;color:#94a3b8;font-weight:700;text-transform:uppercase;">Generated</div>
+      <div style="font-size:9px;font-weight:700;color:#475569;">${timestamp}</div>
+      <div style="font-size:8px;color:#94a3b8;margin-top:3px;">${data.length} records</div>
+    </div>
+  </div>
+  ${metaHtml ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${metaHtml}</div>` : ''}
+  <!-- Table -->
+  <table>
+    <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot><tr><td colspan="${headers.length}">End of report — ${data.length} total records · ${timestamp}</td></tr></tfoot>
+  </table>
+  <!-- Print hint -->
+  <div class="no-print" style="margin-top:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:11px;color:#0369a1;">
+    💡 Use <strong>File → Print</strong> → set layout to <strong>Landscape</strong>, enable <strong>Background graphics</strong>, then <strong>Save as PDF</strong>.
+  </div>
+  <script>setTimeout(() => { window.print(); }, 300);<\/script>
+</body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) win.onload = () => URL.revokeObjectURL(url);
+};
+

@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Building, MapPin, Edit3, Printer, Trash2, ShieldCheck, Loader2, Download, Filter, ChevronDown, Globe } from 'lucide-react';
+import { BookOpen, Building, MapPin, Edit3, Printer, Trash2, ShieldCheck, Loader2, Download, FileText, Filter, ChevronDown, Globe } from 'lucide-react';
 import { Book } from '../../types';
-import { exportToCSV, DEWEY_CATEGORIES } from '../../utils';
+import { exportToCSV, exportToPDF, DEWEY_CATEGORIES } from '../../utils';
 
 interface InventoryListProps {
     inventory: Book[];
@@ -15,10 +15,11 @@ interface InventoryListProps {
     onAddRequested: () => void;
     selectedIds: Set<string>;
     setSelectedIds: (ids: Set<string>) => void;
+    logoUrl?: string | null;
 }
 
 const InventoryList: React.FC<InventoryListProps> = ({ 
-    inventory, isLoading, searchQuery, onSearchChange, onEdit, onDelete, onPrint, onAddRequested, selectedIds, setSelectedIds 
+    inventory, isLoading, searchQuery, onSearchChange, onEdit, onDelete, onPrint, onAddRequested, selectedIds, setSelectedIds, logoUrl
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
@@ -73,6 +74,27 @@ const InventoryList: React.FC<InventoryListProps> = ({
         exportToCSV(exportData, 'Thomian_Catalog_Registry');
     };
 
+    const handlePdfExport = () => {
+        const exportData = filteredInventory.map(b => ({
+            'Barcode': b.barcode_id,
+            'Title': b.title,
+            'Author': b.author,
+            'ISBN': b.isbn,
+            'DDC': b.ddc_code,
+            'Classification': b.classification,
+            'Status': b.status,
+            'Location': b.shelf_location,
+            'Publisher': b.publisher || '',
+            'Value (RM)': b.value.toFixed(2),
+        }));
+        exportToPDF(
+            exportData,
+            'Catalog Registry',
+            logoUrl,
+            { 'Total Items': filteredInventory.length, 'Filter': selectedCategory !== 'ALL' ? selectedCategory : 'All Classifications' }
+        );
+    };
+
     return (
         <div className="flex-1 flex flex-col bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden animate-fade-in">
             {/* Table Header / Action Bar */}
@@ -114,7 +136,14 @@ const InventoryList: React.FC<InventoryListProps> = ({
                         className="px-4 py-3 bg-white border-2 border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
                         title="Export current view to CSV"
                     >
-                        <Download className="h-4 w-4" /> Export CSV
+                        <Download className="h-4 w-4" /> CSV
+                    </button>
+                    <button 
+                        onClick={handlePdfExport}
+                        className="px-4 py-3 bg-white border-2 border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                        title="Export current view to PDF"
+                    >
+                        <FileText className="h-4 w-4" /> PDF
                     </button>
                     {selectedIds.size > 0 && (
                         <button 
