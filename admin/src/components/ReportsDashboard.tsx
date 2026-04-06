@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, AlertCircle, BookOpen, Printer, Download, Mail, LayoutTemplate, Library, RefreshCw, CheckCircle, Wallet, History, UserCheck, ShieldCheck, Zap, BarChart3, PieChart, Users, ChevronRight } from 'lucide-react';
-import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions } from '../services/api';
-import { SystemStats, OverdueReportItem, Transaction } from '../types';
+import { mockGetSystemStats, mockGetOverdueItems, mockGetFinancialSummary, mockGetTransactions, mockGetMapConfig } from '../services/api';
+import { SystemStats, OverdueReportItem, Transaction, MapConfig } from '../types';
 import StatCard from './reports/StatCard';
 import GenreIntelligence from './reports/GenreIntelligence';
 import EngagementHub from './reports/EngagementHub';
 import WayfinderMap from './WayfinderMap';
+import CallSlipModal from './print/CallSlipModal';
+import FinancialAuditModal from './print/FinancialAuditModal';
 
 const ReportsDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'OVERDUE' | 'COLLECTION' | 'FINANCIAL'>('OVERVIEW');
@@ -15,10 +17,16 @@ const ReportsDashboard: React.FC = () => {
     const [financials, setFinancials] = useState<{ totalCollected: number, totalFinesAssessed: number, totalReplacementsAssessed: number, totalWaived: number } | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
+    const [activeModal, setActiveModal] = useState<'CALL_SLIPS' | 'FINANCIAL_AUDIT' | null>(null);
 
     useEffect(() => {
         loadData();
     }, [activeTab]);
+
+    useEffect(() => {
+        mockGetMapConfig().then(setMapConfig).catch(() => {});
+    }, []);
 
     const loadData = async () => {
         setLoading(true);
@@ -49,6 +57,7 @@ const ReportsDashboard: React.FC = () => {
     }
 
     return (
+        <>
         <div className="p-6 md:p-10 max-w-[1700px] mx-auto h-full flex flex-col gap-10 animate-fade-in-up pb-32">
 
             {/* Superior Header Control */}
@@ -167,7 +176,7 @@ const ReportsDashboard: React.FC = () => {
                                 <History className="h-6 w-6 text-slate-400" />
                                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Financial Stream Audit</h3>
                             </div>
-                            <button onClick={() => window.print()} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><Printer className="h-4 w-4" /> Export Audit Log</button>
+                            <button onClick={() => setActiveModal('FINANCIAL_AUDIT')} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all hover:bg-slate-800"><Printer className="h-4 w-4" /> Export Audit Log</button>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-100">
@@ -222,7 +231,7 @@ const ReportsDashboard: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <button className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-xl hover:bg-slate-800 transition-all"><Printer className="h-4 w-4" /> Batch Call-Slips</button>
+                            <button onClick={() => setActiveModal('CALL_SLIPS')} className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-xl hover:bg-slate-800 transition-all"><Printer className="h-4 w-4" /> Batch Call-Slips</button>
                             <button className="px-6 py-4 bg-white border border-slate-200 text-slate-400 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2"><Download className="h-4 w-4" /> Export Pool</button>
                         </div>
                     </div>
@@ -324,7 +333,28 @@ const ReportsDashboard: React.FC = () => {
             )}
 
         </div>
+
+        {/* ── Print Modals ── */}
+        {activeModal === 'CALL_SLIPS' && overdues.length > 0 && (
+            <CallSlipModal
+                overdues={overdues}
+                logoUrl={mapConfig?.logo}
+                schoolName={(mapConfig as any)?.schoolName || 'Thomian Library'}
+                onClose={() => setActiveModal(null)}
+            />
+        )}
+        {activeModal === 'FINANCIAL_AUDIT' && financials && (
+            <FinancialAuditModal
+                transactions={transactions}
+                summary={financials}
+                logoUrl={mapConfig?.logo}
+                schoolName={(mapConfig as any)?.schoolName || 'Thomian Library'}
+                onClose={() => setActiveModal(null)}
+            />
+        )}
+        </>
     );
 };
 
 export default ReportsDashboard;
+

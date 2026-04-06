@@ -1,6 +1,6 @@
 {
   "name": "thomian-lib-monorepo",
-  "version": "3.7.1",
+  "version": "3.7.2",
   "private": true,
   "scripts": {
     "dev:admin": "cd admin && npm run dev",

@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { PackageSearch, Plus, Square, Zap, Smartphone, Monitor, Camera, History, ScanLine, CheckCircle, AlertTriangle, ArrowRight, BookOpen, Trash2, X, ChevronRight, LayoutTemplate, ListCheck, RefreshCw } from 'lucide-react';
-import { mockGetBooksByShelf, mockGetBookByBarcode } from '../services/api';
-import { Book as BookType } from '../types';
+import { PackageSearch, Plus, Square, Zap, Smartphone, Monitor, Camera, History, ScanLine, CheckCircle, AlertTriangle, ArrowRight, BookOpen, Trash2, X, ChevronRight, LayoutTemplate, ListCheck, RefreshCw, Printer } from 'lucide-react';
+import { mockGetBooksByShelf, mockGetBookByBarcode, mockGetMapConfig } from '../services/api';
+import { Book as BookType, MapConfig } from '../types';
 import MobileScanner from './MobileScanner';
+import AuditReportModal from './print/AuditReportModal';
 
 const StocktakeDesk: React.FC = () => {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -16,12 +17,16 @@ const StocktakeDesk: React.FC = () => {
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [lastScanResult, setLastScanResult] = useState<{ status: 'OK' | 'MISPLACED' | 'NOT_FOUND', book?: BookType } | null>(null);
     const [flash, setFlash] = useState<'GREEN' | 'RED' | null>(null);
+    const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
+    const [showPrintReport, setShowPrintReport] = useState(false);
+    const [completedAudit, setCompletedAudit] = useState<{ shelf: string; expected: number; scanned: BookType[]; misplaced: BookType[] } | null>(null);
 
     const stockInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
+        mockGetMapConfig().then(setMapConfig).catch(() => {});
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
@@ -49,7 +54,13 @@ const StocktakeDesk: React.FC = () => {
     const stopAudit = () => {
         setIsAuditActive(false);
         if (scannedBooks.length > 0 || misplacedBooks.length > 0) {
-            alert(`Shelf Audit Finalized: ${targetShelf}\n----------------------------\nVerified Assets: ${scannedBooks.length}\nMisplaced Assets: ${misplacedBooks.length}`);
+            // Save completed audit snapshot for printing
+            setCompletedAudit({
+                shelf: targetShelf,
+                expected: expectedBooks.length,
+                scanned: [...scannedBooks],
+                misplaced: [...misplacedBooks],
+            });
         }
     };
 
@@ -193,6 +204,14 @@ const StocktakeDesk: React.FC = () => {
                 <div className="flex items-center gap-3">
                     {!isAuditActive ? (
                         <>
+                            {completedAudit && (
+                                <button
+                                    onClick={() => setShowPrintReport(true)}
+                                    className="bg-sky-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-sky-100 hover:bg-sky-700 transition-all flex items-center gap-2"
+                                >
+                                    <Printer className="h-4 w-4" /> Print Report
+                                </button>
+                            )}
                             <select value={targetShelf} onChange={(e) => setTargetShelf(e.target.value)} className="bg-slate-50 border-2 border-slate-100 rounded-xl py-2.5 px-6 text-xs font-black text-slate-700 outline-none focus:border-blue-500 cursor-pointer shadow-sm">
                                 <option value="Shelf A">Shelf A</option>
                                 <option value="Shelf B">Shelf B</option>
@@ -314,7 +333,22 @@ const StocktakeDesk: React.FC = () => {
         </div>
     );
 
-    return isMobile ? <MobileUI /> : <DesktopUI />;
+    return (
+        <>
+            {isMobile ? <MobileUI /> : <DesktopUI />}
+            {showPrintReport && completedAudit && (
+                <AuditReportModal
+                    shelf={completedAudit.shelf}
+                    expectedCount={completedAudit.expected}
+                    scannedBooks={completedAudit.scanned}
+                    misplacedBooks={completedAudit.misplaced}
+                    logoUrl={mapConfig?.logo}
+                    schoolName={(mapConfig as any)?.schoolName || 'Thomian Library'}
+                    onClose={() => setShowPrintReport(false)}
+                />
+            )}
+        </>
+    );
 };
 
 export default StocktakeDesk;
