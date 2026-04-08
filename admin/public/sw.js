@@ -1,4 +1,8 @@
-const CACHE_NAME = 'thomian-lib-v3.7.3';
+<<<<<<< Updated upstream
+const CACHE_NAME = 'thomian-lib-v3.7.4';
+=======
+const CACHE_NAME = 'thomian-lib-v3.7.2';
+>>>>>>> Stashed changes
 const PRECACHE_URLS = [
   '/',
   '/index.html',
