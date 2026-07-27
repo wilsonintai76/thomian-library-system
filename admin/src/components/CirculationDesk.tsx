@@ -343,7 +343,7 @@ const CirculationDesk: React.FC<{ initialMode?: 'CHECK_OUT' | 'CHECK_IN' | 'RENE
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-black text-slate-800 leading-tight truncate">{currentPatron.full_name}</p>
-                                                        <p className="text-[10px] font-mono text-slate-400 mt-0.5 uppercase">{currentPatron.student_id}</p>
+                                                        <p className="text-[10px] font-mono text-slate-400 mt-0.5 uppercase">{currentPatron.patron_id}</p>
                                                     </div>
                                                     <button onClick={clearSession} title="Clear" className="text-slate-300 hover:text-rose-400 transition-colors shrink-0">
                                                         <X className="h-4 w-4" />

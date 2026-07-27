@@ -86,16 +86,6 @@ export const getNetworkStatus = () => real.getNetworkStatus();
 export const getLanUrl = () => real.getLanUrl();
 export const setLanUrl = (u: any) => real.setLanUrl(u);
 
-// ── Data Export / Import / Factory Reset ──────────────────────────────────────
-export const exportSystemData = () => real.exportSystemData();
-export const importSystemData = (d: any) => real.importSystemData(d);
-export const performFactoryReset = async () => {
-    await real.performFactoryReset();
-    localStorage.removeItem('thomian_auth_token');
-    localStorage.removeItem('thomian_user_profile');
-    window.location.reload();
-};
-
 // ── AI ────────────────────────────────────────────────────────────────────────
 export const aiAnalyzeBlueprint = (i: string, l: string) => real.aiAnalyzeBlueprint(i, l);
 

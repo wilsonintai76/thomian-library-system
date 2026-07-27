@@ -108,6 +108,11 @@ export const uploadToR2 = async (file: File): Promise<string | null> => {
 };
 
 export const mockUpdateAuthUser = async (user: AuthUser): Promise<void> => {
+    await apiClient.auth.me.$patch({ json: {
+        full_name: user.full_name,
+        email: user.email,
+        phone: user.phone,
+    } });
     localStorage.setItem('thomian_user_profile', JSON.stringify(user));
 };
 
@@ -287,7 +292,7 @@ export const mockRestorePatron = async (p: Patron): Promise<void> => {
 
 export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron | null> => {
     try {
-        const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
+        const res = await apiClient.patrons.verify_pin.$post({ json: { patron_id: id, pin } });
         if (!res.ok) return null;
         const data = await res.json() as any;
         return data.success ? data.patron : null;
@@ -365,13 +370,7 @@ export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => 
     const res = await apiClient.circulation.active_loans.$get();
     if (!res.ok) return [];
     const data = await res.json() as any[];
-    return (data || []).filter(l => l.patron?.student_id === studentId).map(l => ({ ...l, book_title: l.book?.title, patron_name: l.patron?.full_name }));
-};
-export const mockGetOverdueLoans = async (): Promise<Loan[]> => {
-    const res = await apiClient.circulation.overdue.$get();
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json() as any[];
-    return (data || []).map(l => ({ ...l, book_title: l.book?.title, patron_name: l.patron?.full_name }));
+    return (data || []).filter(l => l.patron?.patron_id === studentId).map(l => ({ ...l, book_title: l.book?.title, patron_name: l.patron?.full_name }));
 };
 
 // ── Events & Alerts ────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sign, verify } from 'hono/jwt'
 import { getDB, Bindings, Variables, hashPassword, Role } from '../utils'
-import { profiles } from '../db/schema'
+import { profiles, patrons } from '../db/schema'
 import { eq, or } from 'drizzle-orm'
 
 import { getCache } from '../kv'
@@ -55,6 +55,9 @@ app.post('/login', zValidator('json', z.object({
   }
   const token = await sign(payload, c.env.JWT_SECRET, 'HS256')
 
+  // Look up linked patron record
+  const [patron] = await db.select().from(patrons).where(eq(patrons.patron_id, user.staff_id ?? '')).limit(1)
+
   return c.json({
     success: true,
     token,
@@ -63,7 +66,8 @@ app.post('/login', zValidator('json', z.object({
       username: user.staff_id || user.email,
       full_name: user.full_name,
       role: user.role,
-      email: user.email
+      email: user.email,
+      patron_id: patron?.patron_id ?? user.staff_id,
     }
   })
 })
@@ -82,6 +86,9 @@ app.get('/me', async (c) => {
     const [user] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
     if (!user) return c.json({ success: false }, 401)
 
+    // Look up linked patron record
+    const [patron] = await db.select().from(patrons).where(eq(patrons.patron_id, user.staff_id ?? '')).limit(1)
+
     return c.json({
       success: true,
       user: {
@@ -89,9 +96,47 @@ app.get('/me', async (c) => {
         username: user.staff_id || user.email,
         full_name: user.full_name,
         role: user.role,
-        email: user.email
+        email: user.email,
+        patron_id: patron?.patron_id ?? user.staff_id,
       }
     })
+  } catch {
+    return c.json({ success: false }, 401)
+  }
+})
+
+// Update own profile (saves to both profiles and patrons)
+app.patch('/me', zValidator('json', z.object({
+  full_name: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+})), async (c) => {
+  const db = getDB(c)
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) return c.json({ success: false }, 401)
+
+  try {
+    const token = authHeader.split(' ')[1]
+    const payload = await verify(token, c.env.JWT_SECRET, 'HS256') as any
+    const userId = payload.id
+
+    const updates = c.req.valid('json')
+    const profileUpdates: Record<string, unknown> = {}
+    if (updates.full_name) profileUpdates.full_name = updates.full_name
+    if (updates.email) profileUpdates.email = updates.email
+    await db.update(profiles).set(profileUpdates).where(eq(profiles.id, userId))
+
+    // Also update linked patron record
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1)
+    if (profile?.staff_id) {
+      const patronUpdates: Record<string, unknown> = {}
+      if (updates.full_name) patronUpdates.full_name = updates.full_name
+      if (updates.email) patronUpdates.email = updates.email
+      if (updates.phone) patronUpdates.phone = updates.phone
+      await db.update(patrons).set(patronUpdates).where(eq(patrons.patron_id, profile.staff_id))
+    }
+
+    return c.json({ success: true })
   } catch {
     return c.json({ success: false }, 401)
   }

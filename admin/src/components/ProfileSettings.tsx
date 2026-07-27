@@ -150,8 +150,8 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUpdate }) => 
 
                         <div className="space-y-6 relative z-10">
                             <div>
-                                <p className="text-[9px] font-black text-white/40 uppercase mb-1">Global User ID</p>
-                                <p className="text-sm font-mono font-bold truncate bg-white/5 p-2 rounded-lg border border-white/5">{formData.id}</p>
+                                <p className="text-[9px] font-black text-white/40 uppercase mb-1">Patron ID</p>
+                                <p className="text-sm font-mono font-bold truncate bg-white/5 p-2 rounded-lg border border-white/5">{formData.patron_id || formData.username}</p>
                             </div>
                             <div>
                                 <p className="text-[9px] font-black text-white/40 uppercase mb-1">Assigned Privilege</p>

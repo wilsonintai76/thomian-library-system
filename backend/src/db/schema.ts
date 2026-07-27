@@ -47,7 +47,7 @@ export const books = sqliteTable('books', {
 // ── Patrons (Library Members) ───────────────────────────────────────────────────
 export const patrons = sqliteTable('patrons', {
   id: text('id').primaryKey().notNull(),
-  student_id: text('student_id').unique().notNull(),
+  patron_id: text('patron_id').unique().notNull(),
   full_name: text('full_name').notNull(),
   card_name: text('card_name'),
   patron_group: text('patron_group').notNull(),

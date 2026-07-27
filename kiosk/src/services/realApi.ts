@@ -208,7 +208,7 @@ export const mockDeletePatron = async (id: string): Promise<void> => {
 export const mockRestorePatron = async (p: Patron): Promise<void> => { await mockAddPatron(p); };
 export const mockVerifyPatron = async (id: string, pin: string): Promise<Patron | null> => {
     try {
-        const res = await apiClient.patrons.verify_pin.$post({ json: { student_id: id, pin } });
+        const res = await apiClient.patrons.verify_pin.$post({ json: { patron_id: id, pin } });
         if (!res.ok) return null;
         const data = await res.json() as any;
         if (!data.success) return null;
@@ -279,7 +279,7 @@ export const mockGetActiveLoans = async (): Promise<Loan[]> => {
     return data.map(l => ({ ...l, book_title: l.books?.title, patron_name: l.patrons?.full_name }));
 };
 export const mockGetPatronLoans = async (studentId: string): Promise<Loan[]> => {
-    const res = await apiClient.circulation.patron_loans[':student_id'].$get({ param: { student_id: studentId } });
+    const res = await apiClient.circulation.patron_loans[':patron_id'].$get({ param: { patron_id: studentId } });
     return res.ok ? (res.json() as Promise<Loan[]>) : [];
 };
 
@@ -368,28 +368,6 @@ export const aiAnalyzeBlueprint = async (imageBase64: string, levelId: string): 
 const LAN_URL_KEY = 'thomian_lan_url';
 export const getLanUrl = (): string => localStorage.getItem(LAN_URL_KEY) || 'http://localhost:8000';
 export const setLanUrl = (url: string): void => { localStorage.setItem(LAN_URL_KEY, url); };
-
-// ── Data Export / Import / Factory Reset ─────────────────────────────────────
-
-export const exportSystemData = async (): Promise<string> => {
-    const res = await apiClient.system.export.$get();
-    if (!res.ok) throw new Error('Export failed');
-    return JSON.stringify(await res.json(), null, 2);
-};
-
-export const importSystemData = async (data: any): Promise<boolean> => {
-    try {
-        const res = await apiClient.system.import.$post({ json: data });
-        return res.ok;
-    } catch (e) {
-        console.error('Import failed:', e);
-        return false;
-    }
-};
-
-export const performFactoryReset = async (): Promise<void> => {
-    // Factory reset logic removed from frontend
-};
 
 export const reclassifyBook = async (id: string): Promise<Book> => {
     const res = await apiClient.catalog.reclassify[':id'].$post({ param: { id } });

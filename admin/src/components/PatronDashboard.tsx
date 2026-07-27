@@ -87,7 +87,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
         try {
             if (editingPatron) {
                 const updated = await mockUpdatePatron(patronData as Patron);
-                setPatrons(prev => prev.map(p => p.student_id === updated.student_id ? updated : p));
+                setPatrons(prev => prev.map(p => p.patron_id === updated.patron_id ? updated : p));
                 alert("Identity record updated.");
             } else {
                 const created = await mockAddPatron(patronData as Patron);
@@ -108,11 +108,11 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
     const handleDeletePatron = async (id: string) => {
         if (!confirm("Are you sure? This will permanently remove the patron.")) return;
 
-        const patronToDelete = patrons.find(p => p.student_id === id);
+        const patronToDelete = patrons.find(p => p.patron_id === id);
         if (!patronToDelete) return;
 
         await mockDeletePatron(id);
-        setPatrons(prev => prev.filter(p => p.student_id !== id));
+        setPatrons(prev => prev.filter(p => p.patron_id !== id));
 
         if (undoAction) clearTimeout(undoAction.timeout);
 
@@ -132,11 +132,11 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
     };
 
     const handleArchivePatron = async (id: string) => {
-        const p = patrons.find(pat => pat.student_id === id);
+        const p = patrons.find(pat => pat.patron_id === id);
         if (!p) return;
         const updated = { ...p, is_archived: !p.is_archived };
         await mockUpdatePatron(updated);
-        setPatrons(prev => prev.map(pat => pat.student_id === id ? updated : pat));
+        setPatrons(prev => prev.map(pat => pat.patron_id === id ? updated : pat));
     };
 
 
@@ -152,7 +152,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
     const handleCsvExport = () => {
         const exportData = filteredPatrons.map(p => ({
-            'ID': p.student_id,
+            'ID': p.patron_id,
             'Full Name': p.full_name,
             'Group': p.patron_group,
             'Class': p.class_name || 'N/A',
@@ -164,7 +164,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
     const handlePdfExport = () => {
         const exportData = filteredPatrons.map(p => ({
-            'ID': p.student_id,
+            'ID': p.patron_id,
             'Full Name': p.full_name,
             'Group': p.patron_group,
             'Class': p.class_name || 'N/A',
@@ -185,16 +185,16 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
         if (!activeLedgerPatron || !paymentAmount || !currentUser) return;
         setIsProcessing(true);
         const amt = parseFloat(paymentAmount);
-        const txn = await mockRecordTransaction({ patron_id: activeLedgerPatron.student_id, amount: amt, type: 'FINE_PAYMENT', method: 'CASH', librarian_id: currentUser.full_name });
+        const txn = await mockRecordTransaction({ patron_id: activeLedgerPatron.patron_id, amount: amt, type: 'FINE_PAYMENT', method: 'CASH', librarian_id: currentUser.full_name });
         const updated = { ...activeLedgerPatron, fines: Math.max(0, activeLedgerPatron.fines - amt) };
         await mockUpdatePatron(updated);
-        setPatrons(prev => prev.map(p => p.student_id === updated.student_id ? updated : p));
+        setPatrons(prev => prev.map(p => p.patron_id === updated.patron_id ? updated : p));
         setLastTxn(txn); setActiveLedgerPatron(updated); setPaymentAmount(''); setIsProcessing(false);
     };
 
     const filteredPatrons = useMemo(() => {
         return patrons.filter(p => {
-            const matchesSearch = p.full_name.toLowerCase().includes(search.toLowerCase()) || p.student_id.includes(search);
+            const matchesSearch = p.full_name.toLowerCase().includes(search.toLowerCase()) || p.patron_id.includes(search);
             if (!matchesSearch) return false;
 
             const matchesClass = classFilter === 'ALL' || p.class_name === classFilter;
@@ -363,7 +363,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
 
                     {selectedPatronIds.size > 0 && (
                         <button
-                            onClick={() => handlePrintRequest(filteredPatrons.filter(p => selectedPatronIds.has(p.student_id)))}
+                            onClick={() => handlePrintRequest(filteredPatrons.filter(p => selectedPatronIds.has(p.patron_id)))}
                             className="bg-sky-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-sky-700 flex items-center gap-2 transition-all active:scale-95"
                         >
                             <IdCard className="h-4 w-4" /> Print Cards ({selectedPatronIds.size})
@@ -414,7 +414,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                                     <input
                                         type="checkbox"
                                         checked={selectedPatronIds.size > 0 && selectedPatronIds.size >= filteredPatrons.length}
-                                        onChange={() => { if (selectedPatronIds.size >= filteredPatrons.length) setSelectedPatronIds(new Set()); else setSelectedPatronIds(new Set(filteredPatrons.map(p => p.student_id))); }}
+                                        onChange={() => { if (selectedPatronIds.size >= filteredPatrons.length) setSelectedPatronIds(new Set()); else setSelectedPatronIds(new Set(filteredPatrons.map(p => p.patron_id))); }}
                                         className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                                     />
                                 </th>
@@ -433,12 +433,12 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                                 <tr><td colSpan={7} className="text-center py-20 text-slate-300 italic">No matches found in directory for current filters.</td></tr>
                             ) : (
                                 filteredPatrons.map((patron) => (
-                                    <tr key={patron.student_id} className={`hover:bg-slate-50/50 transition-colors group ${selectedPatronIds.has(patron.student_id) ? 'bg-sky-50/30' : ''} ${patron.is_archived ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                                    <tr key={patron.patron_id} className={`hover:bg-slate-50/50 transition-colors group ${selectedPatronIds.has(patron.patron_id) ? 'bg-sky-50/30' : ''} ${patron.is_archived ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                                         <td className="px-8 py-4">
                                             <input
                                                 type="checkbox"
-                                                checked={selectedPatronIds.has(patron.student_id)}
-                                                onChange={() => { const next = new Set(selectedPatronIds); if (next.has(patron.student_id)) next.delete(patron.student_id); else next.add(patron.student_id); setSelectedPatronIds(next); }}
+                                                checked={selectedPatronIds.has(patron.patron_id)}
+                                                onChange={() => { const next = new Set(selectedPatronIds); if (next.has(patron.patron_id)) next.delete(patron.patron_id); else next.add(patron.patron_id); setSelectedPatronIds(next); }}
                                                 className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                                             />
                                         </td>
@@ -453,7 +453,7 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                                                 </div>
                                                 <div>
                                                     <span className="font-black text-slate-800 block text-sm uppercase tracking-tight leading-tight mb-0.5">{patron.full_name}</span>
-                                                    <span className="font-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest">{patron.student_id}</span>
+                                                    <span className="font-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest">{patron.patron_id}</span>
                                                 </div>
                                             </div>
                                         </td>
@@ -499,10 +499,10 @@ const PatronDashboard: React.FC<PatronDashboardProps> = ({ onRefreshConfig }) =>
                                                         <button onClick={() => handlePrintRequest([patron])} className="p-2 text-slate-300 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all" title="Print ID Card"><IdCard className="h-4.5 w-4.5" /></button>
                                                     </>
                                                 )}
-                                                <button onClick={() => { setActiveLedgerPatron(patron); setLedgerMode('HISTORY'); mockGetTransactionsByPatron(patron.student_id).then(setHistory); }} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all" title="Audit History"><History className="h-4.5 w-4.5" /></button>
+                                                <button onClick={() => { setActiveLedgerPatron(patron); setLedgerMode('HISTORY'); mockGetTransactionsByPatron(patron.patron_id).then(setHistory); }} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all" title="Audit History"><History className="h-4.5 w-4.5" /></button>
                                                 <button onClick={() => setNewPatronSlip(patron)} className="p-2 text-slate-300 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all" title="Print Registration Slip"><ShieldCheck className="h-4.5 w-4.5" /></button>
                                                 <button onClick={() => { setEditingPatron(patron); setIsFormOpen(true); }} className="p-2 text-slate-300 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all" title="Edit Identity"><Edit className="h-4.5 w-4.5" /></button>
-                                                <button onClick={() => handleDeletePatron(patron.student_id)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Delete Forever"><UserMinus className="h-4.5 w-4.5" /></button>
+                                                <button onClick={() => handleDeletePatron(patron.patron_id)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Delete Forever"><UserMinus className="h-4.5 w-4.5" /></button>
                                             </div>
                                         </td>
                                     </tr>

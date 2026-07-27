@@ -81,7 +81,7 @@ const KioskHome: React.FC = () => {
         const patron = await mockVerifyPatron(loginId, loginPin);
         if (patron) {
             setActivePatron(patron);
-            mockGetPatronLoans(patron.student_id).then(setPatronLoans).catch(() => setPatronLoans([]));
+            mockGetPatronLoans(patron.patron_id).then(setPatronLoans).catch(() => setPatronLoans([]));
             setShowAccountLogin(false);
             setLoginId('');
             setLoginPin('');
@@ -97,7 +97,7 @@ const KioskHome: React.FC = () => {
         setIsHistoryLoading(true);
         setShowHistoryModal(true);
         try {
-            const history = await mockGetTransactionsByPatron(activePatron.student_id);
+            const history = await mockGetTransactionsByPatron(activePatron.patron_id);
             setPatronHistory(history);
         } finally {
             setIsHistoryLoading(false);
@@ -111,7 +111,7 @@ const KioskHome: React.FC = () => {
     };
 
     const initiateHold = () => {
-        if (activePatron) processHold(activePatron.student_id);
+        if (activePatron) processHold(activePatron.patron_id);
         else {
             setHoldSuccess(false);
             setShowHoldModal(true);
@@ -516,7 +516,7 @@ const KioskHome: React.FC = () => {
                                         </p>
                                         <p className={`text-xs font-medium mt-0.5 ${holdConfirmationId === selectedBook.id ? 'text-emerald-50' : 'text-slate-500'}`}>
                                             {holdConfirmationId === selectedBook.id
-                                                ? `Identity ${activePatron?.student_id || holdStudentId} linked. Collect from desk.`
+                                                ? `Identity ${activePatron?.patron_id || holdStudentId} linked. Collect from desk.`
                                                 : (selectedBook.status === 'AVAILABLE' ? 'Book is on shelf. Reserve for pickup.' : 'Book is currently loaned. Join the queue.')}
                                         </p>
                                     </div>

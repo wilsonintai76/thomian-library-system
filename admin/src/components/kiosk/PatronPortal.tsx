@@ -100,7 +100,7 @@ const PatronPortal: React.FC<PatronPortalProps> = ({ patron, loans, onViewHistor
                         </div>
                         <div>
                             <p className="text-sm font-black uppercase tracking-tight">{patron.full_name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono tracking-widest">{patron.student_id}</p>
+                            <p className="text-[10px] text-slate-400 font-mono tracking-widest">{patron.patron_id}</p>
                         </div>
                     </div>
                 </div>

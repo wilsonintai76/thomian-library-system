@@ -2,7 +2,7 @@
 export type ViewMode = 'KIOSK' | 'ADMIN';
 export type AdminTab = 'DASHBOARD' | 'CIRCULATION' | 'CATALOG' | 'PATRONS' | 'MATRIX' | 'MAP' | 'CALENDAR' | 'REPORTS' | 'HELP' | 'SETTINGS' | 'PROFILE';
 
-export type PatronGroup = 'STUDENT' | 'TEACHER' | 'LIBRARIAN' | 'ADMINISTRATOR' | 'GUEST';
+export type PatronGroup = 'STUDENT' | 'TEACHER' | 'LIBRARIAN' | 'ADMINISTRATOR';
 export type SystemTheme = 'EMERALD' | 'PURPLE' | 'SKY' | 'MIDNIGHT' | 'WHITE';
 export type PatronCardTemplate = 'TRADITIONAL' | 'MODERN' | 'MINIMAL';
 
@@ -10,7 +10,7 @@ export interface AuthUser {
     id: string;
     username: string;
     full_name: string;
-    role: 'LIBRARIAN' | 'ADMINISTRATOR' | 'PATRON';
+    role: 'ADMINISTRATOR' | 'LIBRARIAN' | 'TEACHER' | 'STUDENT' | 'PATRON';
     email?: string;
     phone?: string;
     avatar_color?: string;
@@ -72,7 +72,7 @@ export interface Book {
 
 export interface Patron {
   id?: string;          // UUID returned by verify_pin / server responses
-  student_id: string;
+  patron_id: string;
   full_name: string;
   card_name?: string; // Preferred name on ID card (patron-controlled, like a credit card)
   patron_group: PatronGroup;
@@ -177,7 +177,7 @@ export interface Loan {
   id: string;
   book: number;           // integer PK from DB
   patron: number;         // integer PK from DB
-  patron_id?: string;     // student_id string (read-only, via serializer)
+  patron_id?: string;     // patron_id string (read-only, via serializer)
   patron_name?: string;
   book_title?: string;
   book_barcode?: string;

@@ -3,17 +3,16 @@ import { zValidator } from '@hono/zod-validator'
 import { getDB, Bindings, Variables } from '../utils'
 import { enforcePolicy, Policy } from '../policies'
 import { checkoutSchema, returnBookSchema, renewBookSchema, placeHoldSchema } from '../schema'
-import { z } from 'zod'
 import { books, loans, patrons, transactions } from '../db/schema'
-import { eq, isNull, lt, and, desc, sql } from 'drizzle-orm'
+import { eq, isNull, lt, and, desc } from 'drizzle-orm'
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
-// Public endpoint — returns loans for a single patron by student_id (used by kiosk)
-app.get('/patron_loans/:student_id', async (c) => {
+// Public endpoint — returns loans for a single patron by patron_id (used by kiosk)
+app.get('/patron_loans/:patron_id', async (c) => {
   const db = getDB(c)
-  const student_id = c.req.param('student_id')
-  const [patron] = await db.select({ id: patrons.id }).from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
+  const patron_id = c.req.param('patron_id')
+  const [patron] = await db.select({ id: patrons.id }).from(patrons).where(eq(patrons.patron_id, patron_id)).limit(1)
   if (!patron) return c.json([])
   const data = await db.select({
     id: loans.id,

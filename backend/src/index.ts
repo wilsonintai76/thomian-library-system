@@ -41,13 +41,17 @@ app.onError((err, c) => {
 // Health Check
 app.get('/health', (c) => c.json({ status: 'OK', timestamp: new Date().toISOString(), version: '3.7.0' }))
 
-// Auth Middleware
+// Auth Middleware — always attempts to decode JWT and set user context.
+// Protected routes use enforcePolicy() which rejects if user context is missing.
 app.use('*', async (c, next) => {
   const path = c.req.path
   const method = c.req.method
 
-  // Skip auth for OPTIONS (CORS preflight) and public routes
-  const PUBLIC_ROUTES = [
+  // Skip auth for OPTIONS (CORS preflight)
+  if (method === 'OPTIONS') return next()
+
+  // Exact-match public routes — user context is optional here
+  const PUBLIC_ROUTES = new Set([
     '/auth/login',
     '/auth/setup-admin',
     '/health',
@@ -58,46 +62,45 @@ app.use('*', async (c, next) => {
     '/patrons/verify_pin',
     '/system/alerts/trigger_help',
     '/system/assets/',
-  ]
+  ])
 
   // Normalize path by removing double slashes and optional /api prefix
   const normalizedPath = path.replace(/\/+/g, '/').replace(/^\/api/, '')
-  
-  const isPublic = method === 'OPTIONS' || PUBLIC_ROUTES.some(r => 
-    normalizedPath === r || 
-    normalizedPath.startsWith(r + '/') ||
-    (r.endsWith('/') && normalizedPath.startsWith(r))
-  )
 
-  if (isPublic) {
-    return next()
-  }
+  // Only exact match, no startsWith — prevents routes like /system/system-config/update_config
+  // from being falsely treated as public
+  const isPublic = PUBLIC_ROUTES.has(normalizedPath) || 
+    (normalizedPath.startsWith('/system/assets/'))
 
+  // Always try to decode the token — sets user context for enforcePolicy() to use
   const authHeader = c.req.header('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized', message: 'Missing or malformed Authorization header' }, 401)
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1]
+      const payload = await verify(token, c.env.JWT_SECRET, 'HS256') as any
+      c.set('user', {
+        id: payload.id,
+        username: payload.username,
+        role: payload.role as Role
+      })
+    } catch {
+      // Token invalid — user context stays undefined
+    }
   }
 
-  try {
-    const token = authHeader.split(' ')[1]
-    const payload = await verify(token, c.env.JWT_SECRET, 'HS256') as any
-    
-    // Hardened Context Population
-    c.set('user', {
-      id: payload.id,
-      username: payload.username,
-      role: payload.role as Role
-    })
-    
-    return next()
-  } catch (err) {
+  // Public routes pass through even without user context
+  if (isPublic) return next()
+
+  // Protected routes require valid user context
+  if (!c.get('user')) {
     return c.json({ 
       success: false,
       error: 'Unauthorized', 
-      message: 'Token verification failed. Your session may have expired.',
-      details: err instanceof Error ? err.message : 'Invalid signature'
+      message: 'Missing or invalid Authorization token',
     }, 401)
   }
+
+  return next()
 })
 
 // Mount Routers and Export AppType

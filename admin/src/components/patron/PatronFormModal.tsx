@@ -14,7 +14,7 @@ interface PatronFormModalProps {
 
 const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSave, initialData, isSaving }) => {
     const [formData, setFormData] = useState<Partial<Patron>>({
-        student_id: '',
+        patron_id: '',
         full_name: '',
         card_name: '',
         patron_group: 'STUDENT',
@@ -59,7 +59,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             });
         } else {
             setFormData({
-                student_id: generatePatronId(),
+                patron_id: generatePatronId(),
                 full_name: '',
                 card_name: '',
                 patron_group: 'STUDENT',
@@ -77,7 +77,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialData?.student_id]);
+    }, [isOpen, initialData?.patron_id]);
 
     function generateRandomPin() {
         return Math.floor(1000 + Math.random() * 9000).toString();
@@ -213,7 +213,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.student_id || !formData.full_name) {
+        if (!formData.patron_id || !formData.full_name) {
             alert("ID and Name are mandatory.");
             return;
         }
@@ -337,16 +337,16 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                                 <div className="flex gap-2">
                                     <input
                                         type="text"
-                                        value={formData.student_id}
+                                        value={formData.patron_id}
                                         disabled={!!initialData}
-                                        onChange={(e) => setFormData({ ...formData, student_id: e.target.value.replace(/\D/g, '') })}
+                                        onChange={(e) => setFormData({ ...formData, patron_id: e.target.value.replace(/\D/g, '') })}
                                         className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 font-mono font-bold text-slate-700 outline-none focus:border-blue-500 disabled:opacity-50"
                                         placeholder="20261234"
                                     />
                                     {!initialData && (
                                         <button
                                             type="button"
-                                            onClick={() => setFormData({ ...formData, student_id: generatePatronId() })}
+                                            onClick={() => setFormData({ ...formData, patron_id: generatePatronId() })}
                                             title="Auto-Generate ID"
                                             className="px-4 bg-slate-100 text-slate-500 rounded-xl border border-slate-200 hover:bg-slate-200 transition-all shrink-0"
                                         >

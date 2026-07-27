@@ -32,7 +32,7 @@ export const bookSchema = z.object({
 
 export const patronSchema = z.object({
   id: z.string().optional(),
-  student_id: z.string().min(1),
+  patron_id: z.string().min(1),
   full_name: z.string().min(1),
   card_name: z.string().optional(),
   patron_group: z.string(),

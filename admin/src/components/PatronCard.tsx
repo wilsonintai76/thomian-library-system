@@ -3,6 +3,7 @@ import React from 'react';
 import { ShieldCheck, User, Library } from 'lucide-react';
 import { Patron, MapConfig } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
+import { DEFAULT_LOGO_URL } from '../constants';
 
 interface PatronCardProps {
     patron: Patron;
@@ -90,9 +91,7 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
             {/* Header */}
                 <div style={{height:48, flexShrink:0, background: roleColors.dark, display:'flex', alignItems:'center', padding:'0 16px', gap:12, overflow:'hidden', position:'relative'}}>
                 <div style={{height:32, width:32, background:'white', borderRadius:8, padding:4, flexShrink:0, zIndex:1}}>
-                    {config?.logo
-                        ? <img src={config.logo} alt="" style={{width:'100%', height:'100%', objectFit:'contain'}} />
-                        : <div style={{width:'100%', height:'100%', borderRadius:4, background:'#059669'}} />}
+                    <img src={DEFAULT_LOGO_URL} alt="" style={{width:'100%', height:'100%', objectFit:'contain'}} />
                 </div>
                 <div style={{overflow:'hidden', zIndex:1}}>
                     <p style={{fontSize:10, fontWeight:900, color:'white', lineHeight:1, textTransform:'uppercase', letterSpacing:'-0.02em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220}}>St. Thomas Secondary</p>
@@ -130,8 +129,8 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                 </div>
                 {/* Row 2: Barcode — full width, never competes with name */}
                 <div style={{width:'100%', overflow:'hidden'}}>
-                    <Code39Barcode code={patron.student_id} height={24} width={BODY_W} />
-                    <p style={{fontSize:7, fontFamily:'monospace', fontWeight:700, color:'#334155', marginTop:1, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>{patron.student_id}</p>
+                    <Code39Barcode code={patron.patron_id} height={24} width={BODY_W} />
+                    <p style={{fontSize:7, fontFamily:'monospace', fontWeight:700, color:'#334155', marginTop:1, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>{patron.patron_id}</p>
                 </div>
             </div>
         </div>
@@ -146,7 +145,7 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
             <div className="p-5 flex-1 flex flex-col">
                 <div className="flex justify-between items-start mb-4">
                     <div className="h-10 w-10 bg-white/10 backdrop-blur-md rounded-xl p-1.5 border border-white/10">
-                        {config?.logo ? <img src={config.logo} alt="" className="w-full h-full object-contain" /> : <Library className="h-full w-full text-white" />}
+                        <img src={DEFAULT_LOGO_URL} alt="" className="w-full h-full object-contain" />
                     </div>
                     <div className="text-right">
                         <p className="text-[10px] font-black uppercase tracking-tighter leading-none">Thomian</p>
@@ -163,9 +162,9 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                     </div>
                 </div>
                 <div className="mt-4 bg-white/5 rounded-xl p-3 border border-white/10 flex items-center justify-between">
-                    <div className="w-24 shrink-0"><Code39Barcode code={patron.student_id} dark height={28} /></div>
+                    <div className="w-24 shrink-0"><Code39Barcode code={patron.patron_id} dark height={28} /></div>
                     <div className="text-right">
-                        <p className="text-[10px] font-mono font-bold tracking-widest">{patron.student_id}</p>
+                        <p className="text-[10px] font-mono font-bold tracking-widest">{patron.patron_id}</p>
                         <p className="text-[6px] font-black opacity-30 uppercase">Scan to Issue</p>
                     </div>
                 </div>
@@ -185,16 +184,16 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                     <span style={{color: roleColors.accent}} className="text-[10px] font-black uppercase tracking-widest">{patron.patron_group}</span>
                 </div>
                 <div className="h-10 w-10 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100">
-                    {config?.logo ? <img src={config.logo} alt="" className="h-6 w-6 object-contain" /> : <Library className="h-5 w-5 text-slate-300" />}
+                    <img src={DEFAULT_LOGO_URL} alt="" className="h-6 w-6 object-contain" />
                 </div>
             </div>
             <div className="mt-auto space-y-4">
                 <div className="bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 shadow-inner">
-                    <Code39Barcode code={patron.student_id} height={32} />
+                    <Code39Barcode code={patron.patron_id} height={32} />
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <span>St. Thomas LIS</span>
-                    <span className="font-mono text-slate-900">{patron.student_id}</span>
+                    <span className="font-mono text-slate-900">{patron.patron_id}</span>
                 </div>
             </div>
         </div>

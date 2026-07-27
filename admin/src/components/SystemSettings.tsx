@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Settings, Download, Upload, Trash2, AlertTriangle, ShieldAlert, Loader2, RefreshCw, Database, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles, Info } from 'lucide-react';
-import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, uploadToR2, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
+import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
 import { DEFAULT_LOGO_URL } from '../constants';
@@ -18,27 +18,17 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     const [stats, setStats] = useState({ books: 0, patrons: 0, txns: 0 });
     const [config, setConfig] = useState<MapConfig | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const logoInputRef = useRef<HTMLInputElement>(null);
     const [logoSaving, setLogoSaving] = useState(false);
+    const [logoUrl, setLogoUrl] = useState('');
 
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !config) return;
-        if (file.size > 2 * 1024 * 1024) { alert('Logo must be under 2 MB.'); return; }
+    const handleSaveLogoUrl = async () => {
+        if (!config) return;
         setLogoSaving(true);
-        try {
-            const publicUrl = await uploadToR2(file);
-            if (!publicUrl) { alert('Logo upload failed. Please try again.'); return; }
-            const updated = { ...config, logo: publicUrl };
-            setConfig(updated);
-            await mockSaveMapConfig(updated);
-            onRefreshConfig?.();
-        } catch (err: any) {
-            alert('Upload error: ' + (err?.message || 'Unknown error'));
-        } finally {
-            setLogoSaving(false);
-            e.target.value = '';
-        }
+        const updated = { ...config, logo: logoUrl || undefined };
+        setConfig(updated);
+        await mockSaveMapConfig(updated);
+        setLogoSaving(false);
+        onRefreshConfig?.();
     };
 
     const handleRemoveLogo = async () => {
@@ -53,7 +43,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
 
     useEffect(() => {
         calculateStorageStats();
-        mockGetMapConfig().then(setConfig);
+        mockGetMapConfig().then(c => { setConfig(c); setLogoUrl(c?.logo || ''); });
     }, []);
 
     const calculateStorageStats = async () => {
@@ -151,7 +141,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     ];
 
     const previewPatron = {
-        student_id: 'ST-2024-DEMO',
+        patron_id: 'ST-2024-DEMO',
         full_name: 'ALEXANDER THOMIAN',
         patron_group: 'STUDENT' as const,
         class_name: 'Grade 12-A',
@@ -194,13 +184,20 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                                     />
                                 </div>
                                 <div className="flex-1 space-y-3">
-                                    <p className="text-xs text-slate-500 font-medium">Appears in the navbar, member cards, and book labels. PNG/SVG recommended, max 2 MB.</p>
+                                    <p className="text-xs text-slate-500 font-medium">Visible in the navbar, member cards, and printed labels.</p>
                                     <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={logoUrl}
+                                            onChange={e => setLogoUrl(e.target.value)}
+                                            placeholder="https://r2.cloudflarestorage.com/.../logo.png"
+                                            className="flex-1 bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono text-slate-700 outline-none focus:border-sky-500"
+                                        />
                                         <button
-                                            onClick={() => logoInputRef.current?.click()}
+                                            onClick={handleSaveLogoUrl}
                                             disabled={logoSaving}
                                             className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-sky-700 transition-all disabled:opacity-50"
-                                        >{logoSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Upload</button>
+                                        >{logoSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Save</button>
                                         {config?.logo && (
                                             <button
                                                 onClick={handleRemoveLogo}
@@ -209,7 +206,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                                             ><Trash2 className="h-3.5 w-3.5" /> Remove</button>
                                         )}
                                     </div>
-                                    <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                    <p className="text-[10px] text-slate-400">Upload your logo directly to R2 via the <code className="bg-slate-100 px-1 rounded">r2</code> CLI or dashboard, then paste the public URL above.</p>
                                 </div>
                             </div>
                         </div>

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sign } from 'hono/jwt'
-import { getDB, Bindings, Variables, hashPassword } from '../utils'
+import { getDB, Bindings, Variables, hashPassword, generatePatronId } from '../utils'
 import { enforcePolicy, Policy } from '../policies'
 import { patronSchema } from '../schema'
 import { patrons, profiles } from '../db/schema'
@@ -16,7 +16,7 @@ app.get('/', zValidator('query', z.object({ search: z.string().optional() })), a
     
     const baseQuery = db.select({
         id: patrons.id,
-        student_id: patrons.student_id,
+        patron_id: patrons.patron_id,
         full_name: patrons.full_name,
         card_name: patrons.card_name,
         patron_group: patrons.patron_group,
@@ -34,14 +34,14 @@ app.get('/', zValidator('query', z.object({ search: z.string().optional() })), a
         staff_role: profiles.role,
         staff_email: profiles.email
     }).from(patrons)
-    .leftJoin(profiles, eq(patrons.student_id, profiles.staff_id));
+    .leftJoin(profiles, eq(patrons.patron_id, profiles.staff_id));
 
     if (search) {
         const pattern = `%${search}%`;
         const data = await baseQuery
             .where(or(
                 like(patrons.full_name, pattern),
-                like(patrons.student_id, pattern),
+                like(patrons.patron_id, pattern),
                 like(patrons.email, pattern)
             ))
             .orderBy(patrons.full_name);
@@ -55,10 +55,10 @@ app.get('/', zValidator('query', z.object({ search: z.string().optional() })), a
 app.get('/:id', async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
-    // Try UUID first; fall back to student_id so barcode scanners work with either format
+    // Try UUID first; fall back to patron_id so barcode scanners work with either format
     let [patron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)
     if (!patron) {
-        [patron] = await db.select().from(patrons).where(eq(patrons.student_id, id)).limit(1)
+        [patron] = await db.select().from(patrons).where(eq(patrons.patron_id, id)).limit(1)
     }
     if (!patron) return c.json(null, 200)
     return c.json(patron)
@@ -66,20 +66,20 @@ app.get('/:id', async (c) => {
 
 app.get('/student/:student_id', async (c) => {
     const db = getDB(c)
-    const student_id = c.req.param('student_id')
-    const [patron] = await db.select().from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
+    const patron_id = c.req.param('student_id')
+    const [patron] = await db.select().from(patrons).where(eq(patrons.patron_id, patron_id)).limit(1)
     if (!patron) return c.json(null, 200)
     return c.json(patron)
 })
 
 app.post('/verify_pin', zValidator('json', z.object({
-  student_id: z.string(),
+  patron_id: z.string(),
   pin: z.string()
 })), async (c) => {
   const db = getDB(c)
-  const { student_id, pin } = c.req.valid('json')
+  const { patron_id, pin } = c.req.valid('json')
   
-  const [patron] = await db.select().from(patrons).where(eq(patrons.student_id, student_id)).limit(1)
+  const [patron] = await db.select().from(patrons).where(eq(patrons.patron_id, patron_id)).limit(1)
   
   if (!patron || patron.pin !== pin) {
     return c.json({ success: false, message: 'Invalid Student ID or PIN' }, 200)
@@ -94,7 +94,7 @@ app.post('/verify_pin', zValidator('json', z.object({
     { 
       id: patron.id, 
       role: 'PATRON', 
-      username: patron.student_id, 
+      username: patron.patron_id, 
       exp: Math.floor(Date.now() / 1000) + 1800 
     },
     c.env.JWT_SECRET,
@@ -108,7 +108,7 @@ app.post('/verify_pin', zValidator('json', z.object({
       id: patron.id,
       full_name: patron.full_name,
       card_name: patron.card_name,
-      student_id: patron.student_id,
+      patron_id: patron.patron_id,
       patron_group: patron.patron_group,
       email: patron.email,
       phone: patron.phone,
@@ -149,7 +149,7 @@ app.patch('/update_self', enforcePolicy(Policy.PATRON_UPDATE_SELF), zValidator('
     id: updated.id,
     full_name: updated.full_name,
     card_name: updated.card_name,
-    student_id: updated.student_id,
+    patron_id: updated.patron_id,
     patron_group: updated.patron_group,
     email: updated.email,
     phone: updated.phone,
@@ -175,9 +175,9 @@ app.post('/', enforcePolicy(Policy.PATRON_CREATE), zValidator('json', patronSche
         const hashedPassword = password ? await hashPassword(password) : await hashPassword('admin123')
         await db.insert(profiles).values({
             id: staffId,
-            staff_id: patronData.student_id,
+            staff_id: patronData.patron_id,
             full_name: patronData.full_name,
-            email: patronData.email || `${patronData.student_id}@thomian-lib.com`,
+            email: patronData.email || `${patronData.patron_id}@thomian-lib.com`,
             role: role || 'LIBRARIAN',
             password_hash: hashedPassword
         })
@@ -200,7 +200,7 @@ app.patch('/:id', enforcePolicy(Policy.PATRON_UPDATE), zValidator('json', patron
     if (is_staff_active !== undefined) {
         if (is_staff_active) {
             // Upsert profile
-            const [existing] = await db.select().from(profiles).where(eq(profiles.staff_id, current.student_id)).limit(1)
+            const [existing] = await db.select().from(profiles).where(eq(profiles.staff_id, current.patron_id)).limit(1)
             const hashedPassword = password ? await hashPassword(password) : undefined
             
             if (existing) {
@@ -209,27 +209,27 @@ app.patch('/:id', enforcePolicy(Policy.PATRON_UPDATE), zValidator('json', patron
                     email: patronData.email || current.email || existing.email,
                     role: role || existing.role,
                     ...(hashedPassword ? { password_hash: hashedPassword } : {})
-                }).where(eq(profiles.staff_id, current.student_id))
+                }).where(eq(profiles.staff_id, current.patron_id))
             } else {
                 await db.insert(profiles).values({
                     id: crypto.randomUUID(),
-                    staff_id: current.student_id,
+                    staff_id: current.patron_id,
                     full_name: current.full_name,
-                    email: patronData.email || current.email || `${current.student_id}@thomian-lib.com`,
+                    email: patronData.email || current.email || `${current.patron_id}@thomian-lib.com`,
                     role: role || 'LIBRARIAN',
                     password_hash: hashedPassword || await hashPassword('admin123')
                 })
             }
         } else {
             // Remove staff login access but keep patron record
-            await db.delete(profiles).where(eq(profiles.staff_id, current.student_id))
+            await db.delete(profiles).where(eq(profiles.staff_id, current.patron_id))
         }
     } else {
         // Just sync names/emails if they exist
         await db.update(profiles).set({
             full_name: patronData.full_name,
             email: patronData.email,
-        }).where(eq(profiles.staff_id, current.student_id))
+        }).where(eq(profiles.staff_id, current.patron_id))
     }
 
     const [updatedPatron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)
@@ -242,7 +242,7 @@ app.delete('/:id', enforcePolicy(Policy.PATRON_DELETE), async (c) => {
     const [patron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)
     if (patron) {
         // Cascade delete profile if it exists
-        await db.delete(profiles).where(eq(profiles.staff_id, patron.student_id))
+        await db.delete(profiles).where(eq(profiles.staff_id, patron.patron_id))
     }
     await db.delete(patrons).where(eq(patrons.id, id))
     return c.json({ success: true })

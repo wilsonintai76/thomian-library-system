@@ -1,5 +1,6 @@
 import { Context } from 'hono'
 import { drizzle } from 'drizzle-orm/d1'
+import { sql, eq } from 'drizzle-orm'
 import * as schema from './db/schema'
 
 export type Bindings = {
@@ -37,3 +38,29 @@ export function getKV(c: Context<{ Bindings: Bindings }>) {
 }
 
 // PBAC is handled via policies.ts — use `enforcePolicy(Policy.X)` instead of `requireRole`
+
+/** Group-to-prefix mapping for numeric patron ID generation */
+const PATRON_PREFIX: Record<string, string> = {
+  ADMINISTRATOR: '1',
+  LIBRARIAN:     '2',
+  TEACHER:       '3',
+  STUDENT:       '4',
+}
+
+/** Generates a sequential patron ID: PYYYYNNNN (9 digits, all-numeric) */
+export async function generatePatronId(
+  db: ReturnType<typeof getDB>,
+  patronGroup: string,
+): Promise<string> {
+  const prefix = PATRON_PREFIX[patronGroup] || '9'
+  const year = new Date().getFullYear()
+  const pattern = `${prefix}${year}`
+  const rows = await db.select({ pid: schema.patrons.patron_id })
+    .from(schema.patrons)
+    .where(sql`${schema.patrons.patron_id} LIKE ${pattern + '%'}`)
+  const maxNum = rows.reduce((max, row) => {
+    const num = parseInt(row.pid!.slice(5), 10) || 0
+    return Math.max(max, num)
+  }, 0)
+  return `${pattern}${String(maxNum + 1).padStart(4, '0')}`
+}

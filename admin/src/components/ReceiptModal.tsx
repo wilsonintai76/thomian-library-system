@@ -63,7 +63,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, patron, config
                 </div>
                 <div className="flex justify-between">
                     <span>Student ID:</span>
-                    <span className="font-black">{patron.student_id}</span>
+                    <span className="font-black">{patron.patron_id}</span>
                 </div>
                 <div className="flex justify-between">
                     <span>Received By:</span>

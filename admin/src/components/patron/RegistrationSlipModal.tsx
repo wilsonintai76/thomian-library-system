@@ -50,7 +50,7 @@ const RegistrationSlipModal: React.FC<RegistrationSlipModalProps> = ({ patron, o
     <div class="grid">
       <div class="cell">
         <div class="cell-label">Patron ID</div>
-        <div class="cell-id">${esc(patron.student_id)}</div>
+        <div class="cell-id">${esc(patron.patron_id)}</div>
       </div>
       <div class="cell">
         <div class="cell-label">PIN</div>
@@ -100,7 +100,7 @@ const RegistrationSlipModal: React.FC<RegistrationSlipModalProps> = ({ patron, o
                                 <CreditCard className="h-3 w-3 text-slate-400" />
                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Patron ID</p>
                             </div>
-                            <p className="font-mono font-black text-xs text-slate-800 tracking-wider break-all">{patron.student_id}</p>
+                            <p className="font-mono font-black text-xs text-slate-800 tracking-wider break-all">{patron.patron_id}</p>
                         </div>
                         <div className="bg-blue-50 px-3 py-2.5 rounded-xl border border-blue-100">
                             <div className="flex items-center gap-1.5 mb-1">

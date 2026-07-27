@@ -52,7 +52,7 @@ const SystemNavbar: React.FC<SystemNavbarProps> = ({
           >
             <div className="h-10 w-10 lg:h-12 lg:w-12 flex items-center justify-center shrink-0">
               <img 
-                src={mapConfig?.logo || DEFAULT_LOGO_URL} 
+                src={DEFAULT_LOGO_URL} 
                 alt="Logo" 
                 className="h-full w-full object-contain group-hover:scale-105 transition-transform"
                 onError={() => setLogoError(true)} 

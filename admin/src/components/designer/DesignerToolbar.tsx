@@ -19,7 +19,7 @@ const DesignerToolbar: React.FC<DesignerToolbarProps> = ({ onAddElement }) => {
         temporal
     } = useFloorPlanStore();
     
-    const { undo, redo, pastStates, futureStates } = temporal.getState();
+    const { undo, redo, pastStates, futureStates } = temporal?.getState?.() ?? { undo: () => {}, redo: () => {}, pastStates: [], futureStates: [] };
 
     const tools = [
         { id: 'SELECT', icon: MousePointer2, label: 'Select' },
