@@ -47,7 +47,7 @@ export const patronSchema = z.object({
   pin: z.string().optional(),
   // Staff Unified Login Fields
   is_staff_active: z.boolean().optional(),
-  role: z.enum(['LIBRARIAN', 'ADMINISTRATOR']).optional(),
+  role: z.enum(['ADMINISTRATOR', 'LIBRARIAN', 'TEACHER', 'STUDENT']).optional(),
   password: z.string().optional()
 })
 

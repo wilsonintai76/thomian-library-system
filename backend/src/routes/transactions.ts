@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { getDB, Bindings, Variables, requireRole } from '../utils'
+import { getDB, Bindings, Variables } from '../utils'
+import { enforcePolicy, Policy } from '../policies'
 import { transactionSchema } from '../schema'
 import { z } from 'zod'
 import { transactions, patrons, books } from '../db/schema'
@@ -8,7 +9,7 @@ import { eq, desc, sql } from 'drizzle-orm'
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
-app.get('/summary', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.get('/summary', enforcePolicy(Policy.TRANSACTION_VIEW), async (c) => {
   const db = getDB(c)
   const results = await db.select({ 
     type: transactions.type,
@@ -33,7 +34,7 @@ app.get('/summary', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
   })
 })
 
-app.get('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('query', z.object({ patron_id: z.string().optional() })), async (c) => {
+app.get('/', enforcePolicy(Policy.TRANSACTION_VIEW), zValidator('query', z.object({ patron_id: z.string().optional() })), async (c) => {
   const db = getDB(c)
   const { patron_id } = c.req.valid('query')
   
@@ -59,7 +60,7 @@ app.get('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('query', z.
   return c.json(data || [])
 })
 
-app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', transactionSchema), async (c) => {
+app.post('/', enforcePolicy(Policy.TRANSACTION_CREATE), zValidator('json', transactionSchema), async (c) => {
   const db = getDB(c)
   const payload = c.req.valid('json') as any
   const id = crypto.randomUUID()

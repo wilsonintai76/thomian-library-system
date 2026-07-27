@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { getDB, Bindings, Variables, requireRole } from '../utils'
+import { getDB, Bindings, Variables } from '../utils'
+import { enforcePolicy, Policy } from '../policies'
 import { libraryClassSchema, updateConfigSchema, circulationRuleSchema, libraryEventSchema } from '../schema'
 import { z } from 'zod'
 import { books, patrons, loans, transactions, libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents } from '../db/schema'
@@ -13,7 +14,7 @@ const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 // ── R2 File Upload ─────────────────────────────────────────────────────────────
 // Accepts multipart/form-data with a 'file' field.
 // Returns a Worker-served public URL for the stored object.
-app.post('/upload', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.post('/upload', enforcePolicy(Policy.SYSTEM_UPLOAD), async (c) => {
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   if (!file) return c.json({ error: 'No file provided' }, 400)
@@ -48,7 +49,7 @@ app.get('/classes', async (c) => {
   return c.json(data || [])
 })
 
-app.post('/classes', requireRole(['ADMINISTRATOR']), zValidator('json', libraryClassSchema), async (c) => {
+app.post('/classes', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), zValidator('json', libraryClassSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
@@ -57,7 +58,7 @@ app.post('/classes', requireRole(['ADMINISTRATOR']), zValidator('json', libraryC
   return c.json(newClass)
 })
 
-app.delete('/classes/:id', requireRole(['ADMINISTRATOR']), async (c) => {
+app.delete('/classes/:id', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), async (c) => {
   const db = getDB(c)
   await db.delete(libraryClasses).where(eq(libraryClasses.id, c.req.param('id')))
   return c.json({ success: true })
@@ -69,7 +70,7 @@ app.get('/rules', async (c) => {
   return c.json(data || [])
 })
 
-app.post('/rules', requireRole(['ADMINISTRATOR']), zValidator('json', circulationRuleSchema), async (c) => {
+app.post('/rules', enforcePolicy(Policy.SYSTEM_MANAGE_RULES), zValidator('json', circulationRuleSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
@@ -78,7 +79,7 @@ app.post('/rules', requireRole(['ADMINISTRATOR']), zValidator('json', circulatio
   return c.json(newRule)
 })
 
-app.patch('/rules/:id', requireRole(['ADMINISTRATOR']), zValidator('json', circulationRuleSchema), async (c) => {
+app.patch('/rules/:id', enforcePolicy(Policy.SYSTEM_MANAGE_RULES), zValidator('json', circulationRuleSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = c.req.param('id')
@@ -87,7 +88,7 @@ app.patch('/rules/:id', requireRole(['ADMINISTRATOR']), zValidator('json', circu
   return c.json(updatedRule)
 })
 
-app.delete('/rules/:id', requireRole(['ADMINISTRATOR']), async (c) => {
+app.delete('/rules/:id', enforcePolicy(Policy.SYSTEM_MANAGE_RULES), async (c) => {
   const db = getDB(c)
   await db.delete(circulationRules).where(eq(circulationRules.id, c.req.param('id')))
   return c.json({ success: true })
@@ -107,7 +108,7 @@ app.get('/system-config', async (c) => {
   return c.json(result)
 })
 
-app.post('/system-config/update_config', requireRole(['ADMINISTRATOR']), zValidator('json', updateConfigSchema), async (c) => {
+app.post('/system-config/update_config', enforcePolicy(Policy.SYSTEM_UPDATE_CONFIG), zValidator('json', updateConfigSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json')
   
@@ -156,7 +157,7 @@ app.post('/alerts/trigger_help', zValidator('json', z.object({ location: z.strin
   return c.json(alert)
 })
 
-app.post('/alerts/:id/resolve', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.post('/alerts/:id/resolve', enforcePolicy(Policy.SYSTEM_MANAGE_ALERTS), async (c) => {
   const db = getDB(c)
   await db.update(systemAlerts).set({ 
     status: 'RESOLVED',
@@ -171,7 +172,7 @@ app.get('/events', async (c) => {
   return c.json(data || [])
 })
 
-app.post('/events', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', libraryEventSchema), async (c) => {
+app.post('/events', enforcePolicy(Policy.SYSTEM_MANAGE_EVENTS), zValidator('json', libraryEventSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = crypto.randomUUID()
@@ -180,7 +181,7 @@ app.post('/events', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('jso
   return c.json(newEvent)
 })
 
-app.patch('/events/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', libraryEventSchema), async (c) => {
+app.patch('/events/:id', enforcePolicy(Policy.SYSTEM_MANAGE_EVENTS), zValidator('json', libraryEventSchema), async (c) => {
   const db = getDB(c)
   const body = c.req.valid('json') as any
   const id = c.req.param('id')
@@ -189,7 +190,7 @@ app.patch('/events/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator
   return c.json(updatedEvent)
 })
 
-app.delete('/events/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.delete('/events/:id', enforcePolicy(Policy.SYSTEM_MANAGE_EVENTS), async (c) => {
   const db = getDB(c)
   await db.delete(libraryEvents).where(eq(libraryEvents.id, c.req.param('id')))
   return c.json({ success: true })
@@ -197,7 +198,7 @@ app.delete('/events/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c)
 
 // ── Full Data Export ──────────────────────────────────────────────────────────
 // Returns a JSON envelope with all table data. Excludes profiles (auth-managed).
-app.get('/export', requireRole(['ADMINISTRATOR']), async (c) => {
+app.get('/export', enforcePolicy(Policy.SYSTEM_EXPORT), async (c) => {
   const db = getDB(c)
   const [allBooks, allPatrons, allLoans, allTxns, allClasses, allRules, allConfig, allEvents] = await Promise.all([
     db.select().from(books),
@@ -227,7 +228,7 @@ app.get('/export', requireRole(['ADMINISTRATOR']), async (c) => {
 
 // ── Full Data Import (Restore) ────────────────────────────────────────────────
 // Wipes and restores all tables from a previously exported backup.
-app.post('/import', requireRole(['ADMINISTRATOR']), async (c) => {
+app.post('/import', enforcePolicy(Policy.SYSTEM_IMPORT), async (c) => {
   const body = await c.req.json()
   if (!body?.tables) return c.json({ error: 'Invalid backup format — missing tables key' }, 400)
   const t = body.tables

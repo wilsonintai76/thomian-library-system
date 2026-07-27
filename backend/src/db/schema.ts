@@ -7,7 +7,7 @@ export const profiles = sqliteTable('profiles', {
   staff_id: text('staff_id').unique(),
   full_name: text('full_name'),
   email: text('email').unique().notNull(),
-  role: text('role', { enum: ['LIBRARIAN', 'ADMINISTRATOR'] }).default('LIBRARIAN'),
+  role: text('role', { enum: ['ADMINISTRATOR', 'LIBRARIAN', 'TEACHER', 'STUDENT'] }).default('STUDENT'),
   password_hash: text('password_hash'), // For custom auth
   created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });

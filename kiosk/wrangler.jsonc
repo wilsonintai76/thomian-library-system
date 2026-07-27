@@ -1,10 +1,25 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "thomian-kiosk",
-  "compatibility_date": "2025-01-27",
-  "pages_build_output_dir": "dist",
-  "observability": {
-    "enabled": true
-  },
-  "production_branch": "main"
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "thomian-kiosk",
+	"compatibility_date": "2025-01-27",
+	"pages_build_output_dir": "dist",
+	"observability": {
+		"enabled": true
+	},
+	"production_branch": "main",
+	"d1_databases": [
+		{
+			"binding": "thomian_db",
+			"database_name": "thomian-db",
+			"database_id": "111f9a96-13a7-4340-8cc2-9ad9c3873a69",
+			"remote": true
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "1c5c86cfa8364f5f8d48b40a2ddfb410",
+			"remote": true
+		}
+	]
 }

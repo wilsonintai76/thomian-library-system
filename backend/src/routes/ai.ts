@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { getDB, Bindings, Variables, requireRole } from '../utils'
+import { getDB, Bindings, Variables } from '../utils'
+import { enforcePolicy, Policy } from '../policies'
 
 import { getCache } from '../kv'
 
@@ -13,7 +14,7 @@ const analyzeSchema = z.object({
   levelId: z.string()
 })
 
-app.post('/analyze-blueprint', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', analyzeSchema), async (c) => {
+app.post('/analyze-blueprint', enforcePolicy(Policy.AI_ANALYZE_BLUEPRINT), zValidator('json', analyzeSchema), async (c) => {
   const { imageBase64, imageUrl, levelId } = c.req.valid('json')
   const cache = getCache(c.env.KV)
   

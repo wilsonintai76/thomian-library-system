@@ -10,7 +10,7 @@ export type Bindings = {
   AI: any // Workers AI
 }
 
-export type Role = 'ADMINISTRATOR' | 'LIBRARIAN' | 'PATRON'
+export type Role = 'ADMINISTRATOR' | 'LIBRARIAN' | 'TEACHER' | 'STUDENT'
 
 export type Variables = {
   user: {
@@ -36,17 +36,4 @@ export function getKV(c: Context<{ Bindings: Bindings }>) {
   return c.env.KV;
 }
 
-// RBAC Middleware Factory
-export const requireRole = (allowedRoles: Role[]) => {
-  return async (c: any, next: any) => {
-    const userRole = c.get('user')?.role
-    if (!userRole || !allowedRoles.includes(userRole)) {
-      return c.json({ 
-        success: false, 
-        error: 'Forbidden', 
-        message: 'You do not have the required permissions for this action.' 
-      }, 403)
-    }
-    return await next()
-  }
-}
+// PBAC is handled via policies.ts — use `enforcePolicy(Policy.X)` instead of `requireRole`

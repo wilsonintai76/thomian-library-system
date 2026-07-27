@@ -55,7 +55,7 @@ const AdminLanding: React.FC<AdminLandingProps> = ({ onLoginRequest, mapConfig }
                         Authenticate Librarian <ChevronRight className="h-4 w-4" />
                     </button>
                     <a 
-                        href="https://www.thomian-lib.com" 
+                        href="https://kiosk.thomian-lib.com" 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="w-full md:w-auto px-10 py-5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-500 backdrop-blur-xl"

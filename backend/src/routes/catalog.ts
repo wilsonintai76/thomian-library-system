@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { getDB, Bindings, Variables, requireRole } from '../utils'
+import { getDB, Bindings, Variables } from '../utils'
+import { enforcePolicy, Policy } from '../policies'
 import { bookSchema, printLabelSchema } from '../schema'
 import { jsPDF } from 'jspdf'
 import { books, transactions, patrons, loans, libraryClasses } from '../db/schema'
@@ -342,14 +343,14 @@ app.get('/waterfall_search', zValidator('query', z.object({ isbn: z.string() }))
   return c.json({ status: 'NOT_FOUND', data: { isbn, title: '', author: '', ddc_code: '000', status: 'STUB' } })
 })
 
-app.post('/predict_ddc', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', z.object({ title: z.string(), author: z.string().optional(), publisher: z.string().optional() })), async (c) => {
+app.post('/predict_ddc', enforcePolicy(Policy.CATALOG_PREDICT_DDC), zValidator('json', z.object({ title: z.string(), author: z.string().optional(), publisher: z.string().optional() })), async (c) => {
     const { title, author, publisher } = c.req.valid('json')
     const ai = c.env.AI
     const ddc = await fetchDDCFromWorkersAI(title, author || '', publisher || '', ai)
     return c.json({ ddc_code: ddc })
 })
 
-app.post('/reclassify/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.post('/reclassify/:id', enforcePolicy(Policy.CATALOG_RECLASSIFY), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const [book] = await db.select().from(books).where(eq(books.id, id)).limit(1)
@@ -449,7 +450,7 @@ async function generateBarcode(db: any, year: number): Promise<string> {
     return `${prefix}${String(lastNum + 1).padStart(4, '0')}`
 }
 
-app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', bookSchema), async (c) => {
+app.post('/', enforcePolicy(Policy.CATALOG_CREATE), zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const bookData = c.req.valid('json') as any
     const id = crypto.randomUUID()
@@ -468,7 +469,7 @@ app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', bo
     return c.json(newBook)
 })
 
-app.patch('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', bookSchema), async (c) => {
+app.patch('/:id', enforcePolicy(Policy.CATALOG_UPDATE), zValidator('json', bookSchema), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const bookData = c.req.valid('json') as any
@@ -485,14 +486,14 @@ app.patch('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json'
     return c.json(updatedBook)
 })
 
-app.delete('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.delete('/:id', enforcePolicy(Policy.CATALOG_DELETE), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     await db.delete(books).where(eq(books.id, id))
     return c.json({ success: true })
 })
 
-app.post('/print_labels', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', printLabelSchema), async (c) => {
+app.post('/print_labels', enforcePolicy(Policy.CATALOG_PRINT_LABELS), zValidator('json', printLabelSchema), async (c) => {
     const db = getDB(c)
     const { book_ids } = c.req.valid('json')
     const results = await db.select().from(books).where(inArray(books.id, book_ids))

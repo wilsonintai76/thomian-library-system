@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { sign } from 'hono/jwt'
-import { getDB, Bindings, Variables, hashPassword, requireRole } from '../utils'
+import { getDB, Bindings, Variables, hashPassword } from '../utils'
+import { enforcePolicy, Policy } from '../policies'
 import { patronSchema } from '../schema'
 import { patrons, profiles } from '../db/schema'
 import { eq, or, like } from 'drizzle-orm'
@@ -121,7 +122,7 @@ app.post('/verify_pin', zValidator('json', z.object({
 })
 
 // Patron self-update — authenticated via JWT (role: PATRON), no admin JWT needed
-app.patch('/update_self', requireRole(['PATRON']), zValidator('json', z.object({
+app.patch('/update_self', enforcePolicy(Policy.PATRON_UPDATE_SELF), zValidator('json', z.object({
   full_name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
@@ -160,7 +161,7 @@ app.patch('/update_self', requireRole(['PATRON']), zValidator('json', z.object({
   }})
 })
 
-app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', patronSchema), async (c) => {
+app.post('/', enforcePolicy(Policy.PATRON_CREATE), zValidator('json', patronSchema), async (c) => {
     const db = getDB(c)
     const { is_staff_active, role, password, ...patronData } = c.req.valid('json') as any
     const id = crypto.randomUUID()
@@ -186,7 +187,7 @@ app.post('/', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', pa
     return c.json(newPatron)
 })
 
-app.patch('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json', patronSchema), async (c) => {
+app.patch('/:id', enforcePolicy(Policy.PATRON_UPDATE), zValidator('json', patronSchema), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const { is_staff_active, role, password, ...patronData } = c.req.valid('json') as any
@@ -235,7 +236,7 @@ app.patch('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), zValidator('json'
     return c.json(updatedPatron)
 })
 
-app.delete('/:id', requireRole(['LIBRARIAN', 'ADMINISTRATOR']), async (c) => {
+app.delete('/:id', enforcePolicy(Policy.PATRON_DELETE), async (c) => {
     const db = getDB(c)
     const id = c.req.param('id')
     const [patron] = await db.select().from(patrons).where(eq(patrons.id, id)).limit(1)

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { verify } from 'hono/jwt'
-import { Bindings, Variables, Role, requireRole } from './utils'
+import { Bindings, Variables, Role } from './utils'
 
 import catalogRouter from './routes/catalog'
 import patronsRouter from './routes/patrons'
