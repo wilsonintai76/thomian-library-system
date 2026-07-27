@@ -87,6 +87,12 @@ export const mockDeleteCirculationRule = (id: any) => { requireOnline('Delete Po
 export const mockGetMapConfig = () => real.mockGetMapConfig();
 export const mockSaveMapConfig = (c: any) => { requireOnline('Save Map'); return real.mockSaveMapConfig(c); };
 
+// ── Library Locations ─────────────────────────────────────────────────────────
+export const mockGetLocations = () => real.mockGetLocations();
+export const mockAddLocation = (l: any) => { requireOnline('Add Location'); return real.mockAddLocation(l); };
+export const mockUpdateLocation = (id: string, l: any) => { requireOnline('Update Location'); return real.mockUpdateLocation(id, l); };
+export const mockDeleteLocation = (id: string) => { requireOnline('Delete Location'); return real.mockDeleteLocation(id); };
+
 // ── Stats ─────────────────────────────────────────────────────────────────────
 export const mockGetSystemStats = () => real.mockGetSystemStats();
 export const mockGetOverdueItems = () => real.mockGetOverdueItems();

@@ -52,6 +52,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             const autoRole = (initialData.staff_role || (initialData.patron_group === 'ADMINISTRATOR' ? 'ADMINISTRATOR' : 'LIBRARIAN')) as 'LIBRARIAN' | 'ADMINISTRATOR';
             setFormData({ 
                 ...initialData,
+                card_name: initialData.card_name || '',
                 // Auto-enable portal for ADMINISTRATOR; for LIBRARIAN respect existing profile
                 is_staff_active: initialData.patron_group === 'ADMINISTRATOR' ? true : !!initialData.is_staff,
                 role: isStaffGroup ? autoRole : 'LIBRARIAN',
@@ -163,7 +164,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
             try {
                 const blob = await (await fetch(dataUrl)).blob();
                 const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                const publicUrl = await uploadToR2(file);
+                const publicUrl = await uploadToR2(file, 'patrons');
                 if (publicUrl) {
                     setFormData(prev => ({ ...prev, photo_url: publicUrl }));
                 } else {
@@ -190,7 +191,7 @@ const PatronFormModal: React.FC<PatronFormModalProps> = ({ isOpen, onClose, onSa
                     try {
                         const blob = await (await fetch(dataUrl)).blob();
                         const f = new File([blob], `upload-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                        const publicUrl = await uploadToR2(f);
+                        const publicUrl = await uploadToR2(f, 'patrons');
                         if (publicUrl) {
                             setFormData(prev => ({ ...prev, photo_url: publicUrl }));
                         } else {

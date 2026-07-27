@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { SystemTheme } from './types';
+import { SystemTheme, MapLevel } from './types';
 
 /**
  * Utility for Tailwind class merging
@@ -58,18 +58,42 @@ export const getStarterDdcForClassification = (classification: string): string =
     return '';
 };
 
-export const getShelfFromDDC = (ddc: string | undefined): string => {
+export const getShelfFromDDC = (ddc: string | undefined, mapLevels?: MapLevel[]): string => {
   if (!ddc) return 'Unknown';
+
+  // 1. Try map-based lookup first (uses shelf DDC ranges from floor plan)
+  if (mapLevels && mapLevels.length > 0) {
+    const ddcVal = parseFloat(ddc);
+    for (const level of mapLevels) {
+      for (const el of (level.layout || [])) {
+        if (el.type !== 'SHELF') continue;
+        if (el.minDDC !== undefined && el.maxDDC !== undefined) {
+          // Check if this is a non-numeric classification prefix (FIC, JF, etc.)
+          const upper = ddc.trim().toUpperCase();
+          const prefixMatch = (prefix: string) => upper.startsWith(prefix);
+          // Match FIC/JF shelves
+          if (el.minDDC === 0 && el.maxDDC === 0) {
+            // Reserved for special classifications
+          }
+          if (!isNaN(ddcVal) && ddcVal >= el.minDDC && ddcVal <= el.maxDDC) {
+            return el.label || `${level.name} Shelf`;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Fallback: hardcoded generic shelves
   const upper = ddc.trim().toUpperCase();
-  if (upper.startsWith('FIC') || upper === 'F') return 'Shelf C';
-  if (upper.startsWith('JF')) return 'Shelf C';
-  if (upper.startsWith('B')) return 'Shelf D';
+  if (upper.startsWith('FIC') || upper === 'F') return 'Fiction';
+  if (upper.startsWith('JF')) return 'Junior Fiction';
+  if (upper.startsWith('B')) return 'Biography';
   const num = parseFloat(ddc);
-  if (isNaN(num)) return 'Shelf A';
-  if (num >= 0 && num < 300) return 'Shelf A';
-  if (num >= 300 && num < 600) return 'Shelf B';
-  if (num >= 600 && num < 900) return 'Shelf C';
-  if (num >= 900) return 'Shelf D';
+  if (isNaN(num)) return 'General';
+  if (num >= 0 && num < 300) return '000-299';
+  if (num >= 300 && num < 600) return '300-599';
+  if (num >= 600 && num < 900) return '600-899';
+  if (num >= 900) return '900-999';
   return 'Unknown';
 };
 

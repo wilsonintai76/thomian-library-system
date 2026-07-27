@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert, WifiOff } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, Key, X, IdCard, Wifi, Cloud, ScanLine, ArrowLeftRight, BookOpen, Users, TrendingUp, MapPin, Calendar, Settings, HelpCircle, Copy, CheckCheck, Terminal, ShieldAlert, WifiOff, RefreshCw } from 'lucide-react';
 import { AdminTab, SystemAlert, AuthUser, MapConfig } from './types';
 import CatalogingDesk from './components/CatalogingDesk';
 import CirculationMatrix from './components/CirculationMatrix';
@@ -113,6 +113,7 @@ const App: React.FC = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
 
   const theme = mapConfig?.theme || 'EMERALD';
   const styles = SYSTEM_THEME_CONFIG[theme];
@@ -131,11 +132,14 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    const handleSwUpdate = () => setUpdateAvailable(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('swUpdateAvailable', handleSwUpdate);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('swUpdateAvailable', handleSwUpdate);
     };
   }, []);
 
@@ -283,6 +287,23 @@ const App: React.FC = () => {
         <div className="bg-red-600 text-white px-6 py-2.5 flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest print:hidden">
           <WifiOff className="h-3.5 w-3.5 shrink-0" />
           No internet connection &mdash; read-only mode. All write operations are disabled until connection is restored.
+        </div>
+      )}
+
+      {/* Update Banner */}
+      {updateAvailable && (
+        <div className="sticky top-0 z-[140] bg-blue-600 text-white px-6 py-3 flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span className="text-sm font-black uppercase tracking-wide">New version available</span>
+            <span className="text-[10px] opacity-70">— you will be logged out on refresh</span>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-white text-blue-600 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 transition-colors"
+          >
+            Refresh Now
+          </button>
         </div>
       )}
 

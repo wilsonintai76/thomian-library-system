@@ -94,7 +94,7 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                     <img src={DEFAULT_LOGO_URL} alt="" style={{width:'100%', height:'100%', objectFit:'contain'}} />
                 </div>
                 <div style={{overflow:'hidden', zIndex:1}}>
-                    <p style={{fontSize:10, fontWeight:900, color:'white', lineHeight:1, textTransform:'uppercase', letterSpacing:'-0.02em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220}}>St. Thomas Secondary</p>
+                    <p style={{fontSize:10, fontWeight:900, color:'white', lineHeight:1, textTransform:'uppercase', letterSpacing:'-0.02em', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220}}>S.M.K St Thomas</p>
                     <p style={{fontSize:7, fontWeight:700, color:'rgba(255,255,255,0.5)', textTransform:'uppercase', letterSpacing:'0.1em', lineHeight:1.4, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220}}>Identity &amp; Resource Access</p>
                 </div>
             </div>
@@ -105,11 +105,8 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                     {/* Photo */}
                     <div style={{width:PHOTO_W, height:80, flexShrink:0, background:'#f1f5f9', borderRadius:6, border:'2px solid #e2e8f0', overflow:'hidden', position:'relative'}}>
                         {patron.photo_url
-                            ? <img src={patron.photo_url} alt="" style={{position:'absolute', top:0, left:0, width:PHOTO_W, height:66, objectFit:'cover', display:'block'}} />
-                            : <div style={{position:'absolute', top:0, left:0, width:PHOTO_W, height:66, display:'flex', alignItems:'center', justifyContent:'center'}}><User style={{width:32, height:32, color:'#cbd5e1'}} /></div>}
-                        <div style={{position:'absolute', bottom:0, left:0, right:0, background:'rgba(226,232,240,0.9)', textAlign:'center', padding:'2px 0'}}>
-                            <span style={{fontSize:5, fontWeight:900, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.1em'}}>Verified</span>
-                        </div>
+                            ? <img src={patron.photo_url} alt="" style={{position:'absolute', top:0, left:0, width:PHOTO_W, height:80, objectFit:'cover', display:'block'}} />
+                            : <div style={{position:'absolute', top:0, left:0, width:PHOTO_W, height:80, display:'flex', alignItems:'center', justifyContent:'center'}}><User style={{width:32, height:32, color:'#cbd5e1'}} /></div>}
                     </div>
                     {/* Info column */}
                     <div style={{width:TEXT_W, overflow:'hidden'}}>
@@ -148,7 +145,7 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                         <img src={DEFAULT_LOGO_URL} alt="" className="w-full h-full object-contain" />
                     </div>
                     <div className="text-right">
-                        <p className="text-[10px] font-black uppercase tracking-tighter leading-none">Thomian</p>
+                        <p className="text-[10px] font-black uppercase tracking-tighter leading-none">S.M.K St Thomas</p>
                         <p className="text-[7px] font-bold opacity-40 uppercase tracking-widest">Library</p>
                     </div>
                 </div>
@@ -192,7 +189,7 @@ const PatronCard: React.FC<PatronCardProps> = ({ patron, config }) => {
                     <Code39Barcode code={patron.patron_id} height={32} />
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <span>St. Thomas LIS</span>
+                    <span>S.M.K St Thomas</span>
                     <span className="font-mono text-slate-900">{patron.patron_id}</span>
                 </div>
             </div>

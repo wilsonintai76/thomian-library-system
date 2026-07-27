@@ -154,6 +154,16 @@ export interface MapLevel {
     layout?: MapElement[];
 }
 
+export interface LibraryLocation {
+    id: string;
+    name: string;
+    level_id?: string | null;
+    min_ddc?: number | null;
+    max_ddc?: number | null;
+    description?: string | null;
+    created_at?: string;
+}
+
 export interface ShelfDefinition {
     id: string;
     label: string;

@@ -1,9 +1,9 @@
 
 import React, { useRef, useEffect } from 'react';
 import { BookOpen, Layers, DollarSign, Tag, Info, ImageOff, Upload, Eye, Loader2, Fingerprint, ScanLine, Bookmark, Hash, StickyNote, Building, Calendar, Package, Type, FileText, ChevronDown, Globe, Sparkles } from 'lucide-react';
-import { Book } from '../../types';
-import { predictDDC, getPublishers } from '../../services/api';
-import { getClassificationFromDDC, DEWEY_CATEGORIES, getStarterDdcForClassification } from '../../utils';
+import { Book, LibraryLocation } from '../../types';
+import { predictDDC, getPublishers, mockGetMapConfig, mockGetLocations } from '../../services/api';
+import { getClassificationFromDDC, DEWEY_CATEGORIES, getStarterDdcForClassification, getShelfFromDDC } from '../../utils';
 import BookLabel from '../BookLabel';
 
 interface MARCEditorProps {
@@ -21,6 +21,7 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoadingDdc, setIsLoadingDdc] = React.useState(false);
   const [publisherList, setPublisherList] = React.useState<string[]>([]);
+  const [locations, setLocations] = React.useState<LibraryLocation[]>([]);
 
   useEffect(() => {
     const loadPublishers = async () => {
@@ -28,6 +29,7 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
         setPublisherList(list);
     };
     loadPublishers();
+    mockGetLocations().then(setLocations).catch(() => {});
   }, []);
 
   // Auto-detect classification and suggest call number when DDC or Author changes
@@ -53,9 +55,23 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
     }
   }, [book.ddc_code, book.author]);
 
-  const handleDdcChange = (val: string) => {
+  const handleDdcChange = async (val: string) => {
       const detected = getClassificationFromDDC(val);
-      setBook({ ...book, ddc_code: val, classification: detected });
+      // Find matching location from DB locations list
+      const ddcVal = parseFloat(val);
+      let location = '';
+      if (!isNaN(ddcVal)) {
+          const match = locations.find(l => l.min_ddc != null && l.max_ddc != null && ddcVal >= l.min_ddc && ddcVal <= l.max_ddc);
+          if (match) location = match.name;
+      }
+      if (!location) {
+          // Fallback to map-based lookup
+          try {
+              const mapCfg = await mockGetMapConfig();
+              location = getShelfFromDDC(val, mapCfg.levels);
+          } catch {}
+      }
+      setBook({ ...book, ddc_code: val, classification: detected, shelf_location: location || book.shelf_location || '' });
   };
 
   const handleAiSuggest = async () => {
@@ -261,7 +277,15 @@ const MARCEditor: React.FC<MARCEditorProps> = ({ book, setBook, isManual, isSavi
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Location</label>
-                                <input type="text" value={book.shelf_location || ''} onChange={(e) => setBook({ ...book, shelf_location: e.target.value })} className="w-full rounded-xl border-2 border-slate-100 p-4 font-bold text-slate-800 outline-none focus:border-blue-500" placeholder="Shelf A" />
+                                <select
+                                    value={book.shelf_location || ''}
+                                    onChange={(e) => setBook({ ...book, shelf_location: e.target.value })}
+                                    className="w-full rounded-xl border-2 border-slate-100 p-4 font-bold text-slate-800 outline-none focus:border-blue-500 bg-white">
+                                    <option value="">— Select location —</option>
+                                    {locations.map(loc => (
+                                        <option key={loc.id} value={loc.name}>{loc.name}{loc.description ? ` — ${loc.description}` : ''}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Barcode ID</label>

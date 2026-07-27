@@ -107,22 +107,49 @@ const WallNodeCircle = ({ node, levelId, isSelected }: { node: WallNode; levelId
     const { moveWallNode, selectItem, deleteWallNode } = useFloorPlanStore();
 
     const handleDragEnd = (e: any) => {
-        moveWallNode(levelId, node.id, snapToGrid(e.target.x()), snapToGrid(e.target.y()));
+        let nx = snapToGrid(e.target.x()), ny = snapToGrid(e.target.y());
+        // Alignment snap to other nodes
+        const allNodes = useFloorPlanStore.getState().levels.find(l => l.id === levelId)?.wallNodes || [];
+        for (const n of allNodes) {
+            if (n.id === node.id) continue;
+            if (Math.abs(nx - n.x) < 12) nx = n.x;
+            if (Math.abs(ny - n.y) < 12) ny = n.y;
+        }
+        moveWallNode(levelId, node.id, nx, ny);
     };
 
     return (
-        <Circle
-            ref={shapeRef}
-            x={node.x} y={node.y} radius={6}
-            fill={isSelected ? '#2563eb' : '#475569'}
-            stroke="#fff" strokeWidth={2}
-            draggable
-            onClick={() => selectItem(node.id, 'WALL_NODE')}
-            onTap={() => selectItem(node.id, 'WALL_NODE')}
-            onDragEnd={handleDragEnd}
-            onDblClick={() => deleteWallNode(levelId, node.id)}
-            hitStrokeWidth={12}
-        />
+        <Group>
+            {/* Alignment indicators */}
+            {isSelected && (() => {
+                const allNodes = useFloorPlanStore.getState().levels.find(l => l.id === levelId)?.wallNodes || [];
+                const lines: any[] = [];
+                for (const n of allNodes) {
+                    if (n.id === node.id) continue;
+                    if (Math.abs(node.x - n.x) < 2 && Math.abs(node.y - n.y) > 20) {
+                        lines.push(<Line key={`ax-${n.id}`} points={[node.x, Math.min(node.y, n.y) + 10, node.x, Math.max(node.y, n.y) - 10]}
+                            stroke="#3b82f6" strokeWidth={0.5} dash={[4, 4]} opacity={0.5} />);
+                    }
+                    if (Math.abs(node.y - n.y) < 2 && Math.abs(node.x - n.x) > 20) {
+                        lines.push(<Line key={`ay-${n.id}`} points={[Math.min(node.x, n.x) + 10, node.y, Math.max(node.x, n.x) - 10, node.y]}
+                            stroke="#3b82f6" strokeWidth={0.5} dash={[4, 4]} opacity={0.5} />);
+                    }
+                }
+                return lines;
+            })()}
+            <Circle
+                ref={shapeRef}
+                x={node.x} y={node.y} radius={6}
+                fill={isSelected ? '#2563eb' : '#475569'}
+                stroke="#fff" strokeWidth={2}
+                draggable
+                onClick={() => selectItem(node.id, 'WALL_NODE')}
+                onTap={() => selectItem(node.id, 'WALL_NODE')}
+                onDragEnd={handleDragEnd}
+                onDblClick={() => deleteWallNode(levelId, node.id)}
+                hitStrokeWidth={14}
+            />
+        </Group>
     );
 };
 
@@ -257,6 +284,8 @@ const FloorDesigner2D: React.FC = () => {
     } = useFloorPlanStore();
     const stageRef = useRef<Konva.Stage>(null);
     const [lastWallNodeId, setLastWallNodeId] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+    const [shiftHeld, setShiftHeld] = useState(false);
 
     const activeLevel = levels.find(l => l.id === activeLevelId);
     if (!activeLevel) return null;
@@ -268,12 +297,12 @@ const FloorDesigner2D: React.FC = () => {
         if (drawMode !== 'WALL') setLastWallNodeId(null);
     }, [drawMode]);
 
-    // Escape key to cancel draw mode, Delete key to remove selected item
+    // Escape/Delete key handler + Shift tracking
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Shift') { setShiftHeld(e.type === 'keydown'); return; }
             if (e.key === 'Escape') { setDrawMode('SELECT'); setLastWallNodeId(null); return; }
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                // Don't delete when typing in input fields
                 if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
                 const state = useFloorPlanStore.getState();
                 const { selectedId, selectedType, activeLevelId } = state;
@@ -287,7 +316,8 @@ const FloorDesigner2D: React.FC = () => {
             }
         };
         window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
+        window.addEventListener('keyup', handler);
+        return () => { window.removeEventListener('keydown', handler); window.removeEventListener('keyup', handler); };
     }, [setDrawMode]);
 
     const handleCanvasClick = useCallback((e: any) => {
@@ -304,12 +334,81 @@ const FloorDesigner2D: React.FC = () => {
         const cy = snapToGrid(pos.y - 100);
 
         if (drawMode === 'WALL') {
-            // Click to place wall node
+            const nodes = activeLevel.wallNodes || [];
+            let nx = cx, ny = cy;
+
+            // Angle snapping + alignment when connecting from last node
+            if (lastWallNodeId) {
+                const lastNode = nodes.find(n => n.id === lastWallNodeId);
+                if (lastNode) {
+                    const dx = cx - lastNode.x, dy = cy - lastNode.y;
+                    const dist = Math.hypot(dx, dy);
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+                    if (dist > 20 && !shiftHeld) {
+                        // Snap to nearest 45° angle (±7.5° tolerance)
+                        const snappedAngle = Math.round(angle / 45) * 45;
+                        if (Math.abs(angle - snappedAngle) <= 7.5) {
+                            const rad = snappedAngle * Math.PI / 180;
+                            nx = lastNode.x + Math.cos(rad) * dist;
+                            ny = lastNode.y + Math.sin(rad) * dist;
+                        }
+                    }
+
+                    // Alignment snap: snap to existing node X or Y
+                    const ALIGN_THRESHOLD = 12;
+                    for (const n of nodes) {
+                        if (n.id === lastWallNodeId) continue;
+                        if (Math.abs(nx - n.x) < ALIGN_THRESHOLD) nx = n.x;
+                        if (Math.abs(ny - n.y) < ALIGN_THRESHOLD) ny = n.y;
+                    }
+                }
+            }
+
+            nx = snapToGrid(nx);
+            ny = snapToGrid(ny);
+
+            // Close-loop detection: if near first node of current chain, snap to it
+            if (lastWallNodeId) {
+                const firstNodeInChain = nodes.find(n => n.id === lastWallNodeId);
+                // Find the first node in this drawing session
+                const allMyNodes = nodes.filter(n => n.id === lastWallNodeId || 
+                    (activeLevel.wallSegments || []).some(s => 
+                        (s.startNodeId === lastWallNodeId || s.endNodeId === lastWallNodeId) &&
+                        (s.startNodeId === n.id || s.endNodeId === n.id)
+                    ));
+                // Simple: just check first placed node
+                const segments = activeLevel.wallSegments || [];
+                const connectedToLast = segments.filter(s => s.startNodeId === lastWallNodeId || s.endNodeId === lastWallNodeId);
+                // Find the very first node in the chain (one with only one connection, or just the first we placed)
+                // For now, check all nodes except the last one
+                for (const n of nodes) {
+                    if (n.id === lastWallNodeId) continue;
+                    const distToNode = Math.hypot(nx - n.x, ny - n.y);
+                    if (distToNode < 15 && !segments.some(s => 
+                        (s.startNodeId === lastWallNodeId && s.endNodeId === n.id) ||
+                        (s.endNodeId === lastWallNodeId && s.startNodeId === n.id)
+                    )) {
+                        nx = n.x; ny = n.y;
+                        // Don't create a new node — connect to existing
+                        const segment: WallSegment = {
+                            id: `ws_${Date.now()}`,
+                            startNodeId: lastWallNodeId,
+                            endNodeId: n.id,
+                            thickness: wallThickness,
+                            type: 'WALL',
+                        };
+                        addWallSegment(activeLevelId, segment);
+                        setLastWallNodeId(null); // end the chain
+                        return;
+                    }
+                }
+            }
+
             const nodeId = `wn_${Date.now()}`;
-            const node: WallNode = { id: nodeId, x: cx, y: cy };
+            const node: WallNode = { id: nodeId, x: nx, y: ny };
             addWallNode(activeLevelId, node);
 
-            // Auto-connect to previous node
             if (lastWallNodeId) {
                 const segment: WallSegment = {
                     id: `ws_${Date.now()}`,
@@ -400,6 +499,15 @@ const FloorDesigner2D: React.FC = () => {
                 draggable={drawMode === 'SELECT'}
                 onClick={handleCanvasClick}
                 onTap={handleCanvasClick}
+                onMouseMove={(e: any) => {
+                    const stage = stageRef.current;
+                    if (!stage || drawMode !== 'WALL') { setMousePos(null); return; }
+                    const pointer = stage.getPointerPosition();
+                    if (!pointer) return;
+                    const transform = stage.getAbsoluteTransform().copy().invert();
+                    const pos = transform.point(pointer);
+                    setMousePos({ x: pos.x - 100, y: pos.y - 100 });
+                }}
             >
                 <Layer>
                     <Group x={100} y={100}>
@@ -474,6 +582,34 @@ const FloorDesigner2D: React.FC = () => {
                         {/* Kiosk Station Marker (draggable) */}
                         <KioskStationMarker levelId={activeLevel.id} />
 
+                        {/* Construction line preview (WALL mode) */}
+                        {drawMode === 'WALL' && mousePos && lastWallNodeId && (() => {
+                            const lastNode = (activeLevel.wallNodes || []).find(n => n.id === lastWallNodeId);
+                            if (!lastNode) return null;
+                            const dx = mousePos.x - lastNode.x, dy = mousePos.y - lastNode.y;
+                            const dist = Math.hypot(dx, dy);
+                            const midX = (lastNode.x + mousePos.x) / 2, midY = (lastNode.y + mousePos.y) / 2;
+                            return (
+                                <>
+                                    {/* Dashed construction line */}
+                                    <Line points={[lastNode.x, lastNode.y, mousePos.x, mousePos.y]}
+                                        stroke="#3b82f6" strokeWidth={1.5} dash={[8, 4]} opacity={0.7} />
+                                    {/* Wall length label */}
+                                    {dist > 10 && (
+                                        <Text x={midX} y={midY - 14} text={`${Math.round(dist)}px`}
+                                            fontSize={10} fontStyle="bold" fill="#3b82f6"
+                                            offsetX={20} padding={4}
+                                            fillAfterStrokeEnabled />
+                                    )}
+                                    {/* Cursor crosshair */}
+                                    <Line points={[mousePos.x - 8, mousePos.y, mousePos.x + 8, mousePos.y]}
+                                        stroke="#3b82f6" strokeWidth={1} opacity={0.6} />
+                                    <Line points={[mousePos.x, mousePos.y - 8, mousePos.x, mousePos.y + 8]}
+                                        stroke="#3b82f6" strokeWidth={1} opacity={0.6} />
+                                </>
+                            );
+                        })()}
+
                         {/* Furniture / Shelves / Text */}
                         {(activeLevel.layout || []).map(el => (
                             <FurnitureElement
@@ -490,12 +626,12 @@ const FloorDesigner2D: React.FC = () => {
 
             {/* Mode indicator */}
             {drawMode !== 'SELECT' && (
-                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg pointer-events-none animate-pulse">
-                    {drawMode === 'WALL' ? 'Click to place wall nodes' :
-                     drawMode === 'DOOR' ? 'Click a wall to place door' :
-                     drawMode === 'WINDOW' ? 'Click a wall to place window' :
-                     'Click canvas to place element'}
-                    <span className="ml-2 opacity-60">⎋ Esc to cancel</span>
+                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg pointer-events-none">
+                    {drawMode === 'WALL' ? (
+                        <>Click to place wall nodes <span className="opacity-60 mx-1">•</span> Hold Shift for free angle <span className="opacity-60 ml-1">•</span> Esc to cancel</>
+                    ) : drawMode === 'DOOR' ? 'Click a wall to place door • Esc to cancel' :
+                     drawMode === 'WINDOW' ? 'Click a wall to place window • Esc to cancel' :
+                     'Click canvas to place element • Esc to cancel'}
                 </div>
             )}
         </div>

@@ -7,4 +7,4 @@
 export const DEFAULT_LOGO_URL = 'https://thomian-backend.gwenkay78.workers.dev/system/assets/logo/logo.png';
 
 export const SYSTEM_NAME = 'Thomian Kiosk';
-export const SCHOOL_NAME = 'St. Thomas Secondary';
+export const SCHOOL_NAME = 'S.M.K St Thomas';

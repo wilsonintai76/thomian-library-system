@@ -16,14 +16,13 @@ root.render(
   </React.StrictMode>
 );
 
-// PWA Service Worker Registration — auto-update via skipWaiting + controllerchange reload
+// PWA Service Worker Registration — listens for SW_UPDATED message from SW
+// and dispatches swUpdateAvailable so the app can show a banner.
 if ('serviceWorker' in navigator) {
-  let refreshing = false;
-  // When the new SW takes control, reload so users get the latest assets
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'SW_UPDATED') {
+      window.dispatchEvent(new CustomEvent('swUpdateAvailable'));
+    }
   });
 
   window.addEventListener('load', () => {

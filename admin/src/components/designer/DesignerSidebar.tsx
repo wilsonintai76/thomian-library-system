@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFloorPlanStore } from '../../lib/floorPlanStore';
 import { X, Trash2, Edit3, Type, Hash, Move, DoorOpen, Columns } from 'lucide-react';
+import { mockGetLocations } from '../../services/api';
+import { LibraryLocation } from '../../types';
 
 const DesignerSidebar: React.FC = () => {
     const { 
@@ -16,6 +18,8 @@ const DesignerSidebar: React.FC = () => {
     } = useFloorPlanStore();
 
     const item = getSelectedItem();
+    const [locations, setLocations] = useState<LibraryLocation[]>([]);
+    useEffect(() => { mockGetLocations().then(setLocations).catch(() => {}); }, []);
     if (!item || !activeLevelId) return null;
 
     // ── Wall Feature Properties (Door/Window) ──────────────────────
@@ -134,8 +138,25 @@ const DesignerSidebar: React.FC = () => {
                             value={element.label || ''} 
                             onChange={(e) => handleUpdate({ label: e.target.value })}
                             placeholder="e.g. Science Section"
+                            list="location-suggestions"
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-400 transition-all"
                         />
+                        {element.type === 'SHELF' && locations.length > 0 && (
+                            <datalist id="location-suggestions">
+                                {locations.map(loc => <option key={loc.id} value={loc.name} />)}
+                            </datalist>
+                        )}
+                        {element.type === 'SHELF' && locations.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {locations.slice(0, 8).map(loc => (
+                                    <button key={loc.id}
+                                        onClick={() => handleUpdate({ label: loc.name })}
+                                        className={`text-[9px] px-2 py-1 rounded-lg font-bold transition-colors ${element.label === loc.name ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600'}`}>
+                                        {loc.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 

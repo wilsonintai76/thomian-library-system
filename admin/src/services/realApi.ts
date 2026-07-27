@@ -7,7 +7,7 @@
 import type {
     Book, Patron, Transaction, AuthUser, MapConfig, LibraryEvent,
     SystemStats, OverdueReportItem, SystemAlert, CirculationRule,
-    CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition,
+    CheckInResult, CheckoutResult, LibraryClass, Loan, ShelfDefinition, LibraryLocation,
 } from '../types';
 import { hc } from 'hono/client';
 import type { AppType } from '../../../backend/src/index.ts';
@@ -85,10 +85,10 @@ export const mockLogout = async (): Promise<void> => {
     localStorage.removeItem('thomian_user_profile');
 };
 
-export const uploadToR2 = async (file: File): Promise<string | null> => {
+export const uploadToR2 = async (file: File, prefix: string = 'covers'): Promise<string | null> => {
     try {
         const res = await apiClient.system.upload.$post({
-            form: { file }
+            form: { file, prefix }
         });
         if (!res.ok) {
             const body = await res.text().catch(() => '');
@@ -446,6 +446,27 @@ export const mockSaveMapConfig = async (config: MapConfig): Promise<void> => {
             logo: config.logo || null
         } as any 
     });
+    if (!res.ok) throw new Error(await res.text());
+};
+
+// ── Library Locations ───────────────────────────────────────────────────
+export const mockGetLocations = async (): Promise<LibraryLocation[]> => {
+    const res = await apiClient.system.locations.$get();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockAddLocation = async (loc: Partial<LibraryLocation>): Promise<LibraryLocation> => {
+    const res = await apiClient.system.locations.$post({ json: loc as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockUpdateLocation = async (id: string, loc: Partial<LibraryLocation>): Promise<LibraryLocation> => {
+    const res = await apiClient.system.locations[':id'].$patch({ param: { id }, json: loc as any });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as any;
+};
+export const mockDeleteLocation = async (id: string): Promise<void> => {
+    const res = await apiClient.system.locations[':id'].$delete({ param: { id } });
     if (!res.ok) throw new Error(await res.text());
 };
 

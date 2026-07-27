@@ -34,7 +34,7 @@ export const patronSchema = z.object({
   id: z.string().optional(),
   patron_id: z.string().min(1),
   full_name: z.string().min(1),
-  card_name: z.string().optional(),
+  card_name: z.string().optional().nullable(),
   patron_group: z.string(),
   library_class_id: z.string().optional().nullable(),
   email: z.string().optional(),

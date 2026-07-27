@@ -16,7 +16,7 @@ const FloorDesigner: React.FC = () => {
 
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 bg-slate-900/40 backdrop-blur-md px-6 py-2.5 rounded-2xl border border-white/5 pointer-events-none">
                 <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.3em] text-center">
-                    Engage Pro-Mapping Engine &mdash; 2D Drafting Layer
+                    Floor Plan Designer
                 </p>
             </div>
         </div>

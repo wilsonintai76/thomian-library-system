@@ -47,7 +47,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ transaction, patron, config
         <div id="receipt-print-area" className="p-8 bg-white font-mono text-xs text-slate-800 printable">
             <div className="text-center mb-6 space-y-1">
                 {config?.logo && <img src={config.logo} alt="Logo" className="h-10 mx-auto mb-2" />}
-                <p className="font-black text-sm uppercase tracking-widest">St. Thomas Library</p>
+                <p className="font-black text-sm uppercase tracking-widest">S.M.K St Thomas</p>
                 <p>Official Financial Document</p>
                 <p>{new Date(transaction.timestamp).toLocaleString()}</p>
             </div>

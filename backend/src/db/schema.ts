@@ -122,6 +122,17 @@ export const systemConfiguration = sqliteTable('system_configuration', {
   updated_at: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ── Library Locations (linked to map levels, used across cataloging + wayfinding)
+export const libraryLocations = sqliteTable('library_locations', {
+  id: text('id').primaryKey().notNull(),
+  name: text('name').notNull(),
+  level_id: text('level_id'),  // FK to map level/room
+  min_ddc: real('min_ddc'),
+  max_ddc: real('max_ddc'),
+  description: text('description'),
+  created_at: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ── System Alerts ─────────────────────────────────────────────────────────────
 export const systemAlerts = sqliteTable('system_alerts', {
   id: text('id').primaryKey().notNull(),

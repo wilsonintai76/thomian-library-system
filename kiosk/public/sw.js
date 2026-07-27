@@ -1,4 +1,4 @@
-const CACHE_NAME = 'thomian-lib-v3.7.5';
+const CACHE_NAME = 'thomian-lib-v3.7.21';
 // Only precache static assets that rarely change — NOT HTML
 const PRECACHE_URLS = [
   '/manifest.json',
@@ -15,7 +15,8 @@ self.addEventListener('install', (event) => {
 });
 
 // Activate: Wipe ALL caches (self-healing from stale HTML poisoning),
-// then force every open tab to reload with the fresh deployment.
+// then notify every open tab so it can show an update banner. The app
+// decides when to reload — no forced navigation that would disrupt patrons.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -25,11 +26,11 @@ self.addEventListener('activate', (event) => {
       return caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS).catch(() => {}));
     })
   );
-  // Force all clients to reload so they get the new index.html
+  // Post message to all clients — each app shows its own update banner
   event.waitUntil(
     self.clients.claim().then(() =>
       self.clients.matchAll({ type: 'window' }).then((clients) => {
-        clients.forEach((client) => client.navigate(client.url));
+        clients.forEach((client) => client.postMessage({ type: 'SW_UPDATED' }));
       })
     )
   );

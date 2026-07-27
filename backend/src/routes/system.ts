@@ -4,7 +4,7 @@ import { getDB, Bindings, Variables } from '../utils'
 import { enforcePolicy, Policy } from '../policies'
 import { libraryClassSchema, updateConfigSchema, circulationRuleSchema, libraryEventSchema } from '../schema'
 import { z } from 'zod'
-import { books, patrons, loans, transactions, libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents } from '../db/schema'
+import { books, patrons, loans, transactions, libraryClasses, circulationRules, systemConfiguration, systemAlerts, libraryEvents, libraryLocations } from '../db/schema'
 import { eq, asc, desc, sql } from 'drizzle-orm'
 
 import { getCache, CACHE_KEYS } from '../kv'
@@ -12,15 +12,16 @@ import { getCache, CACHE_KEYS } from '../kv'
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 // ── R2 File Upload ─────────────────────────────────────────────────────────────
-// Accepts multipart/form-data with a 'file' field.
+// Accepts multipart/form-data with a 'file' field. Optional 'prefix' for folder.
 // Returns a Worker-served public URL for the stored object.
 app.post('/upload', enforcePolicy(Policy.SYSTEM_UPLOAD), async (c) => {
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   if (!file) return c.json({ error: 'No file provided' }, 400)
 
+  const prefix = (formData.get('prefix') as string || 'covers').replace(/[^a-z0-9_-]/gi, '')
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const key = `covers/${crypto.randomUUID()}.${ext}`
+  const key = `${prefix}/${crypto.randomUUID()}.${ext}`
 
   await c.env.R2.put(key, file.stream(), {
     httpMetadata: { contentType: file.type || 'application/octet-stream' }
@@ -61,6 +62,45 @@ app.post('/classes', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), zValidator('js
 app.delete('/classes/:id', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), async (c) => {
   const db = getDB(c)
   await db.delete(libraryClasses).where(eq(libraryClasses.id, c.req.param('id')))
+  return c.json({ success: true })
+})
+
+// ── Library Locations ─────────────────────────────────────────────────────────
+const locationSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  level_id: z.string().optional().nullable(),
+  min_ddc: z.number().optional().nullable(),
+  max_ddc: z.number().optional().nullable(),
+  description: z.string().optional().nullable(),
+})
+
+app.get('/locations', async (c) => {
+  const db = getDB(c)
+  const data = await db.select().from(libraryLocations).orderBy(asc(libraryLocations.name))
+  return c.json(data || [])
+})
+
+app.post('/locations', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), zValidator('json', locationSchema), async (c) => {
+  const db = getDB(c)
+  const body = c.req.valid('json')
+  const id = body.id || crypto.randomUUID()
+  await db.insert(libraryLocations).values({ id, name: body.name, min_ddc: body.min_ddc ?? null, max_ddc: body.max_ddc ?? null, description: body.description ?? null })
+  const [loc] = await db.select().from(libraryLocations).where(eq(libraryLocations.id, id)).limit(1)
+  return c.json(loc)
+})
+
+app.patch('/locations/:id', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), zValidator('json', locationSchema.partial()), async (c) => {
+  const db = getDB(c)
+  const body = c.req.valid('json')
+  await db.update(libraryLocations).set(body).where(eq(libraryLocations.id, c.req.param('id')))
+  const [loc] = await db.select().from(libraryLocations).where(eq(libraryLocations.id, c.req.param('id'))).limit(1)
+  return c.json(loc)
+})
+
+app.delete('/locations/:id', enforcePolicy(Policy.SYSTEM_MANAGE_CLASSES), async (c) => {
+  const db = getDB(c)
+  await db.delete(libraryLocations).where(eq(libraryLocations.id, c.req.param('id')))
   return c.json({ success: true })
 })
 

@@ -1,8 +1,8 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Settings, Download, Upload, Trash2, AlertTriangle, ShieldAlert, Loader2, RefreshCw, Database, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles, Info } from 'lucide-react';
-import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, mockGetMapConfig, mockSaveMapConfig } from '../services/api';
-import { MapConfig, SystemTheme, PatronCardTemplate } from '../types';
+import { Settings, Download, Upload, Trash2, AlertTriangle, ShieldAlert, Loader2, RefreshCw, Database, Lock, Unlock, CalendarRange, Palette, Check, IdCard, Layout, Sparkles, Info, Plus, MapPin } from 'lucide-react';
+import { exportSystemData, importSystemData, performFactoryReset, mockGetBooks, mockGetPatrons, mockGetTransactions, mockGetMapConfig, mockSaveMapConfig, mockGetLocations, mockAddLocation, mockUpdateLocation, mockDeleteLocation } from '../services/api';
+import { MapConfig, SystemTheme, PatronCardTemplate, LibraryLocation } from '../types';
 import { SYSTEM_THEME_CONFIG } from '../utils';
 import { DEFAULT_LOGO_URL } from '../constants';
 import PatronCard from './PatronCard';
@@ -20,6 +20,14 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [logoSaving, setLogoSaving] = useState(false);
     const [logoUrl, setLogoUrl] = useState('');
+    const [locations, setLocations] = useState<LibraryLocation[]>([]);
+    const [newLocName, setNewLocName] = useState('');
+    const [newLocDesc, setNewLocDesc] = useState('');
+    const [newLocLevel, setNewLocLevel] = useState('');
+    const [mapLevels, setMapLevels] = useState<{id:string;name:string}[]>([]);
+
+    useEffect(() => { mockGetLocations().then(setLocations).catch(() => {}); }, []);
+    useEffect(() => { mockGetMapConfig().then(cfg => setMapLevels(cfg.levels.map(l => ({id:l.id, name:l.name})))).catch(() => {}); }, []);
 
     const handleSaveLogoUrl = async () => {
         if (!config) return;
@@ -359,6 +367,79 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onRefreshConfig }) => {
                         <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Restore all data from a previously exported backup. <span className="text-rose-600 font-bold">This overwrites all current records.</span></p>
                         <input type="file" ref={fileInputRef} onChange={handleRestore} accept=".json" className="hidden" />
                         <button onClick={() => fileInputRef.current?.click()} className="w-full py-5 rounded-2xl bg-white border-2 border-slate-100 text-slate-600 font-black text-xs uppercase hover:bg-slate-50 transition-all flex items-center justify-center gap-3">Select File</button>
+                    </div>
+                </div>
+            </section>
+
+            <section className="pt-10 border-t border-slate-200">
+                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-8 flex items-center gap-3">
+                    <div className="h-10 w-10 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center"><MapPin className="h-5 w-5" /></div>
+                    Library Locations
+                </h3>
+                <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 space-y-6">
+                    {/* Add new location */}
+                    <div className="flex gap-4 items-end">
+                        <div className="flex-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Location Name</label>
+                            <input type="text" value={newLocName} onChange={(e) => setNewLocName(e.target.value)}
+                                placeholder="e.g. Science Section"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-amber-400" />
+                        </div>
+                        <div className="w-48">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Room / Level</label>
+                            <select value={newLocLevel} onChange={(e) => setNewLocLevel(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-amber-400">
+                                <option value="">— Any —</option>
+                                {mapLevels.map(lvl => <option key={lvl.id} value={lvl.id}>{lvl.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Description (optional)</label>
+                            <input type="text" value={newLocDesc} onChange={(e) => setNewLocDesc(e.target.value)}
+                                placeholder="e.g. Biology, Chemistry, Physics"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-amber-400" />
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!newLocName.trim()) return;
+                                const loc = await mockAddLocation({ name: newLocName.trim(), level_id: newLocLevel || undefined, description: newLocDesc || undefined });
+                                setLocations([...locations, loc]);
+                                setNewLocName(''); setNewLocDesc(''); setNewLocLevel('');
+                            }}
+                            className="px-6 py-3 bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-amber-700 transition-all flex items-center gap-2 shrink-0">
+                            <Plus className="h-4 w-4" /> Add
+                        </button>
+                    </div>
+
+                    {/* Location list */}
+                    <div className="space-y-2">
+                        {locations.map(loc => {
+                            const levelName = mapLevels.find(l => l.id === loc.level_id)?.name;
+                            return (
+                            <div key={loc.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl group">
+                                <div className="h-10 w-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center font-black text-xs"><MapPin className="h-4 w-4" /></div>
+                                <div className="flex-1">
+                                    <input
+                                        type="text" value={loc.name}
+                                        onChange={(e) => setLocations(locations.map(l => l.id === loc.id ? { ...l, name: e.target.value } : l))}
+                                        onBlur={() => mockUpdateLocation(loc.id, { name: loc.name })}
+                                        className="font-bold text-slate-800 bg-transparent outline-none border-b border-transparent hover:border-slate-300 focus:border-amber-400 w-full" />
+                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                        {levelName && <span className="text-amber-600 font-bold">{levelName}</span>}
+                                        {levelName && loc.description && ' · '}
+                                        {loc.description}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={async () => { await mockDeleteLocation(loc.id); setLocations(locations.filter(l => l.id !== loc.id)); }}
+                                    className="p-2 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        )})}
+                        {locations.length === 0 && (
+                            <p className="text-center text-sm text-slate-400 font-medium py-8">No locations yet. Add your first one above.</p>
+                        )}
                     </div>
                 </div>
             </section>
