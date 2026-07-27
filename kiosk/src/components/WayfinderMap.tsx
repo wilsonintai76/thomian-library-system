@@ -137,18 +137,6 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                         <feGaussianBlur stdDeviation="6" result="blur" />
                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                     </filter>
-
-                    <mask id="wall-opening-mask">
-                        <rect x="0" y="0" width="1000" height="600" fill="white" />
-                        {currentLevel?.layout?.filter(el => el.type === 'DOOR' || el.type === 'WINDOW').map(el => (
-                            <rect 
-                                key={`mask_${el.id}`}
-                                x={el.x} y={el.y} width={el.width} height={el.height} 
-                                fill="black"
-                                transform={`rotate(${el.rotation || 0}, ${el.x + el.width/2}, ${el.y + el.height/2})`}
-                            />
-                        ))}
-                    </mask>
                 </defs>
 
                 {/* LAYER 1: BACKGROUND */}
@@ -157,18 +145,72 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                     <path d="M 0 300 H 1000 M 500 0 V 600" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
                 </g>
 
-                {/* LAYER 2: FLOOR PLAN LAYOUT (Includes Shelves) */}
-                <g mask="url(#wall-opening-mask)">
-                    {currentLevel?.layout?.filter(el => el.type === 'WALL' || el.type === 'PARTITION').map((el) => (
-                        <g key={el.id} transform={`translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}, ${el.width/2}, ${el.height/2})`}>
-                            {el.type === 'WALL' && <rect width={el.width} height={el.height} fill="#334155" />}
-                            {el.type === 'PARTITION' && <rect width={el.width} height={el.height} fill="#64748b" />}
-                        </g>
-                    ))}
+                {/* LAYER 2: WALLS (node-based) */}
+                <g>
+                    {(currentLevel.wallSegments || []).map(seg => {
+                        const a = (currentLevel.wallNodes || []).find(n => n.id === seg.startNodeId);
+                        const b = (currentLevel.wallNodes || []).find(n => n.id === seg.endNodeId);
+                        if (!a || !b) return null;
+                        const dx = b.x - a.x, dy = b.y - a.y;
+                        const len = Math.hypot(dx, dy);
+                        if (len === 0) return null;
+                        const ux = dx / len, uy = dy / len;
+                        const segFeatures = (currentLevel.wallFeatures || []).filter(f => f.wallId === seg.id).sort((x, y) => x.position - y.position);
+
+                        if (segFeatures.length === 0) {
+                            return <line key={seg.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                                stroke={seg.type === 'PARTITION' ? '#94a3b8' : '#334155'}
+                                strokeWidth={seg.thickness} strokeLinecap="square" />;
+                        }
+
+                        const parts: { start: number; end: number; feature?: typeof segFeatures[0] }[] = [];
+                        let cursor = 0;
+                        for (const f of segFeatures) {
+                            const fc = f.position * len, fh = f.width / 2;
+                            const gs = Math.max(cursor, fc - fh);
+                            if (gs > cursor) parts.push({ start: cursor, end: gs });
+                            parts.push({ start: gs, end: Math.min(len, fc + fh), feature: f });
+                            cursor = Math.min(len, fc + fh);
+                        }
+                        if (cursor < len) parts.push({ start: cursor, end: len });
+
+                        return (
+                            <g key={seg.id}>
+                                {parts.map((p, i) => {
+                                    const sx = a.x + p.start * ux, sy = a.y + p.start * uy;
+                                    const ex = a.x + p.end * ux, ey = a.y + p.end * uy;
+                                    const nx = -uy, ny = ux;
+                                    if (p.feature?.type === 'DOOR') {
+                                        const dw = p.feature.width;
+                                        return (
+                                            <g key={i}>
+                                                <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#f8fafc" strokeWidth={seg.thickness + 1} />
+                                                <line x1={sx} y1={sy} x2={sx + nx * seg.thickness * 0.5} y2={sy + ny * seg.thickness * 0.5} stroke="#78350f" strokeWidth={1.5} />
+                                                <path d={`M ${sx} ${sy} A ${dw * 0.8} ${dw * 0.8} 0 0 1 ${sx + nx * dw * 0.8} ${sy + ny * dw * 0.8}`}
+                                                    fill="none" stroke="#78350f" strokeWidth={1} strokeDasharray="3 2" />
+                                            </g>
+                                        );
+                                    }
+                                    if (p.feature?.type === 'WINDOW') {
+                                        return (
+                                            <g key={i}>
+                                                <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#f8fafc" strokeWidth={seg.thickness + 1} />
+                                                <line x1={sx + nx * 2} y1={sy + ny * 2} x2={ex + nx * 2} y2={ey + ny * 2} stroke="#38bdf8" strokeWidth={1.5} />
+                                                <line x1={sx - nx * 2} y1={sy - ny * 2} x2={ex - nx * 2} y2={ey - ny * 2} stroke="#38bdf8" strokeWidth={1.5} />
+                                            </g>
+                                        );
+                                    }
+                                    return <line key={i} x1={sx} y1={sy} x2={ex} y2={ey}
+                                        stroke={seg.type === 'PARTITION' ? '#94a3b8' : '#334155'}
+                                        strokeWidth={seg.thickness} strokeLinecap="butt" />;
+                                })}
+                            </g>
+                        );
+                    })}
                 </g>
 
-                {/* NON-WALL ELEMENTS (Furniture, Shelves, Openings) */}
-                {currentLevel?.layout?.filter(el => el.type !== 'WALL' && el.type !== 'PARTITION').map((el) => {
+                {/* NON-WALL ELEMENTS (Furniture, Shelves) */}
+                {(currentLevel.layout || []).filter(el => el.type !== 'WALL' && el.type !== 'PARTITION' && el.type !== 'DOOR' && el.type !== 'WINDOW').map((el) => {
                     const isTarget = targetShelf?.id === el.id;
                     return (
                         <g key={el.id} transform={`translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}, ${el.width/2}, ${el.height/2})`}>
@@ -202,15 +244,6 @@ const WayfinderMap: React.FC<WayfinderMapProps> = ({
                             )}
                             {el.type === 'TABLE' && (
                                 <rect width={el.width} height={el.height} rx="4" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1" />
-                            )}
-                            {el.type === 'WINDOW' && (
-                                <rect width={el.width} height={el.height} fill="#bae6fd" fillOpacity="0.4" stroke="#38bdf8" strokeWidth="1.5" />
-                            )}
-                            {el.type === 'DOOR' && (
-                                <g>
-                                    <path d={`M 0,${el.height} A ${el.width},${el.height} 0 0 1 ${el.width},0`} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 2" />
-                                    <rect width={4} height={el.height} fill="#64748b" />
-                                </g>
                             )}
                             {el.type === 'TEXT' && (
                                 <text x={el.width/2} y={el.height/2} textAnchor="middle" dominantBaseline="middle" className="text-[12px] font-black fill-slate-400 uppercase tracking-tighter">

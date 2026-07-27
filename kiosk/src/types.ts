@@ -101,6 +101,31 @@ export interface MapConfig {
 
 export type MapElementType = 'WALL' | 'PARTITION' | 'DOOR' | 'WINDOW' | 'SHELF' | 'COUNTER' | 'TABLE' | 'TEXT' | 'PLANT';
 
+// ── Node-based Wall System ─────────────────────────────────────────────
+
+export interface WallNode {
+    id: string;
+    x: number;
+    y: number;
+}
+
+export interface WallSegment {
+    id: string;
+    startNodeId: string;
+    endNodeId: string;
+    thickness: number;
+    type: 'WALL' | 'PARTITION';
+}
+
+export interface WallFeature {
+    id: string;
+    wallId: string;
+    type: 'DOOR' | 'WINDOW';
+    position: number;
+    width: number;
+    label?: string;
+}
+
 export interface MapElement {
     id: string;
     type: MapElementType;
@@ -121,8 +146,11 @@ export interface MapLevel {
     name: string;
     stationX: number;
     stationY: number;
-    roomWidth?: number; // In pixels
-    roomHeight?: number; // In pixels
+    roomWidth?: number;
+    roomHeight?: number;
+    wallNodes?: WallNode[];
+    wallSegments?: WallSegment[];
+    wallFeatures?: WallFeature[];
     layout?: MapElement[];
 }
 

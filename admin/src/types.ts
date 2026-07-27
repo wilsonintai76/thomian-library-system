@@ -109,6 +109,31 @@ export interface MapConfig {
 
 export type MapElementType = 'WALL' | 'PARTITION' | 'DOOR' | 'WINDOW' | 'SHELF' | 'COUNTER' | 'TABLE' | 'TEXT' | 'PLANT';
 
+// ── Node-based Wall System ─────────────────────────────────────────────
+
+export interface WallNode {
+    id: string;
+    x: number;
+    y: number;
+}
+
+export interface WallSegment {
+    id: string;
+    startNodeId: string;
+    endNodeId: string;
+    thickness: number;  // px, default 12
+    type: 'WALL' | 'PARTITION';
+}
+
+export interface WallFeature {
+    id: string;
+    wallId: string;       // WallSegment id this feature sits on
+    type: 'DOOR' | 'WINDOW';
+    position: number;     // 0-1 along the wall (start→end)
+    width: number;        // opening width in px
+    label?: string;
+}
+
 export interface MapElement {
     id: string;
     type: MapElementType;
@@ -131,7 +156,10 @@ export interface MapLevel {
     stationY: number;
     roomWidth?: number; // In pixels
     roomHeight?: number; // In pixels
-    layout?: MapElement[];
+    wallNodes?: WallNode[];
+    wallSegments?: WallSegment[];
+    wallFeatures?: WallFeature[];
+    layout?: MapElement[];  // shelves, tables, text, counters, plants
 }
 
 export interface ShelfDefinition {

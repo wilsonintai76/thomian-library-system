@@ -1,63 +1,49 @@
-<<<<<<< Updated upstream
-const CACHE_NAME = 'thomian-lib-v3.7.4';
-=======
-const CACHE_NAME = 'thomian-lib-v3.7.2';
->>>>>>> Stashed changes
+const CACHE_NAME = 'thomian-lib-v3.7.5';
+// Only precache static assets that rarely change — NOT HTML
 const PRECACHE_URLS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/school-logo.svg'
 ];
 
-// Install Event: Cache core assets then activate immediately (auto-update)
+// Install: Cache static assets then activate immediately (auto-update)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then((cache) => cache.addAll(PRECACHE_URLS).catch(() => {}))
   );
-  self.skipWaiting(); // Take over immediately — clients reload via controllerchange
+  self.skipWaiting();
 });
 
-// Activate Event: Clean up old caches
+// Activate: Wipe ALL caches (self-healing from stale HTML poisoning),
+// then force every open tab to reload with the fresh deployment.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
+      return Promise.all(cacheNames.map((name) => caches.delete(name)));
+    }).then(() => {
+      return caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS).catch(() => {}));
     })
   );
-  self.clients.claim();
+  event.waitUntil(
+    self.clients.claim().then(() =>
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        clients.forEach((client) => client.navigate(client.url));
+      })
+    )
+  );
 });
 
-// Fetch Event: Network First for HTML, Stale-While-Revalidate for Assets
+// Fetch: Network-only for HTML, cache-first for static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 1. Navigation Requests (HTML): Network First -> Fallback to Cache
+  // 1. Navigation (HTML): ALWAYS network-first — never serve stale HTML
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, response.clone());
-            return response;
-          });
-        })
-        .catch(() => {
-          return caches.match('/index.html') || caches.match('/');
-        })
-    );
+    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html') || new Response('Offline', { status: 503 })));
     return;
   }
 
-  // 2. External CDNs (ESM.sh, Tailwind, Fonts): Stale-While-Revalidate
-  // This ensures the app works offline even though it relies on CDNs
+  // 2. External CDNs: Stale-while-revalidate
   if (
     url.hostname.includes('esm.sh') ||
     url.hostname.includes('tailwindcss.com') ||

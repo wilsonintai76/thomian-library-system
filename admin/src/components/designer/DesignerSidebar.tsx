@@ -1,20 +1,102 @@
 import React from 'react';
 import { useFloorPlanStore } from '../../lib/floorPlanStore';
-import { X, Trash2, Edit3, Type, Hash, Move, Maximize, RotateCw } from 'lucide-react';
+import { X, Trash2, Edit3, Type, Hash, Move, DoorOpen, Columns } from 'lucide-react';
 
 const DesignerSidebar: React.FC = () => {
     const { 
         activeLevelId, 
-        selectedElementId, 
-        setSelectedElement, 
+        selectedId, 
+        selectedType,
+        selectItem, 
         updateElement, 
         deleteElement,
-        getSelectedElement 
+        updateWallFeature,
+        deleteWallFeature,
+        getSelectedItem 
     } = useFloorPlanStore();
 
-    const element = getSelectedElement();
+    const item = getSelectedItem();
+    if (!item || !activeLevelId) return null;
 
-    if (!element || !activeLevelId) return null;
+    // ── Wall Feature Properties (Door/Window) ──────────────────────
+    if (selectedType === 'WALL_FEATURE') {
+        const feature = item as any;
+        const FeatureIcon = feature.type === 'DOOR' ? DoorOpen : Columns;
+        const handleFeatureUpdate = (updates: any) => {
+            updateWallFeature(activeLevelId, feature.id, updates);
+        };
+
+        return (
+            <div className="absolute top-6 right-6 bottom-6 w-80 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-fade-in-right z-50">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-900 text-white rounded-xl shadow-lg shadow-amber-100">
+                            <FeatureIcon className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Properties</h3>
+                            <p className="text-[9px] font-black text-amber-600 tracking-widest uppercase">{feature.type}</p>
+                        </div>
+                    </div>
+                    <button onClick={() => selectItem(null, null)}
+                        className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-900">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Type className="h-3.5 w-3.5" /> Label
+                            </label>
+                            <input type="text" value={feature.label || ''}
+                                onChange={(e) => handleFeatureUpdate({ label: e.target.value })}
+                                placeholder={feature.type === 'DOOR' ? 'Main Entrance' : 'Window'}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-amber-400 transition-all" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                            <Move className="h-3.5 w-3.5" /> Opening Settings
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[9px] font-bold text-slate-400 mb-1 block">Position (0-1)</label>
+                                <input type="number" step="0.01" min="0" max="1"
+                                    value={Math.round(feature.position * 100) / 100}
+                                    onChange={(e) => handleFeatureUpdate({ position: Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)) })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono" />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-bold text-slate-400 mb-1 block">Width (px)</label>
+                                <input type="number" min="10" max="200"
+                                    value={Math.round(feature.width)}
+                                    onChange={(e) => handleFeatureUpdate({ width: Math.max(10, parseInt(e.target.value) || 40) })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono" />
+                            </div>
+                        </div>
+                        <p className="text-[8px] text-slate-400 font-medium">
+                            Position: 0 = wall start, 1 = wall end. Drag on canvas to reposition.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                    <button onClick={() => deleteWallFeature(activeLevelId, feature.id)}
+                        className="w-full py-4 bg-white border-2 border-rose-100 text-rose-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center justify-center gap-2 shadow-sm">
+                        <Trash2 className="h-4 w-4" /> Delete {feature.type === 'DOOR' ? 'Door' : 'Window'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Element Properties (Shelf, Text, etc.) ─────────────────────
+    if (selectedType !== 'ELEMENT') return null;
+
+    const element = item as any;
 
     const handleUpdate = (updates: any) => {
         updateElement(activeLevelId, element.id, updates);
@@ -33,7 +115,7 @@ const DesignerSidebar: React.FC = () => {
                     </div>
                 </div>
                 <button 
-                    onClick={() => setSelectedElement(null)}
+                    onClick={() => selectItem(null, null)}
                     className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-900"
                 >
                     <X className="h-5 w-5" />

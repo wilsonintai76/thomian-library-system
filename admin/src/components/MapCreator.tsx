@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, RefreshCw, Plus, Building2, Layout, Trash2 } from 'lucide-react';
+import { Save, RefreshCw, Plus, Building2, Layout, Trash2, MapPin } from 'lucide-react';
 import { MapConfig, MapLevel } from '../types';
 import { mockGetMapConfig, mockSaveMapConfig } from '../services/api';
 import { SYSTEM_THEME_CONFIG } from '../utils';
@@ -171,6 +171,32 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
                                         className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-xs font-black outline-none focus:border-blue-400" 
                                     />
                                 </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                                        <MapPin className="h-3 w-3 text-rose-400" /> Kiosk Station Position
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[8px] font-bold text-slate-400 mb-1 block">X (px)</label>
+                                            <input 
+                                                type="number" 
+                                                value={levels.find(l => l.id === activeLevelId)?.stationX ?? 500} 
+                                                onChange={(e) => updateLevel(activeLevelId, { stationX: parseInt(e.target.value) || 0 })}
+                                                className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:border-rose-400" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[8px] font-bold text-slate-400 mb-1 block">Y (px)</label>
+                                            <input 
+                                                type="number" 
+                                                value={levels.find(l => l.id === activeLevelId)?.stationY ?? 550} 
+                                                onChange={(e) => updateLevel(activeLevelId, { stationY: parseInt(e.target.value) || 0 })}
+                                                className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-mono outline-none focus:border-rose-400" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[8px] text-slate-400 mt-2 font-medium">Where the "You Are Here" pin appears on the kiosk map</p>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -184,7 +210,7 @@ const MapCreator: React.FC<MapCreatorProps> = ({ onRefreshConfig }) => {
                             <ul className="text-[10px] space-y-3 font-bold text-slate-400 uppercase tracking-wider">
                                 <li className="flex items-start gap-3"><div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1 shrink-0"></div> Drag workspace to pan view</li>
                                 <li className="flex items-start gap-3"><div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1 shrink-0"></div> Auto-snapping enabled (20px)</li>
-                                <li className="flex items-start gap-3"><div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1 shrink-0"></div> Switch to 3D for spatial review</li>
+                                <li className="flex items-start gap-3"><div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1 shrink-0"></div> Drag handles to resize &amp; rotate</li>
                                 <li className="flex items-start gap-3"><div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1 shrink-0"></div> CMD/CTRL + Z to Undo</li>
                             </ul>
                         </div>
